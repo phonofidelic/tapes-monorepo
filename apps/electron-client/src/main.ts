@@ -49,7 +49,10 @@ export class MainWindow {
         path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
       )
     }
-    this.window.webContents.openDevTools()
+
+    if (process.env.NODE_ENV === 'development') {
+      this.window.webContents.openDevTools()
+    }
   }
 
   private onWindowAllClosed() {
