@@ -1,0 +1,12 @@
+{
+  "name": "@tapes-monorepo/tailwind-config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./tailwind.config.ts"
+  },
+  "devDependencies": {
+    "@tapes-monorepo/typescript-config": "workspace:*",
+    "tailwindcss": "^3.4.1"
+  }
+}
