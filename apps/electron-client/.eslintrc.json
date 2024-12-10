@@ -5,6 +5,7 @@
     "node": true
   },
   "extends": [
+    "@tapes-monorepo/eslint-config",
     "eslint:recommended",
     "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
