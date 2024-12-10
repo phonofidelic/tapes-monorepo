@@ -3513,6 +3513,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"clsx@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "clsx@npm:2.1.1"
+  checksum: acd3e1ab9d8a433ecb3cc2f6a05ab95fe50b4a3cfc5ba47abb6cbf3754585fcb87b84e90c822a1f256c4198e3b41c7f6c391577ffc8678ad587fc0976b24fd57
+  languageName: node
+  linkType: hard
+
 "color-convert@npm:^1.9.0":
   version: 1.9.3
   resolution: "color-convert@npm:1.9.3"
@@ -4082,6 +4089,7 @@ __metadata:
     "@typescript-eslint/parser": ^5.0.0
     "@vitejs/plugin-react": ^4.3.4
     autoprefixer: ^10.4.20
+    clsx: ^2.1.1
     electron: 33.2.1
     electron-squirrel-startup: ^1.0.1
     esbuild-register: ^3.6.0
