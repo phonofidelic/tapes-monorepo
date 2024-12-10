@@ -3,5 +3,6 @@
   "useTabs": false,
   "singleQuote": true,
   "parser": "babel-ts",
-  "semi": false
+  "semi": false,
+  "plugins": ["prettier-plugin-tailwindcss"]
 }
