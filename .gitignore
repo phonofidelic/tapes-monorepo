@@ -36,4 +36,12 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
-.yarn/install-state.gz
+
+# Yarn
+.yarn/*
+!.yarn/cache
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
