@@ -29,6 +29,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ViewProvider } from './context/ViewContext'
+import { SettingsProvider } from './context/SettingsContext'
 import { App } from './App'
 import './index.css'
 
@@ -52,7 +53,9 @@ const root = createRoot(rootElement)
 root.render(
   <StrictMode>
     <ViewProvider>
-      <App />
+      <SettingsProvider>
+        <App />
+      </SettingsProvider>
     </ViewProvider>
   </StrictMode>,
 )

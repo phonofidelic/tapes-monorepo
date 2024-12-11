@@ -45,12 +45,12 @@ export const navigationConfig = [
   { label: 'Recorder', view: 'recorder' },
   { label: 'Library', view: 'library' },
   { label: 'Settings', view: 'settings' },
-  { label: 'About', view: 'about' },
+  // { label: 'About', view: 'about' },
 ] as const
 
 export const viewComponentMap = {
-  recorder: Recorder,
-  library: Library,
-  settings: Settings,
-  about: About,
+  recorder: <Recorder />,
+  library: <Library />,
+  settings: <Settings />,
+  about: <About />,
 }
