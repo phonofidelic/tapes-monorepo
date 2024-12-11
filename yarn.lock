@@ -1754,7 +1754,7 @@ __metadata:
     "@tapes-monorepo/eslint-config": "*"
     "@tapes-monorepo/typescript-config": "*"
     "@turbo/gen": ^2.0.0
-    "@types/node": ^20.11.24
+    "@types/node": ^22.0.0
     "@types/react": 18.3.16
     "@types/react-dom": 18.3.5
     react: ^19.0.0
@@ -2018,12 +2018,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^20, @types/node@npm:^20.11.24, @types/node@npm:^20.9.0":
+"@types/node@npm:^20.9.0":
   version: 20.17.9
   resolution: "@types/node@npm:20.17.9"
   dependencies:
     undici-types: ~6.19.2
   checksum: 2fc67ba937d2c4e7a52f0ccf71b8b4c616dcfa1ad6cd5a726582fd3cbf4f409c2eb44595592580f782c2ade05f8130df072dd04ac064fe150cfcd7849e643500
+  languageName: node
+  linkType: hard
+
+"@types/node@npm:^22.0.0":
+  version: 22.10.2
+  resolution: "@types/node@npm:22.10.2"
+  dependencies:
+    undici-types: ~6.20.0
+  checksum: b22401e6e7d1484e437d802c72f5560e18100b1257b9ad0574d6fe05bebe4dbcb620ea68627d1f1406775070d29ace8b6b51f57e7b1c7b8bafafe6da7f29c843
   languageName: node
   linkType: hard
 
@@ -4007,7 +4016,7 @@ __metadata:
     "@tapes-monorepo/eslint-config": "*"
     "@tapes-monorepo/typescript-config": "*"
     "@tapes-monorepo/ui": "*"
-    "@types/node": ^20
+    "@types/node": ^22.0.0
     "@types/react": 18.3.16
     "@types/react-dom": 18.3.5
     next: ^15.0.0
@@ -10908,7 +10917,7 @@ __metadata:
     "@tapes-monorepo/eslint-config": "*"
     "@tapes-monorepo/typescript-config": "*"
     "@tapes-monorepo/ui": "*"
-    "@types/node": ^20
+    "@types/node": ^22.0.0
     "@types/react": 18.3.16
     "@types/react-dom": 18.3.5
     next: ^15.0.0
