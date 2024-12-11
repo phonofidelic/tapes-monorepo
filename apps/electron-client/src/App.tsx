@@ -1,20 +1,29 @@
 import { useState } from 'react'
 import { clsx } from 'clsx'
+import { Recorder } from './views/Recorder'
+import { Library } from './views/Library'
+import { About } from './views/About'
+import { Settings } from './views/Settings'
 
 type View = 'recorder' | 'library' | 'settings' | 'about'
 
 export function App() {
   const [currentView, setCurrentView] = useState<View>('recorder')
   return (
-    <div>
-      <nav>
-        <ul className="flex w-full justify-between">
+    <div className="h-screen w-screen overflow-hidden pt-16 text-zinc-800 dark:text-zinc-100">
+      <nav className="">
+        <ul className="fixed top-0 z-10 flex w-full justify-between gap-1 p-1">
           {navigationConfig.map(({ label, view }) => (
-            <li key={view}>
+            <li key={view} className="w-full">
               <button
-                className={clsx({
-                  underline: currentView === view,
-                })}
+                className={clsx(
+                  'flex w-full cursor-default justify-center rounded p-4 hover:bg-zinc-100 dark:hover:bg-zinc-800',
+                  {
+                    'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100':
+                      currentView === view,
+                    'text-zinc-400': currentView !== view,
+                  },
+                )}
                 onClick={() => setCurrentView(view)}
               >
                 {label}
@@ -23,7 +32,7 @@ export function App() {
           ))}
         </ul>
       </nav>
-      {viewComponentMap[currentView]()}
+      <main className="h-full">{viewComponentMap[currentView]()}</main>
     </div>
   )
 }
@@ -40,17 +49,4 @@ const viewComponentMap = {
   library: Library,
   settings: Settings,
   about: About,
-}
-
-function Recorder() {
-  return <h1 className="bg-green-500">Recorder</h1>
-}
-function Library() {
-  return <h1 className="bg-blue-500">Library</h1>
-}
-function Settings() {
-  return <h1 className="bg-red-500">Settings</h1>
-}
-function About() {
-  return <h1 className="bg-yellow-500">About</h1>
 }
