@@ -36,8 +36,10 @@ export class MainWindow {
 
   private createWindow() {
     this.window = new BrowserWindow({
-      width: 800,
-      height: 600,
+      width: 408,
+      height: 552,
+      minWidth: 408,
+      minHeight: 552,
       webPreferences: {
         preload: path.join(__dirname, 'preload.ts'),
       },
