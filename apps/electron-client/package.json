@@ -6,6 +6,7 @@
   "main": ".vite/build/index.js",
   "scripts": {
     "dev": "electron-forge start",
+    "react-devtools": "yarn dlx react-devtools",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
@@ -35,6 +36,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "electron": "33.2.1",
+    "electron-devtools-installer": "^3.2.0",
     "esbuild-register": "^3.6.0",
     "eslint": "^8.0.1",
     "eslint-plugin-import": "^2.25.0",

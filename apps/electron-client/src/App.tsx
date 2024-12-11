@@ -1,14 +1,13 @@
-import { useState } from 'react'
 import { clsx } from 'clsx'
-import { Recorder } from './views/Recorder'
-import { Library } from './views/Library'
-import { About } from './views/About'
-import { Settings } from './views/Settings'
-
-type View = 'recorder' | 'library' | 'settings' | 'about'
+import {
+  useView,
+  navigationConfig,
+  viewComponentMap,
+} from './context/ViewContext'
 
 export function App() {
-  const [currentView, setCurrentView] = useState<View>('recorder')
+  const { currentView, setCurrentView } = useView()
+
   return (
     <div className="h-screen w-screen overflow-hidden pt-16 text-zinc-800 dark:text-zinc-100">
       <nav className="">
@@ -35,18 +34,4 @@ export function App() {
       <main className="h-full">{viewComponentMap[currentView]()}</main>
     </div>
   )
-}
-
-const navigationConfig = [
-  { label: 'Recorder', view: 'recorder' },
-  { label: 'Library', view: 'library' },
-  { label: 'Settings', view: 'settings' },
-  { label: 'About', view: 'about' },
-] as const
-
-const viewComponentMap = {
-  recorder: Recorder,
-  library: Library,
-  settings: Settings,
-  about: About,
 }
