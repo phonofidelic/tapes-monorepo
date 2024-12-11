@@ -44,7 +44,7 @@ export class MainWindow {
       minWidth: 408,
       minHeight: 552,
       webPreferences: {
-        preload: path.join(__dirname, 'preload.ts'),
+        preload: path.join(__dirname, 'preload.js'),
       },
     })
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
