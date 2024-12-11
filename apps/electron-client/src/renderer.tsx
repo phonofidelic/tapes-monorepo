@@ -26,13 +26,22 @@
  * ```
  */
 
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
+import { ViewProvider } from './context/ViewContext'
 import { App } from './App'
+import './index.css'
 
 console.log(
   '👋 This message is being logged by "renderer.ts", included via Vite',
 )
+
+if (process.env.NODE_ENV === 'development') {
+  const head = document.querySelector('head')
+  const script = document.createElement('script')
+  script.src = 'http://localhost:8097'
+  head?.appendChild(script)
+}
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
@@ -40,4 +49,10 @@ if (!rootElement) {
 }
 
 const root = createRoot(rootElement)
-root.render(<App />)
+root.render(
+  <StrictMode>
+    <ViewProvider>
+      <App />
+    </ViewProvider>
+  </StrictMode>,
+)

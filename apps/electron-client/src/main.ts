@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, IpcMainEvent } from 'electron'
 import path from 'path'
 import started from 'electron-squirrel-startup'
+import installExtension, {
+  REACT_DEVELOPER_TOOLS,
+} from 'electron-devtools-installer'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
@@ -34,7 +37,7 @@ export class MainWindow {
     this.registerIpcChannels(ipcChannels)
   }
 
-  private createWindow() {
+  private async createWindow() {
     this.window = new BrowserWindow({
       width: 408,
       height: 552,
@@ -53,6 +56,11 @@ export class MainWindow {
     }
 
     if (process.env.NODE_ENV === 'development') {
+      try {
+        await installExtension(REACT_DEVELOPER_TOOLS)
+      } catch (error) {
+        console.error('Failed to install React Developer Tools:', error)
+      }
       this.window.webContents.openDevTools()
     }
   }
