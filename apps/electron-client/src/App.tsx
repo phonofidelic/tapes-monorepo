@@ -10,9 +10,10 @@ export function App() {
   const { currentView, setCurrentView } = useView()
 
   return (
-    <div className="h-screen w-screen overflow-hidden pt-16 text-zinc-800 dark:text-zinc-100">
+    <div className="relative h-screen w-screen select-none overflow-hidden pt-[32px] text-zinc-800 dark:text-zinc-100">
+      <div id="titlebar" className="absolute top-0 z-50 h-[32px] w-full" />
       <nav className="">
-        <ul className="fixed top-0 z-10 flex w-full justify-between gap-1 p-1">
+        <ul className="flex w-full justify-between gap-1 p-1">
           {navigationConfig.map(({ label, view }) => (
             <li key={view} className="w-full">
               <Button
