@@ -18,10 +18,14 @@
   },
   "devDependencies": {
     "@tapes-monorepo/eslint-config": "*",
+    "@tapes-monorepo/tailwind-config": "workspace:*",
     "@tapes-monorepo/typescript-config": "*",
     "@types/node": "^22.0.0",
     "@types/react": "19.0.1",
     "@types/react-dom": "19.0.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwind": "^4.0.0",
     "typescript": "5.7.2"
   }
 }
