@@ -39,16 +39,27 @@ export class MainWindow {
 
   private async createWindow() {
     this.window = new BrowserWindow({
+      title: 'Tapes',
+      show: false,
       width: 408,
       height: 552,
       minWidth: 408,
       minHeight: 552,
+      titleBarStyle: 'hiddenInset',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
       },
     })
+
+    this.window.once('ready-to-show', () => {
+      if (this.window) {
+        this.window.show()
+      }
+    })
+
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
       this.window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+      // this.window.loadURL('http://localhost:3000')
     } else {
       this.window.loadFile(
         path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),

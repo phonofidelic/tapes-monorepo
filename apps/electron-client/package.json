@@ -5,8 +5,8 @@
   "description": "My Electron application description",
   "main": ".vite/build/index.js",
   "scripts": {
-    "dev": "concurrently \"yarn start\" \"yarn dlx react-devtools\"",
-    "start": "electron-forge start",
+    "dev": "electron-forge start",
+    "dev:devtools": "concurrently \"electron-forge start\" \"yarn dlx react-devtools\"",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
