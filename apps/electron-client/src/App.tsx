@@ -4,7 +4,7 @@ import {
   navigationConfig,
   viewComponentMap,
 } from './context/ViewContext'
-import Button from './components/Button'
+import { Button } from '@tapes-monorepo/ui'
 
 export function App() {
   const { currentView, setCurrentView } = useView()

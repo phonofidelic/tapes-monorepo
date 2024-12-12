@@ -1,8 +1,8 @@
 {
   "extends": "@tapes-monorepo/typescript-config/react-library.json",
+  "include": [".", "lib"],
+  "exclude": ["dist", "build", "node_modules"],
   "compilerOptions": {
-    "outDir": "dist"
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+    "resolveJsonModule": true
+  }
 }
