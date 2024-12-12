@@ -37,12 +37,12 @@ console.log(
   '👋 This message is being logged by "renderer.ts", included via Vite',
 )
 
-if (process.env.NODE_ENV === 'development') {
-  const head = document.querySelector('head')
-  const script = document.createElement('script')
-  script.src = 'http://localhost:8097'
-  head?.appendChild(script)
-}
+// if (process.env.NODE_ENV === 'development') {
+//   const head = document.querySelector('head')
+//   const script = document.createElement('script')
+//   script.src = 'http://localhost:8097'
+//   head?.appendChild(script)
+// }
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

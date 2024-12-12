@@ -1,6 +1,6 @@
 import { useSettings } from '@/context/SettingsContext'
 import { AudioInputSelector } from './Settings'
-import Button from '@/components/Button'
+import { Button } from '@tapes-monorepo/ui'
 
 export function Recorder() {
   const { audioInputDeviceId } = useSettings()

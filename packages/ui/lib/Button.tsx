@@ -1,7 +1,9 @@
-import { clsx } from 'clsx'
-import React from 'react'
+'use client'
 
-export default function Button({
+import * as React from 'react'
+import { clsx } from 'clsx'
+
+export function Button({
   className,
   disabled,
   onClick,

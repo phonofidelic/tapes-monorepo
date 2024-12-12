@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import localFont from 'next/font/local'
+import { Button } from '@tapes-monorepo/ui'
 import './globals.css'
 
 const geistSans = localFont({
@@ -25,15 +26,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} relative h-screen w-screen select-none overflow-hidden pt-[32px] text-zinc-800 antialiased dark:text-zinc-100`}
+        className={`${geistSans.variable} ${geistMono.variable} relative h-screen w-screen overflow-hidden pt-[32px] text-zinc-800 antialiased dark:text-zinc-100`}
       >
         <div id="titlebar" className="absolute top-0 z-50 h-[32px] w-full" />
         <nav className="w-full">
           <ul className="flex w-full justify-between gap-1 p-1">
             {navigationConfig.map(({ label, href }) => (
-              <li key={href} className="flex w-fit">
-                <Link href={href} className="">
-                  {label}
+              <li key={href} className="size-full">
+                <Link href={href}>
+                  <Button className="p-4">{label}</Button>
                 </Link>
               </li>
             ))}
