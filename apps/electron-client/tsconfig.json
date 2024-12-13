@@ -22,7 +22,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl" : ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tapes-monorepo/ui": ["../../packages/ui/lib/index.ts"]
     }
   },
   "include": ["src"]

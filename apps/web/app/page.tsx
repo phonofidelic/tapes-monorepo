@@ -1,3 +1,7 @@
+import { redirect } from 'next/navigation'
+import RedirectToStoredPath from './RedirectToStoredPath'
+
 export default function Home() {
-  return <div>Test</div>
+  // redirect('/recorder')
+  return <RedirectToStoredPath />
 }
