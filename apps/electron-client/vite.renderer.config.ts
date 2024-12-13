@@ -7,6 +7,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@tapes-monorepo/ui': path.resolve(__dirname, '../../packages/ui/lib'),
+      '@tapes-monorepo/ui-styles': path.resolve(
+        __dirname,
+        '../../packages/ui/dist/ui.css',
+      ),
     },
   },
   plugins: [react()],

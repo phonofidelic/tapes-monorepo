@@ -1,4 +1,4 @@
-@import '@tapes-monorepo/ui/style.css';
+@import '@tapes-monorepo/ui-styles';
 
 @tailwind base;
 @tailwind components;
@@ -20,6 +20,10 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+button {
+  cursor: default;
 }
 
 #titlebar {
