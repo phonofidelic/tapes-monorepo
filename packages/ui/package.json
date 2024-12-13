@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@tapes-monorepo/eslint-config": "*",
-    "@tapes-monorepo/tailwind-config": "workspace:*",
+    "@tapes-monorepo/tailwind-config": "*",
     "@tapes-monorepo/typescript-config": "*",
     "@turbo/gen": "^2.0.0",
     "@types/node": "^22.0.0",

@@ -9,7 +9,7 @@
     }
   },
   "devDependencies": {
-    "@tapes-monorepo/typescript-config": "workspace:*",
+    "@tapes-monorepo/typescript-config": "*",
     "tailwindcss": "^3.4.1"
   }
 }

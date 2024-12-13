@@ -1816,7 +1816,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tapes-monorepo/eslint-config@npm:*, @tapes-monorepo/eslint-config@workspace:*, @tapes-monorepo/eslint-config@workspace:packages/eslint-config":
+"@tapes-monorepo/eslint-config@npm:*, @tapes-monorepo/eslint-config@workspace:packages/eslint-config":
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/eslint-config@workspace:packages/eslint-config"
   dependencies:
@@ -1835,16 +1835,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tapes-monorepo/tailwind-config@workspace:*, @tapes-monorepo/tailwind-config@workspace:packages/tailwind-config":
+"@tapes-monorepo/tailwind-config@npm:*, @tapes-monorepo/tailwind-config@workspace:packages/tailwind-config":
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/tailwind-config@workspace:packages/tailwind-config"
   dependencies:
-    "@tapes-monorepo/typescript-config": "workspace:*"
+    "@tapes-monorepo/typescript-config": "npm:*"
     tailwindcss: "npm:^3.4.1"
   languageName: unknown
   linkType: soft
 
-"@tapes-monorepo/typescript-config@npm:*, @tapes-monorepo/typescript-config@workspace:*, @tapes-monorepo/typescript-config@workspace:packages/typescript-config":
+"@tapes-monorepo/typescript-config@npm:*, @tapes-monorepo/typescript-config@workspace:packages/typescript-config":
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/typescript-config@workspace:packages/typescript-config"
   languageName: unknown
@@ -1855,7 +1855,7 @@ __metadata:
   resolution: "@tapes-monorepo/ui@workspace:packages/ui"
   dependencies:
     "@tapes-monorepo/eslint-config": "npm:*"
-    "@tapes-monorepo/tailwind-config": "workspace:*"
+    "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
     "@turbo/gen": "npm:^2.0.0"
     "@types/node": "npm:^22.0.0"
@@ -4493,10 +4493,10 @@ __metadata:
     "@electron-forge/plugin-vite": "npm:^7.6.0"
     "@electron/fuses": "npm:^1.8.0"
     "@rollup/plugin-typescript": "npm:^12.1.1"
-    "@tapes-monorepo/eslint-config": "workspace:*"
-    "@tapes-monorepo/tailwind-config": "workspace:*"
-    "@tapes-monorepo/typescript-config": "workspace:*"
-    "@tapes-monorepo/ui": "workspace:*"
+    "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/tailwind-config": "npm:*"
+    "@tapes-monorepo/typescript-config": "npm:*"
+    "@tapes-monorepo/ui": "npm:*"
     "@types/electron-squirrel-startup": "npm:^1.0.2"
     "@types/node": "npm:^22.10.1"
     "@types/react": "npm:^19.0.1"
@@ -12031,7 +12031,7 @@ __metadata:
   resolution: "web@workspace:apps/web"
   dependencies:
     "@tapes-monorepo/eslint-config": "npm:*"
-    "@tapes-monorepo/tailwind-config": "workspace:*"
+    "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
     "@tapes-monorepo/ui": "workspace:*"
     "@types/node": "npm:^22.0.0"
