@@ -13,6 +13,9 @@ export function AudioInputSelector() {
   useEffect(() => {
     const getMediaDevices = async () => {
       try {
+        await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        })
         const foundDevices = await navigator.mediaDevices.enumerateDevices()
         const audioInputs = foundDevices.filter(
           (device) => device.kind === 'audioinput',
@@ -47,7 +50,7 @@ export function AudioInputSelector() {
           setAudioInputDevices(audioInputs)
         }}
       >
-        Select an audio input device!
+        Select an audio input device
       </Button>
     )
   }
