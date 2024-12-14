@@ -26,14 +26,19 @@ export function AudioInputSelector() {
     getMediaDevices()
   }, [])
 
+  console.log('audioInputDevices.length:', audioInputDevices.length)
+
   if (audioInputDevices.length === 0) {
     return (
       <Button
         className="p-4"
         onClick={async () => {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('getUserMedia is not supported in this browser')
+            return
+          }
           await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: false,
           })
           const foundDevices = await navigator.mediaDevices.enumerateDevices()
           const audioInputs = foundDevices.filter(
@@ -42,7 +47,7 @@ export function AudioInputSelector() {
           setAudioInputDevices(audioInputs)
         }}
       >
-        Select an audio input device
+        Select an audio input device!
       </Button>
     )
   }

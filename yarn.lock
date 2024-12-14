@@ -1827,9 +1827,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/core@workspace:packages/core"
   dependencies:
-    "@tapes-monorepo/eslint-config": "workspace:^"
-    "@tapes-monorepo/typescript-config": "workspace:^"
-    "@tapes-monorepo/ui": "workspace:^"
+    "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/typescript-config": "npm:*"
+    "@tapes-monorepo/ui": "npm:*"
     "@types/react": "npm:^19.0.1"
     "@types/react-dom": "npm:^19.0.2"
     clsx: "npm:^2.1.1"
@@ -1840,7 +1840,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tapes-monorepo/eslint-config@npm:*, @tapes-monorepo/eslint-config@workspace:^, @tapes-monorepo/eslint-config@workspace:packages/eslint-config":
+"@tapes-monorepo/eslint-config@npm:*, @tapes-monorepo/eslint-config@workspace:packages/eslint-config":
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/eslint-config@workspace:packages/eslint-config"
   dependencies:
@@ -1868,13 +1868,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tapes-monorepo/typescript-config@npm:*, @tapes-monorepo/typescript-config@workspace:^, @tapes-monorepo/typescript-config@workspace:packages/typescript-config":
+"@tapes-monorepo/typescript-config@npm:*, @tapes-monorepo/typescript-config@workspace:packages/typescript-config":
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/typescript-config@workspace:packages/typescript-config"
   languageName: unknown
   linkType: soft
 
-"@tapes-monorepo/ui@npm:*, @tapes-monorepo/ui@workspace:^, @tapes-monorepo/ui@workspace:packages/ui":
+"@tapes-monorepo/ui@npm:*, @tapes-monorepo/ui@workspace:packages/ui":
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/ui@workspace:packages/ui"
   dependencies:
