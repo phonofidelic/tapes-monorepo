@@ -1,5 +1,5 @@
-import { useSettings } from '@/context/SettingsContext'
-import { AudioInputSelector } from './Settings'
+import { AudioInputSelector } from '../AudioInputSelector'
+import { useSettings } from '../context/SettingsContext'
 import { Button } from '@tapes-monorepo/ui'
 
 export function Recorder() {
@@ -13,7 +13,7 @@ export function Recorder() {
       <div className="fixed bottom-0 z-10 flex h-20 w-full items-center justify-center border-t border-zinc-100 dark:border-zinc-800">
         {audioInputDeviceId ? (
           <Button
-            className="size-full"
+            className="size-full p-4"
             onClick={() => console.log('monitor')}
             disabled={!audioInputDeviceId}
           >

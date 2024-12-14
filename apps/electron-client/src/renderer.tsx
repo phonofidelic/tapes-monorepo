@@ -28,9 +28,9 @@
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ViewProvider } from './context/ViewContext'
-import { SettingsProvider } from './context/SettingsContext'
-import { App } from './App'
+import { ViewProvider } from '@tapes-monorepo/core/context/ViewContext'
+import { SettingsProvider } from '@tapes-monorepo/core/context/SettingsContext'
+import { App } from '@tapes-monorepo/core/App'
 import './index.css'
 
 console.log(
@@ -54,7 +54,29 @@ root.render(
   <StrictMode>
     <ViewProvider>
       <SettingsProvider>
-        <App />
+        <div
+          style={{
+            position: 'relative',
+            height: '100vh',
+            width: '100vw',
+            userSelect: 'none',
+            overflow: 'hidden',
+            paddingTop: '32px',
+          }}
+        >
+          <div
+            id="titlebar"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '32px',
+              zIndex: 50,
+            }}
+          />
+          <App />
+        </div>
       </SettingsProvider>
     </ViewProvider>
   </StrictMode>,

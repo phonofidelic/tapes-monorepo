@@ -1,10 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import localFont from 'next/font/local'
-import { Button } from '@tapes-monorepo/ui'
 import './globals.css'
-import { ViewProvider } from './ViewContext'
-import { SettingsProvider } from './SettingsContext'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -28,34 +24,10 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} relative h-screen w-screen overflow-hidden pt-[32px] text-zinc-800 antialiased dark:text-zinc-100`}
+        className={`${geistSans.variable} ${geistMono.variable} h-screen w-screen text-zinc-800 antialiased dark:text-zinc-100`}
       >
-        <div
-          id="titlebar"
-          className="absolute top-0 z-50 h-[32px] w-full bg-green-500"
-        />
-        <nav className="w-full">
-          <ul className="flex w-full justify-between gap-1 p-1">
-            {navigationConfig.map(({ label, href }) => (
-              <li key={href} className="size-full">
-                <Link href={`/${href}`}>
-                  <Button className="p-4">{label}</Button>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <ViewProvider>
-          <SettingsProvider>{children}</SettingsProvider>
-        </ViewProvider>
+        {children}
       </body>
     </html>
   )
 }
-
-const navigationConfig = [
-  { label: 'Recorder', href: 'recorder' },
-  { label: 'Library', href: 'library' },
-  { label: 'Settings', href: 'settings' },
-  // { label: 'About', href: 'about' },
-] as const

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSettings } from './SettingsContext'
+import { Button } from '@tapes-monorepo/ui'
+import { useSettings } from './context/SettingsContext'
 
 export function AudioInputSelector() {
   const { audioInputDeviceId, setAudioInputDeviceId } = useSettings()
@@ -24,6 +25,27 @@ export function AudioInputSelector() {
 
     getMediaDevices()
   }, [])
+
+  if (audioInputDevices.length === 0) {
+    return (
+      <Button
+        className="p-4"
+        onClick={async () => {
+          navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+          })
+          const foundDevices = await navigator.mediaDevices.enumerateDevices()
+          const audioInputs = foundDevices.filter(
+            (device) => device.kind === 'audioinput',
+          )
+          setAudioInputDevices(audioInputs)
+        }}
+      >
+        Select an audio input device
+      </Button>
+    )
+  }
 
   return (
     <select

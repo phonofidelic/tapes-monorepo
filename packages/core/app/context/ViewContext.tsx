@@ -1,13 +1,14 @@
-import { createContext, useContext, useState } from 'react'
-import { About } from '@/views/About'
-import { Library } from '@/views/Library'
-import { Recorder } from '@/views/Recorder'
-import { Settings } from '@/views/Settings'
+'use client'
 
-type View = 'recorder' | 'library' | 'settings' | 'about'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { Library } from '../views/Library'
+import { Recorder } from '../views/Recorder'
+import { Settings } from '../views/Settings'
+
+type View = 'recorder' | 'library' | 'settings'
 
 const isValidView = (view: string): view is View => {
-  return ['recorder', 'library', 'settings', 'about'].includes(view)
+  return ['recorder', 'library', 'settings'].includes(view)
 }
 
 const ViewContext = createContext<{
@@ -16,14 +17,24 @@ const ViewContext = createContext<{
 } | null>(null)
 
 export function ViewProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setView] = useState<View>(() => {
-    const storedView = localStorage.getItem('currentView')
-    return storedView && isValidView(storedView) ? storedView : 'recorder'
-  })
+  const [currentView, setView] = useState<View | null>(null)
 
   const setCurrentView = (view: View) => {
     localStorage.setItem('currentView', view)
     setView(view)
+  }
+
+  useEffect(() => {
+    const storedView = localStorage.getItem('currentView')
+    if (storedView && isValidView(storedView)) {
+      setView(storedView)
+      return
+    }
+    setView('recorder')
+  }, [])
+
+  if (!currentView) {
+    return null
   }
 
   return (
@@ -45,12 +56,10 @@ export const navigationConfig = [
   { label: 'Recorder', view: 'recorder' },
   { label: 'Library', view: 'library' },
   { label: 'Settings', view: 'settings' },
-  // { label: 'About', view: 'about' },
 ] as const
 
 export const viewComponentMap = {
   recorder: <Recorder />,
   library: <Library />,
   settings: <Settings />,
-  about: <About />,
 }
