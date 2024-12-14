@@ -20,5 +20,3 @@ export default function AppPage() {
     </ClientOnly>
   )
 }
-
-// test

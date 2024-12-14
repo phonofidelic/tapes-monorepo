@@ -29,8 +29,6 @@ export function AudioInputSelector() {
     getMediaDevices()
   }, [])
 
-  console.log('audioInputDevices:', audioInputDevices)
-
   if (audioInputDevices.length === 0) {
     return (
       <Button
