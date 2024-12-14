@@ -13,6 +13,9 @@ export function AudioInputSelector() {
   useEffect(() => {
     const getMediaDevices = async () => {
       try {
+        await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        })
         const foundDevices = await navigator.mediaDevices.enumerateDevices()
         const audioInputs = foundDevices.filter(
           (device) => device.kind === 'audioinput',
@@ -31,9 +34,12 @@ export function AudioInputSelector() {
       <Button
         className="p-4"
         onClick={async () => {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('getUserMedia is not supported in this browser')
+            return
+          }
           await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: false,
           })
           const foundDevices = await navigator.mediaDevices.enumerateDevices()
           const audioInputs = foundDevices.filter(
