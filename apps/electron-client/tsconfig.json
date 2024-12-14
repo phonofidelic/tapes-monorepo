@@ -20,10 +20,13 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+
+    /* Paths */
     "baseUrl" : ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@tapes-monorepo/ui": ["../../packages/ui/lib/index.ts"]
+      "@tapes-monorepo/ui": ["../../packages/ui/lib/index.ts"],
+      "@tapes-monorepo/core/*": ["../../packages/core/app/*"]
     }
   },
   "include": ["src"]

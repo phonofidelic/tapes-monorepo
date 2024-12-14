@@ -12,6 +12,10 @@ export default defineConfig({
         __dirname,
         '../../packages/ui/dist/ui.css',
       ),
+      '@tapes-monorepo/core': path.resolve(
+        __dirname,
+        '../../packages/core/app',
+      ),
     },
   },
   plugins: [react()],

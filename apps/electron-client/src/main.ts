@@ -43,6 +43,7 @@ export class MainWindow {
       show: false,
       width: 408,
       height: 552,
+      maxWidth: 639,
       minWidth: 408,
       minHeight: 552,
       titleBarStyle: 'hiddenInset',
@@ -59,11 +60,12 @@ export class MainWindow {
 
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
       this.window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-      // this.window.loadURL('http://localhost:3000')
+      // this.window.loadURL('http://localhost:3000/app')
     } else {
       this.window.loadFile(
         path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
       )
+      // this.window.loadURL('https://tapes-monorepo-web.vercel.app')
     }
 
     if (process.env.NODE_ENV === 'development') {

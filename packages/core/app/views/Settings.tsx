@@ -1,6 +1,6 @@
 import { AudioInputSelector } from '../AudioInputSelector'
 
-export default function SettingsPage() {
+export function Settings() {
   return (
     <div className="flex h-full flex-col p-5 pb-20">
       <label className="flex flex-col gap-4">
