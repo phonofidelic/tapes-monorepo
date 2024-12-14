@@ -31,7 +31,7 @@ export function AudioInputSelector() {
       <Button
         className="p-4"
         onClick={async () => {
-          navigator.mediaDevices.getUserMedia({
+          await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: false,
           })
