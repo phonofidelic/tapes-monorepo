@@ -1,7 +1,3 @@
-import React from 'react'
-
-type Props = {}
-
-export default function Default({}: Props) {
+export default function Default() {
   return null
 }
