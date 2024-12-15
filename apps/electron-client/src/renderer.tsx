@@ -53,7 +53,6 @@ root.render(
     <ViewProvider>
       <SettingsProvider>
         <div
-          id="container"
           style={{
             position: 'relative',
             height: '100vh',

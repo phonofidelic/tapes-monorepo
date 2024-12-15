@@ -24,7 +24,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} h-screen w-screen text-zinc-800 antialiased dark:text-zinc-100`}
+        className={`${geistSans.variable} ${geistMono.variable} text-zinc-800 antialiased dark:text-zinc-100`}
       >
         {children}
       </body>

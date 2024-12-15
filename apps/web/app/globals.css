@@ -1,4 +1,5 @@
 @import '@tapes-monorepo/ui/style.css';
+@import '@tapes-monorepo/core/style.css';
 
 @tailwind base;
 @tailwind components;
