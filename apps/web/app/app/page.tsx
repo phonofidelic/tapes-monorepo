@@ -6,7 +6,7 @@ import DownloadPrompt from './DownloadPrompt'
 export default function AppPage() {
   return (
     <>
-      <div className="flex: sm:hidden">
+      <div id="container" className="flex: sm:hidden">
         <ViewProvider>
           <SettingsProvider>
             <App />

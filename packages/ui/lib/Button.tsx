@@ -17,7 +17,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        'flex size-full items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800',
+        'flex items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800',
         className,
       )}
       disabled={disabled}

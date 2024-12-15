@@ -22,12 +22,19 @@
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "build": "yarn vite build",
-    "dev": "yarn vite build --watch",
+    "dev": "VITE_LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" yarn vite build --watch",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@automerge/automerge": "^2.2.8",
+    "@automerge/automerge-repo": "^1.2.1",
+    "@automerge/automerge-repo-network-broadcastchannel": "^1.2.1",
+    "@automerge/automerge-repo-network-websocket": "^1.2.1",
+    "@automerge/automerge-repo-react-hooks": "^1.2.1",
+    "@automerge/automerge-repo-storage-indexeddb": "^1.2.1",
     "@tapes-monorepo/ui": "*",
     "clsx": "^2.1.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -44,7 +51,9 @@
     "rollup-plugin-preserve-directives": "^0.4.0",
     "tailwindcss": "^3.4.16",
     "typescript": "^5.7.2",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vite-plugin-top-level-await": "^1.4.4",
+    "vite-plugin-wasm": "^3.3.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"
