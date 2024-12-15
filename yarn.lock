@@ -89,7 +89,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge@npm:^2.2.5":
+"@automerge/automerge@npm:^2.2.5, @automerge/automerge@npm:^2.2.8":
   version: 2.2.8
   resolution: "@automerge/automerge@npm:2.2.8"
   dependencies:
@@ -2082,6 +2082,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tapes-monorepo/core@workspace:packages/core"
   dependencies:
+    "@automerge/automerge": "npm:^2.2.8"
     "@automerge/automerge-repo": "npm:^1.2.1"
     "@automerge/automerge-repo-network-broadcastchannel": "npm:^1.2.1"
     "@automerge/automerge-repo-network-websocket": "npm:^1.2.1"

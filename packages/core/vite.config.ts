@@ -9,13 +9,13 @@ import { peerDependencies, dependencies } from './package.json'
 
 export default defineConfig({
   plugins: [
+    wasm(),
+    topLevelAwait(),
     react({
       jsxRuntime: 'classic',
       include: /\.(mdx|js|jsx|ts|tsx)$/,
     }),
     dts(),
-    wasm(),
-    topLevelAwait(),
   ],
   esbuild: {
     jsxFactory: '_jsx',
@@ -35,6 +35,7 @@ export default defineConfig({
       external: [
         ...Object.keys(peerDependencies),
         ...Object.keys(dependencies),
+        '@automerge/automerge/automerge.wasm',
       ],
       output: {
         globals: {
