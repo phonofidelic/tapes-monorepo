@@ -22,7 +22,6 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./app/*"],
-      "@tapes-monorepo/core/*": ["../../packages/core/app/*"]
     }
   },
   "include": [

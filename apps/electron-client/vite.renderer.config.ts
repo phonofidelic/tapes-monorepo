@@ -7,14 +7,16 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@tapes-monorepo/ui': path.resolve(__dirname, '../../packages/ui/lib'),
-      '@tapes-monorepo/ui-styles': path.resolve(
-        __dirname,
-        '../../packages/ui/dist/ui.css',
-      ),
+      // Enables live reloading the electron renderer
+      // when changes are made in the core package.
       '@tapes-monorepo/core': path.resolve(
         __dirname,
-        '../../packages/core/app',
+        '../../packages/core/dist/core.js',
+      ),
+      // Alias the core styles import to avoid naming conflict.
+      '@tapes-monorepo/core-styles': path.resolve(
+        __dirname,
+        '../../packages/core/dist/core.css',
       ),
     },
   },

@@ -1,4 +1,4 @@
-import { AudioInputSelector } from '../AudioInputSelector'
+import { AudioInputSelector } from '@/AudioInputSelector'
 
 export function Settings() {
   return (

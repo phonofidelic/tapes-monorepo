@@ -28,9 +28,7 @@
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ViewProvider } from '@tapes-monorepo/core/context/ViewContext'
-import { SettingsProvider } from '@tapes-monorepo/core/context/SettingsContext'
-import { App } from '@tapes-monorepo/core/App'
+import { App, SettingsProvider, ViewProvider } from '@tapes-monorepo/core'
 import './index.css'
 
 console.log(

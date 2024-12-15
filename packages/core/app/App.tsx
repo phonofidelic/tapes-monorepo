@@ -1,12 +1,11 @@
-'use client'
-
 import { clsx } from 'clsx'
+import { Button } from '@tapes-monorepo/ui'
 import {
   useView,
   navigationConfig,
   viewComponentMap,
-} from './context/ViewContext'
-import { Button } from '@tapes-monorepo/ui'
+} from '@/context/ViewContext'
+import './index.css'
 
 export function App() {
   const { currentView, setCurrentView } = useView()
