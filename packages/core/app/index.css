@@ -1,3 +1,5 @@
+@import '@tapes-monorepo/ui-styles';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

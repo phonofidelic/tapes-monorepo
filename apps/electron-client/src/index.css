@@ -26,6 +26,15 @@ button {
   cursor: default;
 }
 
+nav {
+  position: sticky;
+  top: 32px;
+}
+
+main {
+  top: 96px;
+}
+
 #titlebar {
   -webkit-app-region: drag;
   -webkit-user-select: none;

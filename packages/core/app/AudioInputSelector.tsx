@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@tapes-monorepo/ui'
 import { useSettings } from '@/context/SettingsContext'
+import clsx from 'clsx'
 
-export function AudioInputSelector() {
+export function AudioInputSelector({ className }: { className?: string }) {
   const { audioInputDeviceId, setAudioInputDeviceId } = useSettings()
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
@@ -30,7 +31,7 @@ export function AudioInputSelector() {
   if (audioInputDevices.length === 0) {
     return (
       <Button
-        className="p-4"
+        className={clsx(className)}
         onClick={async () => {
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.error('getUserMedia is not supported in this browser')
@@ -53,7 +54,10 @@ export function AudioInputSelector() {
 
   return (
     <select
-      className="flex size-full appearance-none items-center justify-center rounded bg-transparent p-4 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      className={clsx(
+        'flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800',
+        className,
+      )}
       onChange={(event) => setAudioInputDeviceId(event.target.value)}
       value={audioInputDeviceId ?? ''}
     >

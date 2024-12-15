@@ -53,24 +53,24 @@ root.render(
     <ViewProvider>
       <SettingsProvider>
         <div
+          id="container"
           style={{
             position: 'relative',
             height: '100vh',
             width: '100vw',
             userSelect: 'none',
-            overflow: 'hidden',
             paddingTop: '32px',
           }}
         >
           <div
             id="titlebar"
             style={{
-              position: 'absolute',
+              position: 'fixed',
               top: 0,
               left: 0,
               width: '100%',
               height: '32px',
-              zIndex: 50,
+              zIndex: 999,
             }}
           />
           <App />

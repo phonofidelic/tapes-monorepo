@@ -1,6 +1,6 @@
 export function Library() {
   return (
-    <div className="flex h-full flex-col p-5 pb-20">
+    <div className="flex flex-col">
       <h1 className="">Library</h1>
     </div>
   )
