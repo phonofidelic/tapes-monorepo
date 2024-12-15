@@ -2,8 +2,29 @@
   "name": "@tapes-monorepo/core",
   "version": "0.0.0",
   "type": "module",
+  "files": [
+    "package.json",
+    "dist"
+  ],
+  "sideEffects": false,
+  "main": "./dist/core.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/core.js"
+    },
+    "./style.css": "./dist/core.css"
+  },
+  "style": "./dist/style.css",
+  "types": "./dist/lib/index.d.ts",
   "packageManager": "yarn@4.5.3",
   "private": true,
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "build": "yarn vite build",
+    "dev": "yarn vite build --watch",
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
     "@tapes-monorepo/ui": "*",
     "clsx": "^2.1.1",
@@ -12,10 +33,20 @@
   },
   "devDependencies": {
     "@tapes-monorepo/eslint-config": "*",
+    "@tapes-monorepo/tailwind-config": "*",
     "@tapes-monorepo/typescript-config": "*",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
-    "typescript": "^5.7.2"
+    "postcss": "^8.4.49",
+    "rollup-plugin-preserve-directives": "^0.4.0",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
   }
 }

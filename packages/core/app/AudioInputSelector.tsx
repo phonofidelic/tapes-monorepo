@@ -1,8 +1,6 @@
-'use client'
-
 import { useState, useEffect } from 'react'
 import { Button } from '@tapes-monorepo/ui'
-import { useSettings } from './context/SettingsContext'
+import { useSettings } from '@/context/SettingsContext'
 
 export function AudioInputSelector() {
   const { audioInputDeviceId, setAudioInputDeviceId } = useSettings()

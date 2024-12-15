@@ -1,9 +1,7 @@
-'use client'
-
 import { createContext, useContext, useEffect, useState } from 'react'
-import { Library } from '../views/Library'
-import { Recorder } from '../views/Recorder'
-import { Settings } from '../views/Settings'
+import { Library } from '@/views/Library'
+import { Recorder } from '@/views/Recorder'
+import { Settings } from '@/views/Settings'
 
 type View = 'recorder' | 'library' | 'settings'
 
