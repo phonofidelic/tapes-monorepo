@@ -13,8 +13,6 @@ export function Settings() {
       ? 'https://tapes-monorepo-web.vercel.app'
       : `http://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
 
-  console.log('baseUrl:', baseUrl)
-
   useEffect(() => {
     if (isValidAutomergeUrl(settingsDocUrl)) {
       const handle = repo.find(settingsDocUrl)
