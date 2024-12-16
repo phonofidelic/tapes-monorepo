@@ -23,8 +23,6 @@ export default defineConfig({
     jsxInject: `import { createElement as _jsx, Fragment as _jsxFragment } from 'react'`,
   },
   build: {
-    emptyOutDir: false,
-    sourcemap: true,
     lib: {
       entry: path.resolve(__dirname, 'index.ts'),
       formats: ['es'],
@@ -35,7 +33,6 @@ export default defineConfig({
       external: [
         ...Object.keys(peerDependencies),
         ...Object.keys(dependencies),
-        '@automerge/automerge/automerge.wasm',
       ],
       output: {
         globals: {
