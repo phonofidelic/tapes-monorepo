@@ -4,12 +4,13 @@
   "version": "1.0.0",
   "description": "My Electron application description",
   "main": ".vite/build/index.js",
+  "repository": "github:phonofidelic/tapes-monorepo",
   "scripts": {
-    "dev": "electron-forge start",
-    "dev:devtools": "concurrently \"electron-forge start\" \"yarn dlx react-devtools\"",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "dev": "dotenvx run --env-file=.env -- electron-forge start",
+    "dev:devtools": "concurrently \"dotenvx run --env-file=.env -- electron-forge start\" \"yarn dlx react-devtools\"",
+    "package": "dotenvx run --env-file=.env -- electron-forge package",
+    "make": "dotenvx run --env-file=.env -- electron-forge make",
+    "publish": "dotenvx run --env-file=.env -- electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
   },
   "devDependencies": {
@@ -22,6 +23,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.6.0",
     "@electron-forge/plugin-fuses": "^7.6.0",
     "@electron-forge/plugin-vite": "^7.6.0",
+    "@electron-forge/publisher-github": "^7.6.0",
     "@electron/fuses": "^1.8.0",
     "@rollup/plugin-typescript": "^12.1.1",
     "@tapes-monorepo/eslint-config": "*",
@@ -68,10 +70,12 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@dotenvx/dotenvx": "^1.31.0",
     "@tapes-monorepo/core": "*",
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "update-electron-app": "^3.1.0"
   }
 }
