@@ -8,10 +8,32 @@ import { VitePlugin } from '@electron-forge/plugin-vite'
 import { FusesPlugin } from '@electron-forge/plugin-fuses'
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
 
+const notarizeOptions = {
+  appleId: process.env.APPLE_ID ?? '',
+  appleIdPassword: process.env.APPLE_PASSWORD ?? '',
+  teamId: process.env.APPLE_TEAM_ID ?? '',
+} as const
+
+const repositoryOptions = {
+  owner: process.env.REPO_OWNER ?? '',
+  name: process.env.REPO_NAME ?? '',
+} as const
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    osxSign: {},
+    osxNotarize: notarizeOptions,
   },
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: repositoryOptions,
+        prerelease: true,
+      },
+    },
+  ],
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({}),

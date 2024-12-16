@@ -4,6 +4,9 @@ import started from 'electron-squirrel-startup'
 import installExtension, {
   REACT_DEVELOPER_TOOLS,
 } from 'electron-devtools-installer'
+import { updateElectronApp } from 'update-electron-app'
+
+updateElectronApp()
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
