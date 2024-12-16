@@ -19,11 +19,10 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
+          corepack-enable: true
 
       - name: Install Dependencies
-        run: yarn
-        with:
-          corepack-enable: true
+        run: yarn          
 
       - name: Create Release Pull Request
         uses: changesets/action@v1
