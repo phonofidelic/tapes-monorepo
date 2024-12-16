@@ -23,6 +23,7 @@ export default defineConfig({
     jsxInject: `import { createElement as _jsx, Fragment as _jsxFragment } from 'react'`,
   },
   build: {
+    emptyOutDir: false,
     lib: {
       entry: path.resolve(__dirname, 'index.ts'),
       formats: ['es'],
