@@ -15,11 +15,13 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js 20
         uses: actions/setup-node@v3
         with:
           node-version: 20
-          corepack-enable: true
 
       - name: Install Dependencies
         run: yarn          
