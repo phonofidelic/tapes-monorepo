@@ -136,9 +136,7 @@ const draw = ({
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
   const drawAverage = () => {
-    /**
-     * Draw average
-     */
+    // Draw average
     const sum = (dataArray as any[]).reduce((a: number, b: number) => a + b)
     const average = sum / dataArray.length || 0
     ctx.strokeStyle = theme === 'dark' ? '#a1a1aa' : '#a1a1aa'
@@ -155,9 +153,7 @@ const draw = ({
   }
   feature === 'frequency' && drawAverage()
 
-  /**
-   * Draw curve
-   */
+  // Draw curve
   ctx.globalAlpha = 1
   ctx.lineWidth = 1
   ctx.strokeStyle = theme === 'dark' ? '#a1a1aa' : '#a1a1aa'
@@ -170,8 +166,5 @@ const draw = ({
     x += sliceWidth
   }
   feature === 'frequency' ? ctx.lineTo(x, 0) : ctx.lineTo(x, canvasHeight / 2)
-  // ctx.strokeStyle = '#333';
-  // feature === 'frequency' && ctx.lineTo(0, 0);
   ctx.stroke()
-  // ctx.fill()
 }
