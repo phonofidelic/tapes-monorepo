@@ -31,6 +31,7 @@ const config: ForgeConfig = {
       config: {
         repository: repositoryOptions,
         prerelease: true,
+        draft: true,
       },
     },
   ],
