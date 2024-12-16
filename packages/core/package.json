@@ -22,7 +22,8 @@
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "build": "yarn vite build",
-    "dev": "VITE_LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" yarn vite build --watch",
+    "dev": "VITE_LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" VITE_LOCAL_NETWORK_PROTOCOL=\"http\" yarn vite build --watch",
+    "dev:https": "VITE_LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" VITE_LOCAL_NETWORK_PROTOCOL=\"https\" yarn vite build --watch",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {

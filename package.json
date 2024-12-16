@@ -4,6 +4,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "dev:https": "turbo run @tapes-monorepo/ui#dev @tapes-monorepo/core#dev:https electron-client#dev web#dev:https",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },

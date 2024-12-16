@@ -11,7 +11,7 @@ export function Settings() {
   const baseUrl =
     process.env.NODE_ENV === 'production'
       ? 'https://tapes-monorepo-web.vercel.app'
-      : `http://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
+      : `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
 
   useEffect(() => {
     if (isValidAutomergeUrl(settingsDocUrl)) {
