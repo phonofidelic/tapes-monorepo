@@ -27,7 +27,7 @@ export function Recorder() {
           {audioInputDeviceId && isMonitoring && (
             <>
               <div className="absolute top-0 z-50 flex w-full justify-end gap-1 p-4 text-xs">
-                <p className="p-1 text-zinc-400">Vizualization:</p>
+                <p className="p-1 text-zinc-400">Visualization:</p>
                 <Button
                   className={clsx('rounded border p-1 dark:border-zinc-800', {
                     'bg-zinc-100 dark:bg-zinc-800': feature === 'frequency',
