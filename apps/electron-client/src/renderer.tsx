@@ -31,6 +31,7 @@ import { createRoot } from 'react-dom/client'
 import {
   App,
   AppContextProvider,
+  IpcService,
   SettingsProvider,
   ViewProvider,
 } from '@tapes-monorepo/core'
@@ -55,7 +56,12 @@ if (!rootElement) {
 const root = createRoot(rootElement)
 root.render(
   <StrictMode>
-    <AppContextProvider appType="electron-client">
+    <AppContextProvider
+      value={{
+        type: 'electron-client',
+        ipc: new IpcService(),
+      }}
+    >
       <ViewProvider>
         <SettingsProvider>
           <div

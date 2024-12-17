@@ -2,15 +2,16 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron'
+import { ValidIpcChanel } from '@tapes-monorepo/core'
 
-const validChannels: string[] = []
+const validChannels: ValidIpcChanel[] = ['storage:open-directory-dialog']
 
 const validResponseChannels = validChannels.map(
   (channel) => `${channel}:response:.*`,
 )
 
 const api = {
-  send: (channel: string, data: unknown) => {
+  send: (channel: ValidIpcChanel, data: unknown) => {
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data)
     }

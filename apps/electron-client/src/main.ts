@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, IpcMainEvent } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import started from 'electron-squirrel-startup'
 import installExtension, {
   REACT_DEVELOPER_TOOLS,
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
+import { IpcChannel } from './types'
 
 updateElectronApp()
 
@@ -14,17 +15,6 @@ declare const MAIN_WINDOW_VITE_NAME: string
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit()
-}
-
-type IpcRequest = {
-  responseChannel?: string
-  params?: string[]
-  data?: unknown
-}
-
-type IpcChannel = {
-  name: string
-  handle(event: IpcMainEvent, request: IpcRequest): void
 }
 
 export class MainWindow {

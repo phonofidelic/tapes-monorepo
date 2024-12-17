@@ -12,7 +12,7 @@ export default function AppPage() {
   return (
     <>
       <div className="flex sm:hidden">
-        <AppContextProvider appType="web">
+        <AppContextProvider value={{ type: 'web' }}>
           <ViewProvider>
             <SettingsProvider>
               <App />
