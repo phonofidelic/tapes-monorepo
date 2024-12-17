@@ -82,7 +82,7 @@ export function Recorder() {
                 </div>
               )}
 
-              <div className="text-xl text-zinc-400 dark:group-hover:text-white">
+              <div className="text-xl text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white">
                 {!isMonitoring ? (
                   <AiFillAudio />
                 ) : (
@@ -95,13 +95,18 @@ export function Recorder() {
               className="group relative flex size-full justify-center p-4 text-xs"
               onClick={() => setIsRecording(!isRecording)}
             >
-              <div className="text-xl text-zinc-400 dark:group-hover:text-white">
-                {isRecording ? (
-                  <PiRecordFill className="dark:text-white" />
-                ) : (
-                  <PiRecordFill />
-                )}
-              </div>
+              {isRecording && (
+                <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
+                  <Timer />
+                </div>
+              )}
+              <PiRecordFill
+                className={clsx('text-xl', {
+                  'text-rose-500': isRecording,
+                  'text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white':
+                    !isRecording,
+                })}
+              />
             </Button>
           </>
         ) : (
@@ -109,6 +114,31 @@ export function Recorder() {
         )}
       </div>
     </>
+  )
+}
+
+function Timer() {
+  const [time, setTime] = useState(0)
+
+  const centiseconds = ('0' + (Math.floor(time / 10) % 100)).slice(-2)
+  const seconds = ('0' + (Math.floor(time / 1000) % 60)).slice(-2)
+  const minutes = ('0' + (Math.floor(time / 60000) % 60)).slice(-2)
+  const hours = ('0' + Math.floor(time / 3600000)).slice(-2)
+
+  useEffect(() => {
+    const start = Date.now()
+    const interval = setInterval(() => {
+      setTime(Date.now() - start)
+    }, 10)
+    return () => {
+      clearInterval(interval)
+    }
+  }, [])
+
+  return (
+    <div>
+      {hours}:{minutes}:{seconds}:{centiseconds}
+    </div>
   )
 }
 
