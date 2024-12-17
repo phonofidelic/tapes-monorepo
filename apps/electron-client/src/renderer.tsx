@@ -28,7 +28,12 @@
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App, SettingsProvider, ViewProvider } from '@tapes-monorepo/core'
+import {
+  App,
+  AppContextProvider,
+  SettingsProvider,
+  ViewProvider,
+} from '@tapes-monorepo/core'
 import './index.css'
 
 console.log(
@@ -50,31 +55,33 @@ if (!rootElement) {
 const root = createRoot(rootElement)
 root.render(
   <StrictMode>
-    <ViewProvider>
-      <SettingsProvider>
-        <div
-          style={{
-            position: 'relative',
-            height: '100vh',
-            width: '100vw',
-            userSelect: 'none',
-            paddingTop: '32px',
-          }}
-        >
+    <AppContextProvider appType="electron-client">
+      <ViewProvider>
+        <SettingsProvider>
           <div
-            id="titlebar"
             style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '32px',
-              zIndex: 999,
+              position: 'relative',
+              height: '100vh',
+              width: '100vw',
+              userSelect: 'none',
+              paddingTop: '32px',
             }}
-          />
-          <App />
-        </div>
-      </SettingsProvider>
-    </ViewProvider>
+          >
+            <div
+              id="titlebar"
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '32px',
+                zIndex: 999,
+              }}
+            />
+            <App />
+          </div>
+        </SettingsProvider>
+      </ViewProvider>
+    </AppContextProvider>
   </StrictMode>,
 )

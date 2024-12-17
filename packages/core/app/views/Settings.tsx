@@ -4,8 +4,10 @@ import { useRepo } from '@automerge/automerge-repo-react-hooks'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '@/context/SettingsContext'
 import { AudioInputSelector } from '@/AudioInputSelector'
+import { useAppContext } from '@/context/AppContext'
 
 export function Settings() {
+  const appContext = useAppContext()
   const { settingsDocUrl, setSettingsDocUrl } = useSettings()
   const repo = useRepo()
   const baseUrl =
@@ -50,12 +52,16 @@ export function Settings() {
         <h2>Storage</h2>
         <label className="flex flex-col gap-2 text-sm">
           <h3>Location:</h3>
-          <select className="flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            <option value="">Select a storage location</option>
-            <option value="desktop">Desktop</option>
-            <option value="documents">Documents</option>
-            <option value="downloads">Downloads</option>
-          </select>
+          {appContext === 'electron-client' ? (
+            <select className="flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <option value="">Select a storage location</option>
+              <option value="desktop">Desktop</option>
+              <option value="documents">Documents</option>
+              <option value="downloads">Downloads</option>
+            </select>
+          ) : (
+            <p>Not implemented yet</p>
+          )}
         </label>
       </div>
       <div className="flex flex-col gap-2">
