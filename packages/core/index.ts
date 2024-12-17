@@ -1,4 +1,5 @@
 export * from './app/App'
+export * from './app/context/AppContext'
 export * from './app/context/ViewContext'
 export * from './app/context/SettingsContext'
 export * from './app/views/Recorder'
