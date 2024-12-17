@@ -1,17 +1,32 @@
+import { IpcService } from '@/IpcService'
 import { createContext, useContext } from 'react'
 
-type AppType = 'electron-client' | 'web'
-
-const AppContext = createContext<AppType | null>(null)
+const AppContext = createContext<
+  | {
+      type: 'electron-client'
+      ipc: IpcService
+    }
+  | {
+      type: 'web'
+    }
+  | null
+>(null)
 
 export function AppContextProvider({
   children,
-  appType,
+  value,
 }: {
   children: React.ReactNode
-  appType: AppType
+  value:
+    | {
+        type: 'electron-client'
+        ipc: IpcService
+      }
+    | {
+        type: 'web'
+      }
 }) {
-  return <AppContext.Provider value={appType}>{children}</AppContext.Provider>
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }
 
 export function useAppContext() {

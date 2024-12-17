@@ -4,12 +4,14 @@ import * as React from 'react'
 import { clsx } from 'clsx'
 
 export function Button({
+  id,
   className,
   title,
   disabled,
   onClick,
   children,
 }: {
+  id?: string
   className?: string
   title?: string
   disabled?: boolean
@@ -18,6 +20,7 @@ export function Button({
 }) {
   return (
     <button
+      id={id}
       title={title}
       className={clsx(
         'flex items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800',
