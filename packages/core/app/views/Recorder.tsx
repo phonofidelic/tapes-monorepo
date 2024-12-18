@@ -16,8 +16,9 @@ export function Recorder() {
   const [audioInputDeviceId] = useSetting('audioInputDeviceId')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
-  const { isRecording, setIsRecording } = useRecordingState()
+  const { time, isRecording, setIsRecording } = useRecordingState()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
+
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
   )
@@ -122,7 +123,7 @@ export function Recorder() {
                     const stopResponse = await appContext.ipc.send<IpcResponse>(
                       'recorder:stop',
                       {
-                        data: { storageLocation },
+                        data: { storageLocation, duration: time },
                       },
                     )
                     console.log('stopResponse:', stopResponse)
@@ -186,28 +187,14 @@ export function Recorder() {
 }
 
 function Timer() {
-  const [time, setTime] = useState(0)
+  const { time } = useRecordingState()
 
   const centiseconds = ('0' + (Math.floor(time / 10) % 100)).slice(-2)
   const seconds = ('0' + (Math.floor(time / 1000) % 60)).slice(-2)
   const minutes = ('0' + (Math.floor(time / 60000) % 60)).slice(-2)
   const hours = ('0' + Math.floor(time / 3600000)).slice(-2)
 
-  useEffect(() => {
-    const start = Date.now()
-    const interval = setInterval(() => {
-      setTime(Date.now() - start)
-    }, 10)
-    return () => {
-      clearInterval(interval)
-    }
-  }, [])
-
-  return (
-    <div>
-      {hours}:{minutes}:{seconds}:{centiseconds}
-    </div>
-  )
+  return `${hours}:${minutes}:${seconds}:${centiseconds}`
 }
 
 function useMonitor(selectedMediaDeviceId: string | null) {

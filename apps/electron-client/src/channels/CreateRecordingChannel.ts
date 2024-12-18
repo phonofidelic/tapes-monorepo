@@ -31,8 +31,26 @@ export class CreateRecordingChannel implements IpcChannel {
 
     const filepath = path.resolve(request.data.storageLocation, 'test.txt')
 
+    const centiseconds = (
+      '0' +
+      (Math.floor(request.data.duration / 10) % 100)
+    ).slice(-2)
+    const seconds = (
+      '0' +
+      (Math.floor(request.data.duration / 1000) % 60)
+    ).slice(-2)
+    const minutes = (
+      '0' +
+      (Math.floor(request.data.duration / 60000) % 60)
+    ).slice(-2)
+    const hours = ('0' + Math.floor(request.data.duration / 3600000)).slice(-2)
+
     try {
-      await writeFile(filepath, 'Test-file content', { encoding: 'utf-8' })
+      await writeFile(
+        filepath,
+        `Test-file content, duration: ${hours}:${minutes}:${seconds}:${centiseconds}`,
+        { encoding: 'utf-8' },
+      )
     } catch (error) {
       event.sender.send(request.responseChannel, {
         error: new Error('Could not write file'),
@@ -52,12 +70,15 @@ const isValidCreateRecordingRequestData = (
   data: unknown,
 ): data is {
   storageLocation: string
+  duration: number
 } => {
   if (
     typeof data !== 'object' ||
     data === null ||
     !('storageLocation' in data) ||
-    typeof data.storageLocation !== 'string'
+    typeof data.storageLocation !== 'string' ||
+    !('duration' in data) ||
+    typeof data.duration !== 'number'
   ) {
     return false
   }
