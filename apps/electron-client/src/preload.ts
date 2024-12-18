@@ -4,7 +4,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { ValidIpcChanel } from '@tapes-monorepo/core'
 
-const validChannels: ValidIpcChanel[] = ['storage:open-directory-dialog']
+const validChannels: ValidIpcChanel[] = [
+  'storage:open-directory-dialog',
+  'recorder:start',
+  'recorder:stop',
+]
 
 const validResponseChannels = validChannels.map(
   (channel) => `${channel}:response:.*`,

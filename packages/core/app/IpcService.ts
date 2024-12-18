@@ -11,7 +11,10 @@ declare global {
   }
 }
 
-export type ValidIpcChanel = 'storage:open-directory-dialog'
+export type ValidIpcChanel =
+  | 'storage:open-directory-dialog'
+  | 'recorder:start'
+  | 'recorder:stop'
 
 type IpcRequest = {
   responseChannel?: string
