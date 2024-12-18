@@ -20,8 +20,6 @@ export function Recorder() {
     'frequency',
   )
 
-  console.log('audioInputDeviceId:', audioInputDeviceId)
-
   return (
     <>
       <div className="flex h-full flex-col pb-20">
@@ -98,7 +96,25 @@ export function Recorder() {
               <Button
                 title={isRecording ? 'Stop recording' : 'Start recording'}
                 className="group relative flex size-full justify-center p-4 text-xs"
-                onClick={() => setIsRecording(!isRecording)}
+                onClick={() => {
+                  if (appContext.type !== 'electron-client') {
+                    return
+                  }
+
+                  if (!isRecording) {
+                    setIsRecording(true)
+                    appContext.ipc.send('recorder:start', {
+                      data: { storageLocation },
+                    })
+                    return
+                  }
+
+                  if (isRecording) {
+                    setIsRecording(false)
+                    appContext.ipc.send('recorder:stop')
+                    // TODO: Show set recording name dialog
+                  }
+                }}
               >
                 {isRecording && (
                   <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
