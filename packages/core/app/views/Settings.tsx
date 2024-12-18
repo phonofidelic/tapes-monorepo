@@ -3,16 +3,16 @@ import { isValidAutomergeUrl } from '@automerge/automerge-repo/slim'
 import { useRepo } from '@automerge/automerge-repo-react-hooks'
 import { MdOutlineRemoveCircleOutline } from 'react-icons/md'
 import { QRCodeSVG } from 'qrcode.react'
-import { useSetting, useSettings } from '@/context/SettingsContext'
-import { AudioInputSelector } from '@/AudioInputSelector'
+import { useSetting } from '@/context/SettingsContext'
+import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useAppContext } from '@/context/AppContext'
 import { Button } from '@tapes-monorepo/ui'
 
 export function Settings() {
   const appContext = useAppContext()
-  const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [audioFormat, setAudioFormat] = useSetting('audioFormat')
-  const { settingsDocUrl, setSettingsDocUrl } = useSettings()
+  const [storageLocation, setStorageLocation] = useSetting('storageLocation')
+  const [settingsDocUrl, setSettingsDocUrl] = useSetting('settingsDocUrl')
   const repo = useRepo()
   const baseUrl =
     process.env.NODE_ENV === 'production'
@@ -77,8 +77,6 @@ export function Settings() {
                   const response = (await appContext.ipc.send(
                     'storage:open-directory-dialog',
                   )) as string | undefined
-
-                  console.log('response:', response)
 
                   if (!response) {
                     console.error(
