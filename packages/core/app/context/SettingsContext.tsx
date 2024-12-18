@@ -1,20 +1,15 @@
 import { createContext, useContext, useState } from 'react'
 
-type Setting =
-  | 'audioInputDeviceId'
-  | 'audioFormat'
-  | 'storageLocation'
-  | 'settingsDocUrl'
+type Settings = {
+  audioInputDeviceId: string | null
+  audioFormat: string | null
+  storageLocation: string | null
+  settingsDocUrl: string | null
+}
 
 const SettingsContext = createContext<{
-  // setting: string
-  // setSetting: (setting: string, value: string) => void
-  audioInputDeviceId: string | null
-  setAudioInputDeviceId: (deviceId: string) => void
-  storageLocation: string | null
-  setStorageLocation: (location: string) => void
-  settingsDocUrl: string | null
-  setSettingsDocUrl: (url: string) => void
+  settings: Settings
+  setSettings: (settings: Settings) => void
 } | null>(null)
 
 export const SettingsProvider = ({
@@ -22,41 +17,15 @@ export const SettingsProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const [audioInputDeviceId, setAudioInputDeviceIdState] = useState<
-    string | null
-  >(() => readSettingFromLocalStorage('audioInputDeviceId'))
-
-  const [storageLocation, setStorageLocationState] = useState<string | null>(
-    () => readSettingFromLocalStorage('storageLocation'),
+  const [settings, setSettings] = useState<Settings>(
+    readSettingsFromLocalStorage,
   )
-
-  const [settingsDocUrl, setSettingsDocUrlState] = useState<string | null>(() =>
-    readSettingFromLocalStorage('settingsDocUrl'),
-  )
-
-  const setAudioInputDeviceId = (deviceId: string) => {
-    setAudioInputDeviceIdState(deviceId)
-    writeSettingToLocalStorage('audioInputDeviceId', deviceId)
-  }
-
-  const setStorageLocation = (location: string) => {
-    writeSettingToLocalStorage('storageLocation', location)
-  }
-
-  const setSettingsDocUrl = (url: string) => {
-    setSettingsDocUrlState(url)
-    writeSettingToLocalStorage('settingsDocUrl', url)
-  }
 
   return (
     <SettingsContext.Provider
       value={{
-        audioInputDeviceId,
-        setAudioInputDeviceId,
-        storageLocation,
-        setStorageLocation,
-        settingsDocUrl,
-        setSettingsDocUrl,
+        settings,
+        setSettings,
       }}
     >
       {children}
@@ -64,27 +33,23 @@ export const SettingsProvider = ({
   )
 }
 
-export function useSettings() {
+export function useSetting(setting: keyof Settings) {
   const context = useContext(SettingsContext)
   if (context === null) {
-    throw new Error('useSettings must be used within a SettingsProvider')
+    throw new Error('useSetting must be used within a SettingsProvider')
   }
-  return context
-}
-
-export function useSetting(setting: Setting) {
-  const [value, setValueState] = useState<string | null>(() =>
-    readSettingFromLocalStorage(setting),
-  )
+  const { settings, setSettings } = context
 
   const setValue = (value: string | null) => {
-    setValueState(value)
+    const updatedSetting = { ...settings, [setting]: value }
+    setSettings(updatedSetting)
     writeSettingToLocalStorage(setting, value)
   }
-  return [value, setValue] as const
+
+  return [settings[setting], setValue] as const
 }
 
-function writeSettingToLocalStorage(key: Setting, value: string | null) {
+function writeSettingToLocalStorage(key: keyof Settings, value: string | null) {
   if (value === null) {
     localStorage.setItem(
       'settings',
@@ -105,6 +70,6 @@ function writeSettingToLocalStorage(key: Setting, value: string | null) {
   )
 }
 
-function readSettingFromLocalStorage(key: Setting) {
-  return JSON.parse(localStorage.getItem('settings') || '{}')[key]
+function readSettingsFromLocalStorage() {
+  return JSON.parse(localStorage.getItem('settings') || '{}')
 }

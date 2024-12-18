@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@tapes-monorepo/ui'
-import { useSettings } from '@/context/SettingsContext'
+import { useSetting } from '@/context/SettingsContext'
 import clsx from 'clsx'
 
 export function AudioInputSelector({ className }: { className?: string }) {
-  const { audioInputDeviceId, setAudioInputDeviceId } = useSettings()
+  const [audioInputDeviceId, setAudioInputDeviceId] =
+    useSetting('audioInputDeviceId')
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
   )

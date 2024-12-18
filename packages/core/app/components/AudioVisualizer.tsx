@@ -100,8 +100,6 @@ export function AudioVisualizer({
     }
   }, [feature, theme])
 
-  console.log('theme:', theme)
-
   return (
     <canvas
       ref={canvasRef}

@@ -3,19 +3,24 @@ import clsx from 'clsx'
 import { AiFillAudio, AiOutlineAudioMuted } from 'react-icons/ai'
 import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
-import { AudioInputSelector } from '@/AudioInputSelector'
-import { useSettings } from '@/context/SettingsContext'
+import { AudioInputSelector } from '@/components/AudioInputSelector'
+import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream } from '@/utils'
+import { useAppContext } from '@/context/AppContext'
 
 export function Recorder() {
-  const { audioInputDeviceId } = useSettings()
+  const appContext = useAppContext()
+  const [audioInputDeviceId] = useSetting('audioInputDeviceId')
+  const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const [isRecording, setIsRecording] = useState(false)
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
   )
+
+  console.log('audioInputDeviceId:', audioInputDeviceId)
 
   return (
     <>
@@ -74,7 +79,6 @@ export function Recorder() {
               onClick={() => {
                 setIsMonitoring(!isMonitoring)
               }}
-              disabled={!audioInputDeviceId}
             >
               {isMonitoring && (
                 <div className="absolute left-0 top-0 flex w-full p-2 text-rose-500">
@@ -90,24 +94,51 @@ export function Recorder() {
                 )}
               </div>
             </Button>
-            <Button
-              title={isRecording ? 'Stop recording' : 'Start recording'}
-              className="group relative flex size-full justify-center p-4 text-xs"
-              onClick={() => setIsRecording(!isRecording)}
-            >
-              {isRecording && (
-                <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
-                  <Timer />
-                </div>
-              )}
-              <PiRecordFill
-                className={clsx('text-xl', {
-                  'text-rose-500': isRecording,
-                  'text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white':
-                    !isRecording,
-                })}
-              />
-            </Button>
+            {storageLocation ? (
+              <Button
+                title={isRecording ? 'Stop recording' : 'Start recording'}
+                className="group relative flex size-full justify-center p-4 text-xs"
+                onClick={() => setIsRecording(!isRecording)}
+              >
+                {isRecording && (
+                  <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
+                    <Timer />
+                  </div>
+                )}
+                <PiRecordFill
+                  className={clsx('text-xl', {
+                    'text-rose-500': isRecording,
+                    'text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white':
+                      !isRecording,
+                  })}
+                />
+              </Button>
+            ) : appContext.type === 'electron-client' ? (
+              <Button
+                title={isRecording ? 'Stop recording' : 'Start recording'}
+                className="group relative flex size-full justify-center p-4 text-xs"
+                onClick={async () => {
+                  const response = (await appContext.ipc.send(
+                    'storage:open-directory-dialog',
+                  )) as string | undefined
+
+                  if (!response) {
+                    console.error(
+                      'No response from storage:open-directory-dialog',
+                    )
+                    return
+                  }
+
+                  if (response === '__unset__') {
+                    return
+                  }
+
+                  setStorageLocation(response)
+                }}
+              >
+                Select a storage location
+              </Button>
+            ) : null}
           </>
         ) : (
           <AudioInputSelector className="size-full p-6" />
