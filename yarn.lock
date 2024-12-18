@@ -5470,14 +5470,14 @@ __metadata:
   linkType: soft
 
 "electron-devtools-installer@npm:^3.2.0":
-  version: 3.2.0
-  resolution: "electron-devtools-installer@npm:3.2.0"
+  version: 3.2.1
+  resolution: "electron-devtools-installer@npm:3.2.1"
   dependencies:
     rimraf: "npm:^3.0.2"
     semver: "npm:^7.2.1"
     tslib: "npm:^2.1.0"
     unzip-crx-3: "npm:^0.2.0"
-  checksum: 10c0/50d56e174e3bbe568d3d4a56a56e8c87faf44aa54a49ecc93ab672905f30ca1bf4e6a1b5a0b297c6ffeec1e89848086a6ff47f0db8197edb16d1bda16d6440c2
+  checksum: 10c0/cbdaeef985497f881b3f50a8d443c4064af023347534ba0564da6e8a0d26b96a6f0e60213a3443f70dbccd4f0f226f691d77e46f83f6c53850b0c45c2404b14d
   languageName: node
   linkType: hard
 
