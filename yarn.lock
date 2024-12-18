@@ -5443,7 +5443,7 @@ __metadata:
     clsx: "npm:^2.1.1"
     concurrently: "npm:^9.1.0"
     electron: "npm:33.2.1"
-    electron-devtools-installer: "npm:^3.2.0"
+    electron-devtools-installer: "npm:^4.0.0"
     electron-squirrel-startup: "npm:^1.0.1"
     esbuild-register: "npm:^3.6.0"
     eslint: "npm:^9.0.0"
@@ -5469,15 +5469,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"electron-devtools-installer@npm:^3.2.0":
-  version: 3.2.1
-  resolution: "electron-devtools-installer@npm:3.2.1"
+"electron-devtools-installer@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "electron-devtools-installer@npm:4.0.0"
   dependencies:
-    rimraf: "npm:^3.0.2"
-    semver: "npm:^7.2.1"
-    tslib: "npm:^2.1.0"
     unzip-crx-3: "npm:^0.2.0"
-  checksum: 10c0/cbdaeef985497f881b3f50a8d443c4064af023347534ba0564da6e8a0d26b96a6f0e60213a3443f70dbccd4f0f226f691d77e46f83f6c53850b0c45c2404b14d
+  checksum: 10c0/54ba5b7c5f51b9e9857d840fd8ab1958c80efe1c71ad1455f0c93fb3d87696261a429453d561074edcf5e2296b37e1bc65c98b61281ec704add8a563f454f4d0
   languageName: node
   linkType: hard
 
