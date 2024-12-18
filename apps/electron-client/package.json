@@ -6,7 +6,7 @@
   "main": ".vite/build/index.js",
   "repository": "github:phonofidelic/tapes-monorepo",
   "scripts": {
-    "dev": "dotenvx run --env-file=.env -- electron-forge start",
+    "dev": "dotenvx run --env-file=.env -- electron-forge start -- --trace-warnings",
     "package": "dotenvx run --env-file=.env -- electron-forge package",
     "make": "dotenvx run --env-file=.env -- electron-forge make",
     "publish": "dotenvx run --env-file=.env -- electron-forge publish",

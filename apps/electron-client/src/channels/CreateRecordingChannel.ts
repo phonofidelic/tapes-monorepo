@@ -1,66 +1,53 @@
-import { IpcChannel, IpcRequest } from '@/types'
-import { ipcMain, IpcMainEvent } from 'electron'
-import { writeFile } from 'fs/promises'
 import path from 'path'
+import { writeFile } from 'fs/promises'
+import { ipcMain, IpcMainEvent } from 'electron'
+import { IpcChannel, IpcRequest } from '@/types'
 
 export class CreateRecordingChannel implements IpcChannel {
   name = 'recorder:start'
-  private responseChannel: string | null = null
+
   async handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel, data } = request
+    const { responseChannel } = request
     if (!responseChannel) {
       throw new Error(`No response channel provided for recorder:start request`)
     }
 
-    if (!isValidCreateRecordingRequestData(data)) {
-      throw new Error(`Invalid data provided for recorder:start request`)
-    }
+    ipcMain.once('recorder:stop', this.onRecorderStop.bind(this))
 
-    if (!this.responseChannel) {
-      this.responseChannel = responseChannel
-      this.registerResponse(event, request)
-    }
     event.sender.send(responseChannel, {
+      data: {},
       success: true,
     })
   }
 
-  private async registerResponse(event: IpcMainEvent, request: IpcRequest) {
-    ipcMain.on('recorder:stop', async () => {
-      if (!this.responseChannel) {
-        throw new Error(
-          `No response channel provided for recorder:stop request`,
-        )
-      }
+  private async onRecorderStop(event: IpcMainEvent, request: IpcRequest) {
+    if (!request.responseChannel) {
+      throw new Error(`No response channel provided for recorder:stop request`)
+    }
 
-      if (!isValidCreateRecordingRequestData(request.data)) {
-        throw new Error(`Invalid data provided for recorder:stop request`)
-      }
+    if (!isValidCreateRecordingRequestData(request.data)) {
+      throw new Error(`Invalid data provided for recorder:stop request`)
+    }
 
-      try {
-        console.log(
-          '* request.data.storageLocation:',
-          request.data.storageLocation,
-        )
-        await writeFile(
-          path.resolve(request.data.storageLocation, 'test.txt'),
-          'Test-file content',
-          { encoding: 'utf-8' },
-        )
-      } catch (error) {
-        console.error('Could not write file:', error)
-        event.sender.send(this.responseChannel, {
-          success: false,
-        })
-        this.responseChannel = null
-        return
-      }
+    const filepath = path.resolve(
+      request.data.storageLocation,
+      'nope',
+      'test.txt',
+    )
 
-      event.sender.send(this.responseChannel, {
-        success: true,
+    try {
+      await writeFile(filepath, 'Test-file content', { encoding: 'utf-8' })
+    } catch (error) {
+      event.sender.send(request.responseChannel, {
+        error: new Error('Could not write file'),
+        success: false,
       })
+      return
+    }
 
-      this.responseChannel = null
+    event.sender.send(request.responseChannel, {
+      data: { filepath },
+      success: true,
     })
   }
 }

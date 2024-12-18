@@ -32,6 +32,7 @@ import {
   App,
   AppContextProvider,
   IpcService,
+  RecordingProvider,
   SettingsProvider,
   ViewProvider,
 } from '@tapes-monorepo/core'
@@ -55,32 +56,34 @@ root.render(
         ipc: new IpcService(),
       }}
     >
-      <ViewProvider>
-        <SettingsProvider>
-          <div
-            style={{
-              position: 'relative',
-              height: '100vh',
-              width: '100vw',
-              userSelect: 'none',
-              paddingTop: '32px',
-            }}
-          >
+      <RecordingProvider>
+        <ViewProvider>
+          <SettingsProvider>
             <div
-              id="titlebar"
               style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '32px',
-                zIndex: 999,
+                position: 'relative',
+                height: '100vh',
+                width: '100vw',
+                userSelect: 'none',
+                paddingTop: '32px',
               }}
-            />
-            <App />
-          </div>
-        </SettingsProvider>
-      </ViewProvider>
+            >
+              <div
+                id="titlebar"
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '32px',
+                  zIndex: 999,
+                }}
+              />
+              <App />
+            </div>
+          </SettingsProvider>
+        </ViewProvider>
+      </RecordingProvider>
     </AppContextProvider>
   </StrictMode>,
 )
