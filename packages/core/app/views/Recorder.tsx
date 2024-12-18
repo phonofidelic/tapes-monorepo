@@ -8,13 +8,15 @@ import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
+import { useRecordingState } from '@/context/RecordingContext'
+import { IpcResponse } from '@/IpcService'
 
 export function Recorder() {
   const appContext = useAppContext()
   const [audioInputDeviceId] = useSetting('audioInputDeviceId')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
-  const [isRecording, setIsRecording] = useState(false)
+  const { isRecording, setIsRecording } = useRecordingState()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
@@ -96,22 +98,41 @@ export function Recorder() {
               <Button
                 title={isRecording ? 'Stop recording' : 'Start recording'}
                 className="group relative flex size-full justify-center p-4 text-xs"
-                onClick={() => {
+                onClick={async () => {
                   if (appContext.type !== 'electron-client') {
                     return
                   }
 
                   if (!isRecording) {
                     setIsRecording(true)
-                    appContext.ipc.send('recorder:start', {
-                      data: { storageLocation },
-                    })
+                    const startResponse =
+                      await appContext.ipc.send<IpcResponse>('recorder:start')
+                    console.log('startResponse:', startResponse)
+                    if (!startResponse.success) {
+                      setIsRecording(false)
+                      // TODO: Handle error
+                      console.error(startResponse.error)
+                      return
+                    }
                     return
                   }
 
                   if (isRecording) {
                     setIsRecording(false)
-                    appContext.ipc.send('recorder:stop')
+                    const stopResponse = await appContext.ipc.send<IpcResponse>(
+                      'recorder:stop',
+                      {
+                        data: { storageLocation },
+                      },
+                    )
+                    console.log('stopResponse:', stopResponse)
+
+                    if (!stopResponse.success) {
+                      // TODO: Handle error
+                      console.error(stopResponse.error)
+                    }
+
+                    return
                     // TODO: Show set recording name dialog
                   }
                 }}

@@ -22,6 +22,16 @@ type IpcRequest = {
   data?: unknown
 }
 
+export type IpcResponse =
+  | {
+      success: false
+      error: Error
+    }
+  | {
+      success: true
+      data: unknown
+    }
+
 export class IpcService {
   private ipcRenderer?: {
     send(channel: ValidIpcChanel, data: any): void
