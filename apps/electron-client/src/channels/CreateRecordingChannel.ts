@@ -29,11 +29,7 @@ export class CreateRecordingChannel implements IpcChannel {
       throw new Error(`Invalid data provided for recorder:stop request`)
     }
 
-    const filepath = path.resolve(
-      request.data.storageLocation,
-      'nope',
-      'test.txt',
-    )
+    const filepath = path.resolve(request.data.storageLocation, 'test.txt')
 
     try {
       await writeFile(filepath, 'Test-file content', { encoding: 'utf-8' })
