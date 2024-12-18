@@ -7,7 +7,6 @@
   "repository": "github:phonofidelic/tapes-monorepo",
   "scripts": {
     "dev": "dotenvx run --env-file=.env -- electron-forge start",
-    "dev:devtools": "concurrently \"dotenvx run --env-file=.env -- electron-forge start\" \"yarn dlx react-devtools\"",
     "package": "dotenvx run --env-file=.env -- electron-forge package",
     "make": "dotenvx run --env-file=.env -- electron-forge make",
     "publish": "dotenvx run --env-file=.env -- electron-forge publish",
@@ -37,7 +36,6 @@
     "@typescript-eslint/parser": "^8.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "concurrently": "^9.1.0",
     "electron": "33.2.1",
     "electron-devtools-installer": "^4.0.0",
     "esbuild-register": "^3.6.0",
