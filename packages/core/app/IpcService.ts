@@ -13,6 +13,7 @@ declare global {
 
 export type ValidIpcChanel =
   | 'storage:open-directory-dialog'
+  | 'storage:edit-recording'
   | 'recorder:start'
   | 'recorder:stop'
 
