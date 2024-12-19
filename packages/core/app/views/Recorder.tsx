@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { AiFillAudio, AiOutlineAudioMuted } from 'react-icons/ai'
+import { MdOutlineCancel, MdEdit, MdCheck } from 'react-icons/md'
 import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
@@ -9,7 +10,9 @@ import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecordingState } from '@/context/RecordingContext'
-import { IpcResponse } from '@/IpcService'
+import { IpcResponse, StopRecordingResponse } from '@/IpcService'
+
+const NEW_RECORDING_DEFAULT_NAME = 'New recording'
 
 export function Recorder() {
   const appContext = useAppContext()
@@ -22,6 +25,28 @@ export function Recorder() {
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
   )
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedName, setEditedName] = useState(NEW_RECORDING_DEFAULT_NAME)
+  const [filepath, setFilepath] = useState('')
+
+  const commitFileChange = ({ filename }: { filename: string }) => {
+    if (appContext.type !== 'electron-client') {
+      return
+    }
+
+    if (!editedName) {
+      setEditedName(NEW_RECORDING_DEFAULT_NAME)
+    }
+
+    console.log('TODO: commit file change', { filename, filepath })
+    // TODO: edit recording filename
+    // appContext.ipc.send('rename-recording', {
+    //   filename
+    // })
+    setIsEditing(false)
+    setIsEditorOpen(false)
+  }
 
   return (
     <>
@@ -66,123 +91,242 @@ export function Recorder() {
       </div>
       <div
         className={clsx(
-          'absolute bottom-0 left-0 z-10 flex h-20 w-full items-center justify-center border-zinc-100 dark:border-zinc-800',
+          'absolute bottom-[79px] left-0 right-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 drop-shadow-2xl transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          {
+            'translate-y-0': isEditorOpen,
+            'translate-y-full': !isEditorOpen,
+          },
+        )}
+      >
+        <div className="group flex size-full items-center justify-between gap-2 p-4">
+          {isEditing ? (
+            <div className="w-full p-[7px]">
+              <TextInput
+                id="new-recording-name-input"
+                name="new-recording-name"
+                type="text"
+                label="Name your new recording"
+                defaultValue={editedName}
+                autofocus={true}
+                onChange={(event) => setEditedName(event.target.value)}
+                onBlur={() => {
+                  if (!editedName) {
+                    setEditedName(NEW_RECORDING_DEFAULT_NAME)
+                  }
+                  setIsEditing(false)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    commitFileChange({ filename: editedName })
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              <Button
+                title="Delete recording"
+                className="rounded-full p-4 hover:text-rose-500"
+                onClick={() => {
+                  console.log('TODO: delete recording')
+                  setIsEditorOpen(false)
+                }}
+              >
+                <MdOutlineCancel />
+              </Button>
+              <Button
+                className="flex p-4"
+                title={`Rename ${editedName}`}
+                onClick={() => setIsEditing(true)}
+              >
+                <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
+                  {editedName}
+                </p>
+                <MdEdit className="ml-2 opacity-0 transition-opacity delay-75 ease-in group-hover:opacity-100" />
+              </Button>
+              <Button
+                title="Save recoding"
+                className="rounded-full p-4 hover:text-green-500"
+                onClick={() => commitFileChange({ filename: editedName })}
+              >
+                <MdCheck />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+      <div
+        className={clsx(
+          'absolute bottom-0 left-0 z-10 w-full border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900',
           {
             'border-t': !isMonitoring || feature !== 'frequency',
           },
         )}
       >
-        {audioInputDeviceId ? (
-          <>
-            <Button
-              className="group relative flex size-full justify-center p-4 text-xs"
-              title={isMonitoring ? 'Turn off monitor' : 'Turn on monitor'}
-              onClick={() => {
-                setIsMonitoring(!isMonitoring)
-              }}
-            >
-              {isMonitoring && (
-                <div className="absolute left-0 top-0 flex w-full p-2 text-rose-500">
-                  Monitoring
-                </div>
-              )}
-
-              <div className="text-xl text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white">
-                {!isMonitoring ? (
-                  <AiFillAudio />
-                ) : (
-                  <AiOutlineAudioMuted className="dark:text-white" />
-                )}
-              </div>
-            </Button>
-            {storageLocation ? (
+        <div className="flex h-20 w-full items-center justify-center">
+          {audioInputDeviceId ? (
+            <>
               <Button
-                title={isRecording ? 'Stop recording' : 'Start recording'}
                 className="group relative flex size-full justify-center p-4 text-xs"
-                onClick={async () => {
-                  if (appContext.type !== 'electron-client') {
-                    return
-                  }
-
-                  if (!isRecording) {
-                    setIsRecording(true)
-                    const startResponse =
-                      await appContext.ipc.send<IpcResponse>('recorder:start')
-                    console.log('startResponse:', startResponse)
-                    if (!startResponse.success) {
-                      setIsRecording(false)
-                      // TODO: Handle error
-                      console.error(startResponse.error)
-                      return
-                    }
-                    return
-                  }
-
-                  if (isRecording) {
-                    setIsRecording(false)
-                    const stopResponse = await appContext.ipc.send<IpcResponse>(
-                      'recorder:stop',
-                      {
-                        data: { storageLocation, duration: time },
-                      },
-                    )
-                    console.log('stopResponse:', stopResponse)
-
-                    if (!stopResponse.success) {
-                      // TODO: Handle error
-                      console.error(stopResponse.error)
-                    }
-
-                    return
-                    // TODO: Show set recording name dialog
-                  }
+                title={isMonitoring ? 'Turn off monitor' : 'Turn on monitor'}
+                onClick={() => {
+                  setIsMonitoring(!isMonitoring)
                 }}
               >
-                {isRecording && (
-                  <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
-                    <Timer />
+                {isMonitoring && (
+                  <div className="absolute left-0 top-0 flex w-full p-2 text-rose-500">
+                    Monitoring
                   </div>
                 )}
-                <PiRecordFill
-                  className={clsx('text-xl', {
-                    'text-rose-500': isRecording,
-                    'text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white':
-                      !isRecording,
-                  })}
-                />
+
+                <div className="text-xl text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white">
+                  {!isMonitoring ? (
+                    <AiFillAudio />
+                  ) : (
+                    <AiOutlineAudioMuted className="dark:text-white" />
+                  )}
+                </div>
               </Button>
-            ) : appContext.type === 'electron-client' ? (
-              <Button
-                title={isRecording ? 'Stop recording' : 'Start recording'}
-                className="group relative flex size-full justify-center p-4 text-xs"
-                onClick={async () => {
-                  const response = (await appContext.ipc.send(
-                    'storage:open-directory-dialog',
-                  )) as string | undefined
+              {storageLocation ? (
+                <Button
+                  title={isRecording ? 'Stop recording' : 'Start recording'}
+                  className="group relative flex size-full justify-center p-4 text-xs"
+                  disabled={isEditorOpen}
+                  onClick={async () => {
+                    console.groupCollapsed('* click *')
+                    if (appContext.type !== 'electron-client') {
+                      return
+                    }
 
-                  if (!response) {
-                    console.error(
-                      'No response from storage:open-directory-dialog',
-                    )
-                    return
-                  }
+                    if (!isRecording) {
+                      setIsRecording(true)
+                      const startResponse =
+                        await appContext.ipc.send<IpcResponse>('recorder:start')
+                      console.log('startResponse:', startResponse)
+                      if (!startResponse.success) {
+                        setIsRecording(false)
+                        // TODO: Handle error
+                        console.error(startResponse.error)
+                        return
+                      }
+                      return
+                    }
 
-                  if (response === '__unset__') {
-                    return
-                  }
+                    if (isRecording) {
+                      setIsRecording(false)
+                      const stopResponse =
+                        await appContext.ipc.send<StopRecordingResponse>(
+                          'recorder:stop',
+                          {
+                            data: { storageLocation, duration: time },
+                          },
+                        )
+                      console.log('stopResponse:', stopResponse)
 
-                  setStorageLocation(response)
-                }}
-              >
-                Select a storage location
-              </Button>
-            ) : null}
-          </>
-        ) : (
-          <AudioInputSelector className="size-full p-6" />
-        )}
+                      if (!stopResponse.success) {
+                        // TODO: Handle error
+                        console.error(stopResponse.error)
+                      }
+
+                      setFilepath(stopResponse.data.filepath)
+                      setIsEditorOpen(true)
+                    }
+                  }}
+                >
+                  {isRecording && (
+                    <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
+                      <Timer />
+                    </div>
+                  )}
+                  <PiRecordFill
+                    className={clsx('text-xl', {
+                      'text-rose-500': isRecording,
+                      'text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white':
+                        !isRecording,
+                    })}
+                  />
+                </Button>
+              ) : appContext.type === 'electron-client' ? (
+                <Button
+                  title={isRecording ? 'Stop recording' : 'Start recording'}
+                  className="group relative flex size-full justify-center p-4 text-xs"
+                  onClick={async () => {
+                    const response = (await appContext.ipc.send(
+                      'storage:open-directory-dialog',
+                    )) as string | undefined
+
+                    if (!response) {
+                      console.error(
+                        'No response from storage:open-directory-dialog',
+                      )
+                      return
+                    }
+
+                    if (response === '__unset__') {
+                      return
+                    }
+
+                    setStorageLocation(response)
+                  }}
+                >
+                  Select a storage location
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <AudioInputSelector className="size-full p-6" />
+          )}
+        </div>
       </div>
     </>
+  )
+}
+
+function TextInput({
+  value,
+  defaultValue,
+  id,
+  type,
+  name,
+  label,
+  autofocus,
+  onChange,
+  onBlur,
+  onKeyDown,
+}: {
+  id: string
+  type: 'text' | 'email' | 'password'
+  name: string
+  label: string
+  autofocus?: boolean
+  value?: string
+  defaultValue?: string
+  onChange?(event: React.ChangeEvent<HTMLInputElement>): void
+  onBlur?(event: React.FocusEvent<HTMLInputElement>): void
+  onKeyDown?(event: React.KeyboardEvent<HTMLInputElement>): void
+}) {
+  return (
+    <div className="relative w-full">
+      <input
+        value={value}
+        defaultValue={defaultValue}
+        id={id}
+        name={name}
+        type={type}
+        autoFocus={autofocus}
+        placeholder={label}
+        onChange={onChange}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        className="peer w-full rounded p-2 text-zinc-800 placeholder-transparent outline-none outline-zinc-400 dark:bg-zinc-900 dark:text-white"
+      />
+      <label
+        htmlFor={id}
+        className="absolute -top-4 left-2 bg-white p-1 text-sm text-zinc-400 transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:p-0 peer-placeholder-shown:text-base peer-placeholder-shown:text-black peer-focus:-top-4 peer-focus:p-1 peer-focus:text-sm peer-focus:text-zinc-400 dark:bg-zinc-900"
+      >
+        {label}
+      </label>
+    </div>
   )
 }
 
