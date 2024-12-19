@@ -29,9 +29,15 @@ export function Recorder() {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(NEW_RECORDING_DEFAULT_NAME)
   const [filepath, setFilepath] = useState('')
+  const [hasErrors, setHasErrors] = useState(false)
 
   const commitFileChange = ({ filename }: { filename: string }) => {
     if (appContext.type !== 'electron-client') {
+      return
+    }
+
+    if (hasErrors) {
+      // TODO: add error feedback
       return
     }
 
@@ -39,8 +45,6 @@ export function Recorder() {
       setEditedName(NEW_RECORDING_DEFAULT_NAME)
     }
 
-    console.log('TODO: commit file change', { filename, filepath })
-    // TODO: edit recording filename
     appContext.ipc.send('storage:edit-recording', {
       data: {
         filename,
@@ -49,6 +53,8 @@ export function Recorder() {
     })
     setIsEditing(false)
     setIsEditorOpen(false)
+    setEditedName(NEW_RECORDING_DEFAULT_NAME)
+    setFilepath('')
   }
 
   return (
@@ -111,6 +117,11 @@ export function Recorder() {
                 label="Name your new recording"
                 defaultValue={editedName}
                 autofocus={true}
+                validate={(value) => {
+                  const hasErrors = /[^a-z0-9\s_@()-]/i.test(value)
+                  setHasErrors(hasErrors)
+                  return hasErrors ? 'Invalid characters' : undefined
+                }}
                 onChange={(event) => setEditedName(event.target.value)}
                 onBlur={() => {
                   if (!editedName) {
@@ -293,6 +304,7 @@ function TextInput({
   name,
   label,
   autofocus,
+  validate,
   onChange,
   onBlur,
   onKeyDown,
@@ -304,10 +316,13 @@ function TextInput({
   autofocus?: boolean
   value?: string
   defaultValue?: string
+  validate?: (value: string) => string | undefined
   onChange?(event: React.ChangeEvent<HTMLInputElement>): void
   onBlur?(event: React.FocusEvent<HTMLInputElement>): void
   onKeyDown?(event: React.KeyboardEvent<HTMLInputElement>): void
 }) {
+  const [error, setError] = useState<string | undefined>(undefined)
+
   return (
     <div className="relative w-full">
       <input
@@ -318,16 +333,49 @@ function TextInput({
         type={type}
         autoFocus={autofocus}
         placeholder={label}
-        onChange={onChange}
+        onChange={(event) => {
+          setError(undefined)
+
+          if (typeof onChange !== 'function') {
+            return
+          }
+
+          if (typeof validate !== 'function') {
+            onChange(event)
+            return
+          }
+
+          const error = validate(event.target.value)
+
+          if (!error) {
+            onChange(event)
+            return
+          }
+
+          setError(error)
+          onChange(event)
+        }}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
-        className="peer w-full rounded p-2 text-zinc-800 placeholder-transparent outline-none outline-zinc-400 dark:bg-zinc-900 dark:text-white"
+        className={clsx(
+          'peer w-full rounded p-2 text-zinc-800 placeholder-transparent outline-none dark:bg-zinc-900 dark:text-white',
+          {
+            'outline-zinc-400': error === undefined,
+            'outline-rose-500': error !== undefined,
+          },
+        )}
       />
       <label
         htmlFor={id}
-        className="absolute -top-4 left-2 bg-white p-1 text-sm text-zinc-400 transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:p-0 peer-placeholder-shown:text-base peer-placeholder-shown:text-black peer-focus:-top-4 peer-focus:p-1 peer-focus:text-sm peer-focus:text-zinc-400 dark:bg-zinc-900"
+        className={clsx(
+          'absolute -top-4 left-2 bg-white p-1 text-sm transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:p-0 peer-placeholder-shown:text-base peer-placeholder-shown:text-black peer-focus:-top-4 peer-focus:p-1 peer-focus:text-sm dark:bg-zinc-900',
+          {
+            'text-zinc-400 peer-focus:text-zinc-400': error === undefined,
+            'text-rose-500 peer-focus:text-rose-500': error !== undefined,
+          },
+        )}
       >
-        {label}
+        {error ?? label}
       </label>
     </div>
   )
