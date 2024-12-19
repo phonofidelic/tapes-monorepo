@@ -25,11 +25,25 @@ type IpcRequest = {
 export type IpcResponse =
   | {
       success: false
+      data: never
       error: Error
     }
   | {
       success: true
       data: unknown
+      error: never
+    }
+
+export type StopRecordingResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { filepath: string }
+      error: never
     }
 
 export class IpcService {
