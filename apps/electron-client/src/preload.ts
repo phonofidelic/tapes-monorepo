@@ -6,6 +6,7 @@ import { ValidIpcChanel } from '@tapes-monorepo/core'
 
 const validChannels: ValidIpcChanel[] = [
   'storage:open-directory-dialog',
+  'storage:edit-recording',
   'recorder:start',
   'recorder:stop',
 ]

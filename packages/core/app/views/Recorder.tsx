@@ -41,9 +41,12 @@ export function Recorder() {
 
     console.log('TODO: commit file change', { filename, filepath })
     // TODO: edit recording filename
-    // appContext.ipc.send('rename-recording', {
-    //   filename
-    // })
+    appContext.ipc.send('storage:edit-recording', {
+      data: {
+        filename,
+        filepath,
+      },
+    })
     setIsEditing(false)
     setIsEditorOpen(false)
   }

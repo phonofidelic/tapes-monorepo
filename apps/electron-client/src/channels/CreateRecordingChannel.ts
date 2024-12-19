@@ -1,4 +1,5 @@
 import path from 'path'
+import crypto from 'crypto'
 import { writeFile } from 'fs/promises'
 import { ipcMain, IpcMainEvent } from 'electron'
 import { IpcChannel, IpcRequest } from '@/types'
@@ -9,7 +10,7 @@ export class CreateRecordingChannel implements IpcChannel {
   async handle(event: IpcMainEvent, request: IpcRequest) {
     const { responseChannel } = request
     if (!responseChannel) {
-      throw new Error(`No response channel provided for recorder:start request`)
+      throw new Error(`No response channel provided for ${this.name} request`)
     }
 
     ipcMain.once('recorder:stop', this.onRecorderStop.bind(this))
@@ -29,7 +30,10 @@ export class CreateRecordingChannel implements IpcChannel {
       throw new Error(`Invalid data provided for recorder:stop request`)
     }
 
-    const filepath = path.resolve(request.data.storageLocation, 'test.txt')
+    const filepath = path.resolve(
+      request.data.storageLocation,
+      `${crypto.randomUUID()}.txt`,
+    )
 
     const centiseconds = (
       '0' +
