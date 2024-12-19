@@ -13193,11 +13193,11 @@ __metadata:
   linkType: hard
 
 "vite-plugin-wasm@npm:^3.3.0":
-  version: 3.3.0
-  resolution: "vite-plugin-wasm@npm:3.3.0"
+  version: 3.4.0
+  resolution: "vite-plugin-wasm@npm:3.4.0"
   peerDependencies:
-    vite: ^2 || ^3 || ^4 || ^5
-  checksum: 10c0/382ba2f2ffef31dde717ad43a69427bc930a6e2ec453d17b700ef7937b48996893a61657fdee3122654e027b1933341548493b35e6469520a8d4ae6c522d1ee2
+    vite: ^2 || ^3 || ^4 || ^5 || ^6
+  checksum: 10c0/eea90a0ed1a6c6906eaaacb93077c2e2b3e879e537c95d9422dd873d69955ee803eca1986f82844867e9a7bcd852f9fac891802d82ae2f06dacc48e57f0bd4ec
   languageName: node
   linkType: hard
 
