@@ -56,6 +56,7 @@ export class CreateRecordingChannel implements IpcChannel {
         { encoding: 'utf-8' },
       )
     } catch (error) {
+      console.error(error)
       event.sender.send(request.responseChannel, {
         error: new Error('Could not write file'),
         success: false,

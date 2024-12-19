@@ -142,7 +142,16 @@ export function Recorder() {
                 title="Delete recording"
                 className="rounded-full p-4 hover:text-rose-500"
                 onClick={() => {
-                  console.log('TODO: delete recording')
+                  if (appContext.type !== 'electron-client') {
+                    return
+                  }
+                  appContext.ipc.send('storage:delete-recording', {
+                    data: {
+                      filepath,
+                    },
+                  })
+                  setEditedName(NEW_RECORDING_DEFAULT_NAME)
+                  setFilepath('')
                   setIsEditorOpen(false)
                 }}
               >
@@ -207,7 +216,6 @@ export function Recorder() {
                   className="group relative flex size-full justify-center p-4 text-xs"
                   disabled={isEditorOpen}
                   onClick={async () => {
-                    console.groupCollapsed('* click *')
                     if (appContext.type !== 'electron-client') {
                       return
                     }
@@ -216,7 +224,6 @@ export function Recorder() {
                       setIsRecording(true)
                       const startResponse =
                         await appContext.ipc.send<IpcResponse>('recorder:start')
-                      console.log('startResponse:', startResponse)
                       if (!startResponse.success) {
                         setIsRecording(false)
                         // TODO: Handle error
@@ -235,7 +242,6 @@ export function Recorder() {
                             data: { storageLocation, duration: time },
                           },
                         )
-                      console.log('stopResponse:', stopResponse)
 
                       if (!stopResponse.success) {
                         // TODO: Handle error
