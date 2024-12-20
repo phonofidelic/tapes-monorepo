@@ -12,6 +12,7 @@ declare global {
 }
 
 export type ValidIpcChanel =
+  | 'settings:set-default-audio-input-device'
   | 'storage:open-directory-dialog'
   | 'storage:edit-recording'
   | 'storage:delete-recording'

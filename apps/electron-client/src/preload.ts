@@ -5,6 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { ValidIpcChanel } from '@tapes-monorepo/core'
 
 const validChannels: ValidIpcChanel[] = [
+  'settings:set-default-audio-input-device',
   'storage:open-directory-dialog',
   'storage:edit-recording',
   'storage:delete-recording',

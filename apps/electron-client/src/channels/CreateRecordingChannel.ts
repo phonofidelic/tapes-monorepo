@@ -24,6 +24,13 @@ export class CreateRecordingChannel implements IpcChannel {
 
     const appPath = app.getAppPath()
 
+    /**
+     * SoX: The Swiss Army knife of sound processing
+     *
+     * * Wikipedia: https://en.wikipedia.org/wiki/SoX
+     * * Manual: https://explainshell.com/explain/1/sox
+     * * Download: https://sourceforge.net/projects/sox
+     */
     const soxPath =
       process.env.NODE_ENV !== 'development'
         ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
