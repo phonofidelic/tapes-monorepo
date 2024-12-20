@@ -70,7 +70,6 @@ export function Settings() {
             }}
             defaultValue={audioChannelCount || '1'}
           >
-            <option value="">Select number of channels</option>
             <option value="1">{'Mono (1)'}</option>
             <option value="2">{'Stereo (2)'}</option>
           </select>
