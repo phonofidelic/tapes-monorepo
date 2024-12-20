@@ -19,6 +19,7 @@ export function Recorder() {
   const [audioInputDeviceId] = useSetting('audioInputDeviceId')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [audioChannelCount] = useSetting('audioChannelCount')
+  const [audioFormat] = useSetting('audioFormat')
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const { time, isRecording, setIsRecording } = useRecordingState()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
@@ -232,6 +233,7 @@ export function Recorder() {
                               audioChannelCount: parseInt(
                                 audioChannelCount ?? '1',
                               ),
+                              audioFormat,
                             },
                           },
                         )

@@ -54,11 +54,10 @@ export function Settings() {
             }}
             defaultValue={audioFormat ?? ''}
           >
-            <option value="">Select a recording format</option>
-            <option value="mp3">MP3</option>
-            <option value="wav">WAV</option>
-            <option value="ogg">OGG</option>
             <option value="flac">FLAC</option>
+            <option value="mp3">MP3</option>
+            <option value="ogg">OGG</option>
+            <option value="wav">WAV</option>
           </select>
         </label>
         <label className="flex flex-col gap-2 text-sm">
