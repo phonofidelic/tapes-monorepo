@@ -60,8 +60,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
     )
   }
 
-  console.log('audioInputDevices:', audioInputDevices)
-
   return (
     <select
       className={clsx(
@@ -73,7 +71,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
           setAudioInputDeviceId('')
           return
         }
-
         if (appContext.type === 'electron-client') {
           try {
             const setAudioInputDeviceResponse =
@@ -85,16 +82,9 @@ export function AudioInputSelector({ className }: { className?: string }) {
                   },
                 },
               )
-            console.log(
-              'setAudioInputDeviceResponse',
-              setAudioInputDeviceResponse,
-            )
-
             if (setAudioInputDeviceResponse.error) {
               throw setAudioInputDeviceResponse.error
             }
-
-            console.log('event.target.value:', event.target.value)
             setAudioInputDeviceId(event.target.value)
           } catch (error) {
             console.error('Error setting default audio input device:', error)
