@@ -2468,6 +2468,7 @@ __metadata:
     tailwindcss: "npm:^3.4.16"
     typescript: "npm:^5.7.2"
     vite: "npm:^6.0.3"
+    vite-plugin-dts: "npm:^4.4.0"
   peerDependencies:
     react: ^19.0.0
   languageName: unknown
@@ -12991,7 +12992,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite-plugin-dts@npm:^4.3.0":
+"vite-plugin-dts@npm:^4.3.0, vite-plugin-dts@npm:^4.4.0":
   version: 4.4.0
   resolution: "vite-plugin-dts@npm:4.4.0"
   dependencies:
