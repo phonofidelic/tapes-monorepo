@@ -24,6 +24,7 @@ const config: ForgeConfig = {
     asar: true,
     osxSign: {},
     osxNotarize: notarizeOptions,
+    extraResource: ['bin/sox-14.4.2-macOS'],
   },
   publishers: [
     {

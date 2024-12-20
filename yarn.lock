@@ -2468,6 +2468,7 @@ __metadata:
     tailwindcss: "npm:^3.4.16"
     typescript: "npm:^5.7.2"
     vite: "npm:^6.0.3"
+    vite-plugin-dts: "npm:^4.4.0"
   peerDependencies:
     react: ^19.0.0
   languageName: unknown
@@ -2528,7 +2529,7 @@ __metadata:
     rollup-plugin-preserve-directives: "npm:^0.4.0"
     tailwindcss: "npm:^3.4.16"
     typescript: "npm:5.7.2"
-    vite: "npm:^6.0.3"
+    vite: "npm:^6.0.5"
     vite-plugin-dts: "npm:^4.3.0"
   peerDependencies:
     react: ^19.0.0
@@ -5721,7 +5722,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esbuild@npm:^0.24.0":
+"esbuild@npm:0.24.0, esbuild@npm:^0.24.0":
   version: 0.24.0
   resolution: "esbuild@npm:0.24.0"
   dependencies:
@@ -12991,7 +12992,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite-plugin-dts@npm:^4.3.0":
+"vite-plugin-dts@npm:^4.3.0, vite-plugin-dts@npm:^4.4.0":
   version: 4.4.0
   resolution: "vite-plugin-dts@npm:4.4.0"
   dependencies:
@@ -13080,6 +13081,58 @@ __metadata:
   bin:
     vite: bin/vite.js
   checksum: 10c0/b1808f99250980bb1dc7805897ecfced4913adc7b4fd1cf7912e034f3e24e3e97a751ca3410620428bf073070f0b46071b94c4241cf9fc88b12f2d9dcafd7619
+  languageName: node
+  linkType: hard
+
+"vite@npm:^6.0.5":
+  version: 6.0.5
+  resolution: "vite@npm:6.0.5"
+  dependencies:
+    esbuild: "npm:0.24.0"
+    fsevents: "npm:~2.3.3"
+    postcss: "npm:^8.4.49"
+    rollup: "npm:^4.23.0"
+  peerDependencies:
+    "@types/node": ^18.0.0 || ^20.0.0 || >=22.0.0
+    jiti: ">=1.21.0"
+    less: "*"
+    lightningcss: ^1.21.0
+    sass: "*"
+    sass-embedded: "*"
+    stylus: "*"
+    sugarss: "*"
+    terser: ^5.16.0
+    tsx: ^4.8.1
+    yaml: ^2.4.2
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  peerDependenciesMeta:
+    "@types/node":
+      optional: true
+    jiti:
+      optional: true
+    less:
+      optional: true
+    lightningcss:
+      optional: true
+    sass:
+      optional: true
+    sass-embedded:
+      optional: true
+    stylus:
+      optional: true
+    sugarss:
+      optional: true
+    terser:
+      optional: true
+    tsx:
+      optional: true
+    yaml:
+      optional: true
+  bin:
+    vite: bin/vite.js
+  checksum: 10c0/d6927e1795abf0bffbf9183c3c3338c7cc1060bcfbfcd951aa4464c1e5478216f26c95077a2bbd29edbaebc079c1f08a37c7daac8f07c0a6bb53e79d502c70ef
   languageName: node
   linkType: hard
 

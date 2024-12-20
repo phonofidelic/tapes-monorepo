@@ -223,7 +223,10 @@ export function Recorder() {
                     if (!isRecording) {
                       setIsRecording(true)
                       const startResponse =
-                        await appContext.ipc.send<IpcResponse>('recorder:start')
+                        await appContext.ipc.send<IpcResponse>(
+                          'recorder:start',
+                          { data: { storageLocation } },
+                        )
                       if (!startResponse.success) {
                         setIsRecording(false)
                         // TODO: Handle error
