@@ -68,7 +68,7 @@ export function Settings() {
             onChange={(event) => {
               setAudioChannelCount(event.target.value)
             }}
-            defaultValue={audioChannelCount ?? ''}
+            defaultValue={audioChannelCount || '1'}
           >
             <option value="">Select number of channels</option>
             <option value="1">{'Mono (1)'}</option>
