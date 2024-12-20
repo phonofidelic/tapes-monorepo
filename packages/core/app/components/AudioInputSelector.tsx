@@ -20,7 +20,9 @@ export function AudioInputSelector({ className }: { className?: string }) {
         const audioInputs = foundDevices.filter(
           (device) => device.kind === 'audioinput',
         )
-        setAudioInputDevices(audioInputs)
+        setAudioInputDevices(
+          audioInputs.filter((device) => device.deviceId !== 'default'),
+        )
       } catch (error) {
         console.error('Error accessing media devices:', error)
       }
@@ -45,7 +47,9 @@ export function AudioInputSelector({ className }: { className?: string }) {
           const audioInputs = foundDevices.filter(
             (device) => device.kind === 'audioinput',
           )
-          setAudioInputDevices(audioInputs)
+          setAudioInputDevices(
+            audioInputs.filter((device) => device.deviceId !== 'default'),
+          )
         }}
       >
         Select an audio input device
