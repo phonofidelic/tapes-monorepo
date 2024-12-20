@@ -38,16 +38,15 @@ export class CreateRecordingChannel implements IpcChannel {
 
     this.filepath = path.resolve(
       data.storageLocation,
-      `${crypto.randomUUID()}.wav`,
+      `${crypto.randomUUID()}.${data.audioFormat}`,
     )
 
     try {
       this.sox = execFile(soxPath, [
         '--default-device',
         '--no-show-progress',
-        // `-t${recordingSettings.format}`,
+        `--type=${data.audioFormat}`,
         `--channels=${data.audioChannelCount}`,
-        `--type=wav`,
         this.filepath,
       ])
 
@@ -110,6 +109,7 @@ const isValidStartRecordingRequestData = (
 ): data is {
   storageLocation: string
   audioChannelCount: number
+  audioFormat: 'mp3' | 'wav' | 'ogg' | 'flac'
 } => {
   if (
     typeof data !== 'object' ||
@@ -119,7 +119,10 @@ const isValidStartRecordingRequestData = (
     !('audioChannelCount' in data) ||
     typeof data.audioChannelCount !== 'number' ||
     data.audioChannelCount < 1 ||
-    data.audioChannelCount > 2
+    data.audioChannelCount > 2 ||
+    !('audioFormat' in data) ||
+    typeof data.audioFormat !== 'string' ||
+    !['mp3', 'wav', 'ogg', 'flac'].includes(data.audioFormat)
   ) {
     return false
   }

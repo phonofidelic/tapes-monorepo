@@ -2,8 +2,8 @@ import { createContext, useContext, useState } from 'react'
 
 type Settings = {
   audioInputDeviceId: string | undefined
-  audioFormat: string | undefined
-  audioChannelCount: string | undefined
+  audioFormat: 'mp3' | 'wav' | 'ogg' | 'flac' | undefined
+  audioChannelCount: '1' | '2' | undefined
   storageLocation: string | undefined
   settingsDocUrl: string | undefined
 }
@@ -76,14 +76,20 @@ function readSettingsFromLocalStorage(): Partial<Settings> {
     localStorage.getItem('settings') ?? '{}',
   ) as Partial<Settings>
 
-  if (!storedSettings || !storedSettings.audioChannelCount) {
-    writeSettingToLocalStorage('audioChannelCount', '1')
+  if (
+    !storedSettings ||
+    !storedSettings.audioChannelCount ||
+    !storedSettings.audioFormat
+  ) {
+    !storedSettings.audioChannelCount &&
+      writeSettingToLocalStorage('audioChannelCount', '1')
+    !storedSettings.audioFormat &&
+      writeSettingToLocalStorage('audioFormat', 'wav')
     return {
-      audioChannelCount: '1',
+      audioChannelCount: storedSettings.audioChannelCount ?? '1',
+      audioFormat: storedSettings.audioFormat ?? 'wav',
     }
   }
-  return {
-    ...storedSettings,
-    audioChannelCount: storedSettings.audioChannelCount ?? '1',
-  }
+
+  return storedSettings
 }
