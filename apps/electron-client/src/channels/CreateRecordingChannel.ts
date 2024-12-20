@@ -1,22 +1,79 @@
+import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { writeFile } from 'fs/promises'
-import { ipcMain, IpcMainEvent } from 'electron'
+import { execFile, ChildProcess } from 'child_process'
+import { ipcMain, app, IpcMainEvent } from 'electron'
 import { IpcChannel, IpcRequest } from '@/types'
 
 export class CreateRecordingChannel implements IpcChannel {
   name = 'recorder:start'
 
+  private filepath: string | null = null
+  private sox: ChildProcess | null = null
+
   async handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel } = request
+    const { responseChannel, data } = request
     if (!responseChannel) {
       throw new Error(`No response channel provided for ${this.name} request`)
     }
 
+    if (!isValidStartRecordingRequestData(data)) {
+      throw new Error(`Invalid data provided for ${this.name} request`)
+    }
+
     ipcMain.once('recorder:stop', this.onRecorderStop.bind(this))
 
+    const appPath = app.getAppPath()
+
+    let soxPath
+    const platform = os.platform()
+    switch (platform) {
+      case 'darwin':
+        soxPath =
+          process.env.NODE_ENV !== 'development'
+            ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
+            : (soxPath = path.resolve(appPath, 'bin', 'sox-14.4.2-macOS'))
+        break
+
+      case 'win32':
+        soxPath =
+          process.env.NODE_ENV !== 'development'
+            ? path.resolve(process.resourcesPath, 'sox-14.4.2-win32.exe')
+            : path.resolve(appPath, 'bin', 'sox-14.4.2-win32.exe')
+        break
+
+      default:
+        throw new Error(`Platform ${platform} not supported`)
+    }
+
+    this.filepath = path.resolve(
+      data.storageLocation,
+      `${crypto.randomUUID()}.wav`,
+    )
+
+    try {
+      this.sox = await execFile(soxPath, [
+        '--default-device',
+        // `-t coreaudio "${recordingSettings.selectedMediaDeviceId}"`,
+        '--no-show-progress',
+        // `-c${recordingSettings.channels}`,
+        // `-t${recordingSettings.format}`,
+        `--channels=2`,
+        `--type=wav`,
+        this.filepath,
+      ])
+
+      if (!this.sox.stdout || !this.sox.stderr) {
+        throw new Error('Failed to start sox process')
+      }
+    } catch (error) {
+      console.error(error)
+    }
+
     event.sender.send(responseChannel, {
-      data: {},
+      data: {
+        debug: `env: ${process.env.NODE_ENV} \nsoxPath: ${soxPath} \nprocess.resourcesPath: ${process.resourcesPath} \nappPath: ${appPath}`,
+      },
       success: true,
     })
   }
@@ -26,52 +83,53 @@ export class CreateRecordingChannel implements IpcChannel {
       throw new Error(`No response channel provided for recorder:stop request`)
     }
 
-    if (!isValidCreateRecordingRequestData(request.data)) {
+    if (!isValidStopRecordingRequestData(request.data)) {
       throw new Error(`Invalid data provided for recorder:stop request`)
     }
 
-    const filepath = path.resolve(
-      request.data.storageLocation,
-      `${crypto.randomUUID()}.txt`,
-    )
+    if (!this.filepath) {
+      throw new Error(`No filepath provided for recorder:stop request`)
+    }
 
-    const centiseconds = (
-      '0' +
-      (Math.floor(request.data.duration / 10) % 100)
-    ).slice(-2)
-    const seconds = (
-      '0' +
-      (Math.floor(request.data.duration / 1000) % 60)
-    ).slice(-2)
-    const minutes = (
-      '0' +
-      (Math.floor(request.data.duration / 60000) % 60)
-    ).slice(-2)
-    const hours = ('0' + Math.floor(request.data.duration / 3600000)).slice(-2)
+    if (!this.sox) {
+      throw new Error(`No sox process provided for recorder:stop request`)
+    }
 
     try {
-      await writeFile(
-        filepath,
-        `Test-file content, duration: ${hours}:${minutes}:${seconds}:${centiseconds}`,
-        { encoding: 'utf-8' },
-      )
+      this.sox.kill('SIGQUIT')
     } catch (error) {
       console.error(error)
       event.sender.send(request.responseChannel, {
-        error: new Error('Could not write file'),
+        error: new Error('Could not end sox process'),
         success: false,
       })
       return
     }
 
     event.sender.send(request.responseChannel, {
-      data: { filepath },
+      data: { filepath: this.filepath },
       success: true,
     })
   }
 }
 
-const isValidCreateRecordingRequestData = (
+const isValidStartRecordingRequestData = (
+  data: unknown,
+): data is {
+  storageLocation: string
+} => {
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    !('storageLocation' in data) ||
+    typeof data.storageLocation !== 'string'
+  ) {
+    return false
+  }
+  return true
+}
+
+const isValidStopRecordingRequestData = (
   data: unknown,
 ): data is {
   storageLocation: string
