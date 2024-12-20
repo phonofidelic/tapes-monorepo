@@ -35,13 +35,6 @@ export class CreateRecordingChannel implements IpcChannel {
             : (soxPath = path.resolve(appPath, 'bin', 'sox-14.4.2-macOS'))
         break
 
-      case 'win32':
-        soxPath =
-          process.env.NODE_ENV !== 'development'
-            ? path.resolve(process.resourcesPath, 'sox-14.4.2-win32.exe')
-            : path.resolve(appPath, 'bin', 'sox-14.4.2-win32.exe')
-        break
-
       default:
         throw new Error(`Platform ${platform} not supported`)
     }
