@@ -1,4 +1,3 @@
-import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import { execFile, ChildProcess } from 'child_process'
@@ -25,19 +24,10 @@ export class CreateRecordingChannel implements IpcChannel {
 
     const appPath = app.getAppPath()
 
-    let soxPath
-    const platform = os.platform()
-    switch (platform) {
-      case 'darwin':
-        soxPath =
-          process.env.NODE_ENV !== 'development'
-            ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
-            : (soxPath = path.resolve(appPath, 'bin', 'sox-14.4.2-macOS'))
-        break
-
-      default:
-        throw new Error(`Platform ${platform} not supported`)
-    }
+    const soxPath =
+      process.env.NODE_ENV !== 'development'
+        ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
+        : path.resolve(appPath, 'bin', 'sox-14.4.2-macOS')
 
     this.filepath = path.resolve(
       data.storageLocation,
