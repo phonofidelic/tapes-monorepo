@@ -3,6 +3,7 @@ import { createContext, useContext, useState } from 'react'
 type Settings = {
   audioInputDeviceId: string | null
   audioFormat: string | null
+  audioChannelCount: string | null
   storageLocation: string | null
   settingsDocUrl: string | null
 }
