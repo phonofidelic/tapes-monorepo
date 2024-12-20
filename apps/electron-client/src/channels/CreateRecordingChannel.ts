@@ -11,7 +11,7 @@ export class CreateRecordingChannel implements IpcChannel {
   private filepath: string | null = null
   private sox: ChildProcess | null = null
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  handle(event: IpcMainEvent, request: IpcRequest) {
     const { responseChannel, data } = request
     if (!responseChannel) {
       throw new Error(`No response channel provided for ${this.name} request`)
@@ -45,7 +45,7 @@ export class CreateRecordingChannel implements IpcChannel {
     )
 
     try {
-      this.sox = await execFile(soxPath, [
+      this.sox = execFile(soxPath, [
         '--default-device',
         // `-t coreaudio "${recordingSettings.selectedMediaDeviceId}"`,
         '--no-show-progress',
