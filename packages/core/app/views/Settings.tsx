@@ -11,6 +11,8 @@ import { Button } from '@tapes-monorepo/ui'
 export function Settings() {
   const appContext = useAppContext()
   const [audioFormat, setAudioFormat] = useSetting('audioFormat')
+  const [audioChannelCount, setAudioChannelCount] =
+    useSetting('audioChannelCount')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [settingsDocUrl, setSettingsDocUrl] = useSetting('settingsDocUrl')
   const repo = useRepo()
@@ -42,7 +44,7 @@ export function Settings() {
           <AudioInputSelector className="p-2" />
         </label>
         <label className="flex flex-col gap-2 text-sm">
-          Recording format:
+          <h3>Recording format:</h3>
           <select
             className="flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             onChange={(event) => {
@@ -57,6 +59,20 @@ export function Settings() {
             <option value="wav">WAV</option>
             <option value="ogg">OGG</option>
             <option value="flac">FLAC</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          <h3>Channels:</h3>
+          <select
+            className="flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            onChange={(event) => {
+              setAudioChannelCount(event.target.value)
+            }}
+            defaultValue={audioChannelCount ?? ''}
+          >
+            <option value="">Select number of channels</option>
+            <option value="1">{'Mono (1)'}</option>
+            <option value="2">{'Stereo (2)'}</option>
           </select>
         </label>
       </div>
