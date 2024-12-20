@@ -1,16 +1,16 @@
 import { createContext, useContext, useState } from 'react'
 
 type Settings = {
-  audioInputDeviceId: string | null
-  audioFormat: string | null
-  audioChannelCount: string | null
-  storageLocation: string | null
-  settingsDocUrl: string | null
+  audioInputDeviceId: string | undefined
+  audioFormat: string | undefined
+  audioChannelCount: string | undefined
+  storageLocation: string | undefined
+  settingsDocUrl: string | undefined
 }
 
 const SettingsContext = createContext<{
-  settings: Settings
-  setSettings: (settings: Settings) => void
+  settings: Partial<Settings>
+  setSettings: (settings: Partial<Settings>) => void
 } | null>(null)
 
 export const SettingsProvider = ({
@@ -18,7 +18,7 @@ export const SettingsProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const [settings, setSettings] = useState<Settings>(
+  const [settings, setSettings] = useState<Partial<Settings>>(
     readSettingsFromLocalStorage,
   )
 
@@ -71,6 +71,19 @@ function writeSettingToLocalStorage(key: keyof Settings, value: string | null) {
   )
 }
 
-function readSettingsFromLocalStorage() {
-  return JSON.parse(localStorage.getItem('settings') || '{}')
+function readSettingsFromLocalStorage(): Partial<Settings> {
+  const storedSettings = JSON.parse(
+    localStorage.getItem('settings') ?? '{}',
+  ) as Partial<Settings>
+
+  if (!storedSettings || !storedSettings.audioChannelCount) {
+    writeSettingToLocalStorage('audioChannelCount', '1')
+    return {
+      audioChannelCount: '1',
+    }
+  }
+  return {
+    ...storedSettings,
+    audioChannelCount: storedSettings.audioChannelCount ?? '1',
+  }
 }
