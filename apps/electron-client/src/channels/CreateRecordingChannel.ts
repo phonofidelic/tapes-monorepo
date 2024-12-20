@@ -44,11 +44,9 @@ export class CreateRecordingChannel implements IpcChannel {
     try {
       this.sox = execFile(soxPath, [
         '--default-device',
-        // `-t coreaudio "${recordingSettings.selectedMediaDeviceId}"`,
         '--no-show-progress',
-        // `-c${recordingSettings.channels}`,
         // `-t${recordingSettings.format}`,
-        `--channels=2`,
+        `--channels=${data.audioChannelCount}`,
         `--type=wav`,
         this.filepath,
       ])
@@ -59,6 +57,10 @@ export class CreateRecordingChannel implements IpcChannel {
     } catch (error) {
       console.error(error)
     }
+
+    // Debug sox output:
+    // this.sox?.stdout?.on('data', (chunk) => console.log(chunk.toString()))
+    // this.sox?.stderr?.on('data', (chunk) => console.error(chunk.toString()))
 
     event.sender.send(responseChannel, {
       data: {
@@ -107,12 +109,17 @@ const isValidStartRecordingRequestData = (
   data: unknown,
 ): data is {
   storageLocation: string
+  audioChannelCount: number
 } => {
   if (
     typeof data !== 'object' ||
     data === null ||
     !('storageLocation' in data) ||
-    typeof data.storageLocation !== 'string'
+    typeof data.storageLocation !== 'string' ||
+    !('audioChannelCount' in data) ||
+    typeof data.audioChannelCount !== 'number' ||
+    data.audioChannelCount < 1 ||
+    data.audioChannelCount > 2
   ) {
     return false
   }

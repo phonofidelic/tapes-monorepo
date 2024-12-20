@@ -18,6 +18,7 @@ export function Recorder() {
   const appContext = useAppContext()
   const [audioInputDeviceId] = useSetting('audioInputDeviceId')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
+  const [audioChannelCount] = useSetting('audioChannelCount')
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const { time, isRecording, setIsRecording } = useRecordingState()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
@@ -225,7 +226,14 @@ export function Recorder() {
                       const startResponse =
                         await appContext.ipc.send<IpcResponse>(
                           'recorder:start',
-                          { data: { storageLocation } },
+                          {
+                            data: {
+                              storageLocation,
+                              audioChannelCount: parseInt(
+                                audioChannelCount ?? '1',
+                              ),
+                            },
+                          },
                         )
                       if (!startResponse.success) {
                         setIsRecording(false)
@@ -401,7 +409,7 @@ function Timer() {
   return `${hours}:${minutes}:${seconds}:${centiseconds}`
 }
 
-function useMonitor(selectedMediaDeviceId: string | null) {
+function useMonitor(selectedMediaDeviceId: string | undefined) {
   const [isMonitoring, setIsMonitoring] = useState(false)
 
   useEffect(() => {
