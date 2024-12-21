@@ -5,7 +5,7 @@ type Settings = {
   audioFormat: 'mp3' | 'wav' | 'ogg' | 'flac' | undefined
   audioChannelCount: '1' | '2' | undefined
   storageLocation: string | undefined
-  settingsDocUrl: string | undefined
+  automergeUrl: string | undefined
 }
 
 const SettingsContext = createContext<{
