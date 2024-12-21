@@ -4,6 +4,9 @@ import { AiFillAudio, AiOutlineAudioMuted } from 'react-icons/ai'
 import { MdOutlineCancel, MdEdit, MdCheck } from 'react-icons/md'
 import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
+import { isValidAutomergeUrl } from '@automerge/automerge-repo'
+import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
+import { RecordingData, RecordingRepoState } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
@@ -16,14 +19,21 @@ const NEW_RECORDING_DEFAULT_NAME = 'New recording'
 
 export function Recorder() {
   const appContext = useAppContext()
+
   const [audioInputDeviceId] = useSetting('audioInputDeviceId')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [audioChannelCount] = useSetting('audioChannelCount')
   const [audioFormat] = useSetting('audioFormat')
+  const [autoMergeUrl] = useSetting('automergeUrl')
+
+  const repo = useRepo()
+  const [, changeDocState] = useDocument<RecordingRepoState>(
+    isValidAutomergeUrl(autoMergeUrl) ? autoMergeUrl : undefined,
+  )
+
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const { time, isRecording, setIsRecording } = useRecordingState()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
-
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
   )
@@ -53,6 +63,26 @@ export function Recorder() {
         filepath,
       },
     })
+
+    const handle = repo.create<RecordingData>()
+    const url = handle.url
+    handle.change((doc) => {
+      doc.url = url
+      doc.filename = filename
+      doc.filepath = filepath
+      doc.name = editedName
+      doc.id = crypto.randomUUID()
+    })
+
+    changeDocState((repoState) => {
+      console.log('changeDocState, repo:', repoState)
+      if (Array.isArray(repoState.recordings)) {
+        repoState.recordings.push(url)
+        return
+      }
+      repoState.recordings = [url]
+    })
+
     setIsEditing(false)
     setIsEditorOpen(false)
     setEditedName(NEW_RECORDING_DEFAULT_NAME)

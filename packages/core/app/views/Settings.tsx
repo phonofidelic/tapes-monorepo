@@ -1,6 +1,3 @@
-import { useEffect } from 'react'
-import { isValidAutomergeUrl } from '@automerge/automerge-repo/slim'
-import { useRepo } from '@automerge/automerge-repo-react-hooks'
 import { MdOutlineRemoveCircleOutline } from 'react-icons/md'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSetting } from '@/context/SettingsContext'
@@ -14,26 +11,12 @@ export function Settings() {
   const [audioChannelCount, setAudioChannelCount] =
     useSetting('audioChannelCount')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
-  const [settingsDocUrl, setSettingsDocUrl] = useSetting('settingsDocUrl')
-  const repo = useRepo()
+  const [automergeUrl] = useSetting('automergeUrl')
+
   const baseUrl =
     process.env.NODE_ENV === 'production'
       ? 'https://tapes-monorepo-web.vercel.app'
       : `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
-
-  useEffect(() => {
-    if (isValidAutomergeUrl(settingsDocUrl)) {
-      const handle = repo.find(settingsDocUrl)
-      setSettingsDocUrl(handle.url)
-    } else {
-      const handle = repo.create<{
-        audioInputDeviceId?: string
-        audioFormat?: 'mp3' | 'wav' | 'ogg' | 'flac'
-        storageLocation?: string
-      }>({})
-      setSettingsDocUrl(handle.url)
-    }
-  }, [settingsDocUrl])
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,8 +113,9 @@ export function Settings() {
         <div className="flex flex-col gap-2 p-2">
           <p className="text-sm">Replicate your data to another device:</p>
           <div>
-            <QRCodeSVG value={`${baseUrl}/app/?am=${settingsDocUrl}`} />
+            <QRCodeSVG value={`${baseUrl}/?am=${automergeUrl}`} />
           </div>
+          <p className="select-text">{`${baseUrl}/?am=${automergeUrl}`}</p>
         </div>
       </div>
     </div>
