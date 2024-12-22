@@ -1,6 +1,7 @@
 {
   "name": "web-client",
   "packageManager": "yarn@4.5.3",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
