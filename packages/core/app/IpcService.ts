@@ -49,6 +49,18 @@ export type StopRecordingResponse =
       error: never
     }
 
+export type EditRecordingResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { filepath: string }
+      error: never
+    }
+
 export class IpcService {
   private ipcRenderer?: {
     send(channel: ValidIpcChanel, data: any): void

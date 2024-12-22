@@ -24,7 +24,10 @@ export class EditRecordingChannel implements IpcChannel {
         filename + path.extname(filepath),
       )
       await rename(filepath, newPath)
-      event.sender.send(responseChannel, { success: true })
+      event.sender.send(responseChannel, {
+        success: true,
+        data: { filepath: newPath },
+      })
     } catch (error) {
       event.sender.send(responseChannel, {
         success: false,
