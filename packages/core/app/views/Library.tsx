@@ -6,25 +6,48 @@ import { MdEdit, MdOutlineMoreVert } from 'react-icons/md'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { useSetting } from '@/context/SettingsContext'
+import { useAppContext } from '@/context/AppContext'
+import { IpcResponse } from '@/IpcService'
 
 export function Library() {
   const [autoMergeUrl] = useSetting('automergeUrl')
-  const [docState] = useDocument<RecordingRepoState>(
+  const [docState, changeDocState] = useDocument<RecordingRepoState>(
     isValidAutomergeUrl(autoMergeUrl) ? autoMergeUrl : undefined,
   )
+
+  const deleteRecording = (url: AutomergeUrl) => {
+    changeDocState((doc) => {
+      doc.recordings = doc.recordings.filter(
+        (recordingUrl) => recordingUrl !== url,
+      )
+    })
+  }
 
   return (
     <div className="flex flex-col">
       <ul>
         {docState?.recordings.map((url) => {
-          return <LibraryListItem key={url} automergeUrl={url} />
+          return (
+            <LibraryListItem
+              key={url}
+              automergeUrl={url}
+              onDelete={deleteRecording}
+            />
+          )
         })}
       </ul>
     </div>
   )
 }
 
-function LibraryListItem({ automergeUrl }: { automergeUrl: AutomergeUrl }) {
+function LibraryListItem({
+  automergeUrl,
+  onDelete,
+}: {
+  automergeUrl: AutomergeUrl
+  onDelete: (url: AutomergeUrl) => void
+}) {
+  const appContext = useAppContext()
   const [recording, changeRecording] = useDocument<RecordingData>(automergeUrl)
 
   const initialized = useRef(false)
@@ -130,15 +153,30 @@ function LibraryListItem({ automergeUrl }: { automergeUrl: AutomergeUrl }) {
                 Edit
               </Button>
             </li>
-            <li className="size-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <Button
-                onClick={() => {
-                  setIsOptionsMenuOpen(false)
-                }}
-              >
-                Delete
-              </Button>
-            </li>
+            {appContext.type === 'electron-client' && (
+              <li className="size-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                <Button
+                  onClick={async () => {
+                    const deleteRecordingResponse =
+                      await appContext.ipc.send<IpcResponse>(
+                        'storage:delete-recording',
+                        {
+                          data: { filepath: recording.filepath },
+                        },
+                      )
+                    if (deleteRecordingResponse.error) {
+                      console.error(deleteRecordingResponse.error)
+                      setIsOptionsMenuOpen(false)
+                      return
+                    }
+                    onDelete(automergeUrl)
+                    setIsOptionsMenuOpen(false)
+                  }}
+                >
+                  Delete
+                </Button>
+              </li>
+            )}
           </ul>
         </div>
       </div>

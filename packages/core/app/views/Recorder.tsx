@@ -13,7 +13,11 @@ import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecordingState } from '@/context/RecordingContext'
-import { IpcResponse, StopRecordingResponse } from '@/IpcService'
+import {
+  EditRecordingResponse,
+  IpcResponse,
+  StopRecordingResponse,
+} from '@/IpcService'
 
 const NEW_RECORDING_DEFAULT_NAME = 'New recording'
 
@@ -43,7 +47,7 @@ export function Recorder() {
   const [filepath, setFilepath] = useState('')
   const [hasErrors, setHasErrors] = useState(false)
 
-  const commitFileChange = ({ filename }: { filename: string }) => {
+  const commitFileChange = async ({ filename }: { filename: string }) => {
     if (appContext.type !== 'electron-client') {
       return
     }
@@ -57,25 +61,33 @@ export function Recorder() {
       setEditedName(NEW_RECORDING_DEFAULT_NAME)
     }
 
-    appContext.ipc.send('storage:edit-recording', {
-      data: {
-        filename,
-        filepath,
-      },
-    })
+    const editRecordingResponse =
+      await appContext.ipc.send<EditRecordingResponse>(
+        'storage:edit-recording',
+        {
+          data: {
+            filename,
+            filepath,
+          },
+        },
+      )
+
+    if (!editRecordingResponse.success) {
+      // TODO: add error feedback
+      return
+    }
 
     const handle = repo.create<RecordingData>()
     const url = handle.url
     handle.change((doc) => {
       doc.url = url
       doc.filename = filename
-      doc.filepath = filepath
+      doc.filepath = editRecordingResponse.data.filepath
       doc.name = editedName
       doc.id = crypto.randomUUID()
     })
 
     changeDocState((repoState) => {
-      console.log('changeDocState, repo:', repoState)
       if (Array.isArray(repoState.recordings)) {
         repoState.recordings.push(url)
         return
