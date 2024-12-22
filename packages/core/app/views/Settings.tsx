@@ -14,9 +14,9 @@ export function Settings() {
   const [automergeUrl] = useSetting('automergeUrl')
 
   const baseUrl =
-    process.env.NODE_ENV === 'production'
-      ? 'https://tapes-monorepo-web.vercel.app'
-      : `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
+    process.env.NODE_ENV === 'development'
+      ? `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
+      : 'https://tapes-monorepo-web-client.vercel.app'
 
   return (
     <div className="flex flex-col gap-4">
