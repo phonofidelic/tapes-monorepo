@@ -13339,7 +13339,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "web@workspace:apps/web"
   dependencies:
-    "@tapes-monorepo/core": "npm:*"
     "@tapes-monorepo/eslint-config": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
