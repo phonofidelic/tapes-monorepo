@@ -10,6 +10,7 @@ export function Button({
   disabled,
   onClick,
   children,
+  ...rest
 }: {
   id?: string
   className?: string
@@ -17,7 +18,7 @@ export function Button({
   disabled?: boolean
   onClick?: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void
   children: React.ReactNode
-}) {
+} & React.HTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       id={id}
@@ -28,6 +29,7 @@ export function Button({
       )}
       disabled={disabled}
       onClick={onClick}
+      {...rest}
     >
       {children}
     </button>
