@@ -13,7 +13,6 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@tapes-monorepo/core": "*",
     "@tapes-monorepo/ui": "*",
     "next": "^15.0.0",
     "qrcode.react": "^4.2.0",

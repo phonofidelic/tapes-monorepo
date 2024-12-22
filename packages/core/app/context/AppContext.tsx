@@ -1,30 +1,25 @@
 import { IpcService } from '@/IpcService'
 import { createContext, useContext } from 'react'
 
-const AppContext = createContext<
+type AppContextValue =
   | {
       type: 'electron-client'
       ipc: IpcService
+      automergeUrl?: string
     }
   | {
       type: 'web'
+      automergeUrl?: string
     }
-  | null
->(null)
+
+const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppContextProvider({
   children,
   value,
 }: {
   children: React.ReactNode
-  value:
-    | {
-        type: 'electron-client'
-        ipc: IpcService
-      }
-    | {
-        type: 'web'
-      }
+  value: AppContextValue
 }) {
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

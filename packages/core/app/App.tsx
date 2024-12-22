@@ -1,13 +1,9 @@
-'use client'
-
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import wasmUrl from '@automerge/automerge/automerge.wasm?url'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
-import { Repo } from '@automerge/automerge-repo/slim'
-import { next as Automerge } from '@automerge/automerge/slim'
+import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
 import { RepoContext } from '@automerge/automerge-repo-react-hooks'
 import { Button } from '@tapes-monorepo/ui'
 import {
@@ -16,20 +12,28 @@ import {
   viewComponentMap,
 } from '@/context/ViewContext'
 import './index.css'
+import { useAppContext } from './context/AppContext'
+import { useSetting } from './context/SettingsContext'
+import { RecordingRepoState } from '@/types'
 
 export function App() {
+  const appContext = useAppContext()
+  const [automergeUrl, setAutomergeUrl] = useSetting('automergeUrl')
   const { currentView, setCurrentView } = useView()
-  const [repo, setRepo] = useState<Repo | null>(null)
+  const [repo, setRepo] = useState<any | null>(null)
   const [isScrolled, setIsScrolled] = useState(false)
   const mainRef = useRef<HTMLDivElement | null>(null)
+  const handleRef = useRef<DocHandle<unknown> | null>(null)
 
   useEffect(() => {
+    const onEphemeralMessage = (message: any) => {
+      console.log('got an ephemeral message: ', message)
+    }
+
     const initialize = async () => {
       if (repo) {
         return
       }
-
-      await Automerge.initializeWasm(wasmUrl)
 
       const broadcast = new BroadcastChannelNetworkAdapter()
       // TODO: Set up sync server
@@ -43,9 +47,28 @@ export function App() {
         network: [websocket, broadcast],
       })
 
+      const storedAutomergeUrl = appContext.automergeUrl ?? automergeUrl
+
+      if (storedAutomergeUrl && isValidAutomergeUrl(storedAutomergeUrl)) {
+        handleRef.current = _repo.find(storedAutomergeUrl)
+        setAutomergeUrl(storedAutomergeUrl)
+      } else {
+        handleRef.current = _repo.create<RecordingRepoState>({ recordings: [] })
+        setAutomergeUrl(handleRef.current.url)
+      }
+
+      handleRef.current.on('ephemeral-message', onEphemeralMessage)
+      handleRef.current.broadcast({ message: 'Connected to repo' })
+
       setRepo(_repo)
     }
     initialize()
+
+    return () => {
+      if (handleRef.current) {
+        handleRef.current.off('ephemeral-message', onEphemeralMessage)
+      }
+    }
   }, [])
 
   useEffect(() => {
