@@ -15,7 +15,7 @@ export function Settings() {
 
   const baseUrl =
     process.env.NODE_ENV === 'production'
-      ? 'https://tapes-monorepo-web.vercel.app'
+      ? 'https://tapes-monorepo-web-client.vercel.app'
       : `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
 
   return (
