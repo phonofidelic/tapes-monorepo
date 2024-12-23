@@ -61,6 +61,25 @@ export type EditRecordingResponse =
       error: never
     }
 
+type IpcSendArgs =
+  | ['settings:set-default-audio-input-device']
+  | ['storage:open-directory-dialog']
+  | [
+      'storage:edit-recording',
+      IpcRequest & { data: { filename: string; filepath: string } },
+    ]
+  | ['storage:delete-recording', IpcRequest & { data: { filepath: string } }]
+  | [
+      'recorder:start',
+      IpcRequest & {
+        data: {
+          storageLocation: string
+          audioChannelCount: number
+          audioFormat: string | undefined
+        }
+      },
+    ]
+  | ['recorder:stop', IpcRequest]
 export class IpcService {
   private ipcRenderer?: {
     send(channel: ValidIpcChanel, data: any): void
@@ -75,8 +94,9 @@ export class IpcService {
   }
 
   public send<T>(
-    channel: ValidIpcChanel,
-    request: IpcRequest = {},
+    // channel: ValidIpcChanel,
+    // request: IpcRequest = {},
+    ...[channel, request = {}]: IpcSendArgs
   ): Promise<T> {
     // If the ipcRenderer is not available try to initialize it
     if (!this.ipcRenderer) {

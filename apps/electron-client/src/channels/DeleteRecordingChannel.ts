@@ -25,7 +25,7 @@ export class DeleteRecordingChannel implements IpcChannel {
       console.error(error)
       event.sender.send(request.responseChannel, {
         success: false,
-        error: new Error('Failed to delete recording'),
+        error,
       })
     }
   }
