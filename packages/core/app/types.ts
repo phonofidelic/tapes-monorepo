@@ -5,6 +5,7 @@ export type RecordingData = {
   filename: string
   filepath: string
   name: string
+  duration: number
   id: string
 }
 
