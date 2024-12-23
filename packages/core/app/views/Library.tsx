@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
-import { MdEdit, MdOutlineMoreVert } from 'react-icons/md'
+import {
+  MdEdit,
+  MdOutlineMoreVert,
+  MdOutlineRemoveCircleOutline,
+} from 'react-icons/md'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { useSetting } from '@/context/SettingsContext'
@@ -74,116 +78,120 @@ function LibraryListItem({
   }
 
   return (
-    <div className="group flex w-full justify-between p-4">
-      {isEditing ? (
-        <div className="w-full p-[7px]">
-          <TextInput
-            id="new-recording-name-input"
-            name="new-recording-name"
-            type="text"
-            label="Edit recording name"
-            defaultValue={editedName}
-            autofocus={true}
-            validate={(value) => {
-              // TODO: update validation regex
-              const hasErrors = /[^a-z0-9\s_@()-]/i.test(value)
-              setHasErrors(hasErrors)
-              return hasErrors ? 'Invalid characters' : undefined
-            }}
-            onChange={(event) => setEditedName(event.target.value)}
-            onBlur={() => {
-              if (!editedName) {
-                setEditedName(previousRecordingName.current)
-              }
-              setIsEditing(false)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                if (!hasErrors && editedName && editedName.length > 0) {
-                  changeRecording((recording) => {
-                    recording.name = editedName
-                  })
+    <>
+      <div className="group flex w-full justify-between p-4">
+        {isEditing ? (
+          <div className="w-full p-[7px]">
+            <TextInput
+              id="new-recording-name-input"
+              name="new-recording-name"
+              type="text"
+              label="Edit recording name"
+              defaultValue={editedName}
+              autofocus={true}
+              validate={(value) => {
+                // TODO: update validation regex
+                const hasErrors = /[^a-z0-9\s_@()-]/i.test(value)
+                setHasErrors(hasErrors)
+                return hasErrors ? 'Invalid characters' : undefined
+              }}
+              onChange={(event) => setEditedName(event.target.value)}
+              onBlur={() => {
+                if (!editedName) {
+                  setEditedName(previousRecordingName.current)
                 }
                 setIsEditing(false)
-              }
-            }}
-          />
-        </div>
-      ) : (
-        <Button className="p-1" onClick={() => setIsEditing(true)}>
-          <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
-            {recording.name}
-          </p>
-          <MdEdit className="ml-2 opacity-0 transition-opacity ease-in group-hover:opacity-100" />
-        </Button>
-      )}
-      <div ref={optionsMenuRef} className="relative">
-        <Button
-          title="Options"
-          className={clsx(
-            'rounded-full p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100',
-            {
-              'opacity-100': isOptionsMenuOpen,
-            },
-          )}
-          onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
-        >
-          <MdOutlineMoreVert />
-        </Button>
-        <div
-          className={clsx('absolute top-0 z-50', {
-            'hidden opacity-0': !isOptionsMenuOpen,
-            'flex opacity-100': isOptionsMenuOpen,
-          })}
-          style={{
-            right: `${optionsMenuRef.current?.getBoundingClientRect().width ?? 0}px`,
-          }}
-        >
-          <ul
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  if (!hasErrors && editedName && editedName.length > 0) {
+                    changeRecording((recording) => {
+                      recording.name = editedName
+                    })
+                  }
+                  setIsEditing(false)
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <Button className="p-1" onClick={() => setIsEditing(true)}>
+            <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
+              {recording.name}
+            </p>
+            <MdEdit className="ml-2 opacity-0 transition-opacity ease-in group-hover:opacity-100" />
+          </Button>
+        )}
+        <div ref={optionsMenuRef} className="relative">
+          <Button
+            title="Options"
             className={clsx(
-              'relative size-full flex-col gap-2 p-2 text-left transition-opacity ease-out',
+              'rounded-full p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100',
+              {
+                'opacity-100': isOptionsMenuOpen,
+              },
             )}
+            onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
           >
-            <li className="size-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <Button
-                onClick={() => {
-                  setIsOptionsMenuOpen(false)
-                }}
-              >
-                Edit
-              </Button>
-            </li>
-            {appContext.type === 'electron-client' && (
-              <li className="size-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <MdOutlineMoreVert />
+          </Button>
+          <div
+            className={clsx('absolute top-0 z-50', {
+              'hidden opacity-0': !isOptionsMenuOpen,
+              'flex opacity-100': isOptionsMenuOpen,
+            })}
+            style={{
+              right: `${optionsMenuRef.current?.getBoundingClientRect().width ?? 0}px`,
+            }}
+          >
+            <ul
+              className={clsx(
+                'relative size-full flex-col gap-2 p-2 text-left transition-opacity ease-out',
+              )}
+            >
+              <li className="size-full rounded p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                 <Button
-                  onClick={async () => {
-                    const deleteRecordingResponse =
-                      await appContext.ipc.send<IpcResponse>(
-                        'storage:delete-recording',
-                        {
-                          data: { filepath: recording.filepath },
-                        },
-                      )
-                    if (deleteRecordingResponse.error) {
-                      console.error(deleteRecordingResponse.error)
-                      setIsOptionsMenuOpen(false)
-                      return
-                    }
-                    onDelete(automergeUrl)
+                  className="flex gap-2"
+                  onClick={() => {
                     setIsOptionsMenuOpen(false)
                   }}
                 >
-                  Delete
+                  <MdEdit /> Edit
                 </Button>
               </li>
-            )}
-          </ul>
+              {appContext.type === 'electron-client' && (
+                <li className="size-full rounded p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800">
+                  <Button
+                    className="flex gap-2"
+                    onClick={async () => {
+                      const deleteRecordingResponse =
+                        await appContext.ipc.send<IpcResponse>(
+                          'storage:delete-recording',
+                          {
+                            data: { filepath: recording.filepath },
+                          },
+                        )
+                      if (deleteRecordingResponse.error) {
+                        console.error(deleteRecordingResponse.error)
+                        setIsOptionsMenuOpen(false)
+                        return
+                      }
+                      onDelete(automergeUrl)
+                      setIsOptionsMenuOpen(false)
+                    }}
+                  >
+                    <MdOutlineRemoveCircleOutline /> Delete
+                  </Button>
+                </li>
+              )}
+            </ul>
+          </div>
         </div>
       </div>
       <button
-        title="Close menu"
+        title={isOptionsMenuOpen ? 'Close menu' : ''}
         className={clsx(
-          'absolute left-0 top-0 flex h-full w-screen bg-zinc-900 transition-opacity ease-in-out',
+          'absolute left-0 top-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
           {
             '-z-50 opacity-0': !isOptionsMenuOpen,
             'z-40 opacity-50': isOptionsMenuOpen,
@@ -191,6 +199,6 @@ function LibraryListItem({
         )}
         onClick={() => setIsOptionsMenuOpen(false)}
       />
-    </div>
+    </>
   )
 }
