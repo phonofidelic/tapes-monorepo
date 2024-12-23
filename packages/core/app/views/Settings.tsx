@@ -95,7 +95,7 @@ export function Settings() {
               </Button>
               {storageLocation && (
                 <Button
-                  className="w-fit p-2 text-lg"
+                  className="w-fit rounded-full p-2 text-lg"
                   title="Remove storage location"
                   onClick={() => {
                     setStorageLocation(null)
