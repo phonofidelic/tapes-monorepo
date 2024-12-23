@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
@@ -63,6 +63,15 @@ function LibraryListItem({
   const [editedName, setEditedName] = useState(recording?.name)
   const [hasErrors, setHasErrors] = useState(false)
 
+  const formattedDuration = useMemo(() => {
+    if (!recording) {
+      return ''
+    }
+    const minutes = Math.floor(recording.duration / 6000)
+    const seconds = Math.floor(recording.duration % 6000)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }, [recording])
+
   useEffect(() => {
     if (!recording || initialized.current) {
       return
@@ -122,69 +131,78 @@ function LibraryListItem({
             <MdEdit className="ml-2 opacity-0 transition-opacity ease-in group-hover:opacity-100" />
           </Button>
         )}
-        <div ref={optionsMenuRef} className="relative">
-          <Button
-            title="Options"
-            className={clsx(
-              'rounded-full p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100',
-              {
-                'opacity-100': isOptionsMenuOpen,
-              },
-            )}
-            onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
-          >
-            <MdOutlineMoreVert />
-          </Button>
-          <div
-            className={clsx('absolute top-0 z-50', {
-              'hidden opacity-0': !isOptionsMenuOpen,
-              'flex opacity-100': isOptionsMenuOpen,
-            })}
-            style={{
-              right: `${optionsMenuRef.current?.getBoundingClientRect().width ?? 0}px`,
-            }}
-          >
-            <ul
+        <div className="flex gap-2">
+          <p className="flex items-center text-xs text-zinc-400">
+            <FormattedTime time={recording.duration} />
+          </p>
+          <div ref={optionsMenuRef} className="relative">
+            <Button
+              title="Options"
               className={clsx(
-                'relative size-full flex-col gap-2 p-2 text-left transition-opacity ease-out',
+                'rounded-full p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100',
+                {
+                  'opacity-100': isOptionsMenuOpen,
+                },
               )}
+              onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
             >
-              <li className="size-full rounded p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                <Button
-                  className="flex gap-2"
-                  onClick={() => {
-                    setIsOptionsMenuOpen(false)
-                  }}
-                >
-                  <MdEdit /> Edit
-                </Button>
-              </li>
-              {appContext.type === 'electron-client' && (
-                <li className="size-full rounded p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800">
+              <MdOutlineMoreVert />
+            </Button>
+            <div
+              className={clsx('absolute top-0 z-50', {
+                'hidden opacity-0': !isOptionsMenuOpen,
+                'flex opacity-100': isOptionsMenuOpen,
+              })}
+              style={{
+                right: `${optionsMenuRef.current?.getBoundingClientRect().width ?? 0}px`,
+              }}
+            >
+              <ul
+                className={clsx(
+                  'relative size-full flex-col gap-2 rounded-md bg-white p-1 text-left shadow-lg transition-opacity ease-out dark:bg-zinc-900',
+                  {
+                    'opacity-0': !isOptionsMenuOpen,
+                    'opacity-100': isOptionsMenuOpen,
+                  },
+                )}
+              >
+                <li className="size-full rounded p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                   <Button
                     className="flex gap-2"
-                    onClick={async () => {
-                      const deleteRecordingResponse =
-                        await appContext.ipc.send<IpcResponse>(
-                          'storage:delete-recording',
-                          {
-                            data: { filepath: recording.filepath },
-                          },
-                        )
-                      if (deleteRecordingResponse.error) {
-                        console.error(deleteRecordingResponse.error)
-                        setIsOptionsMenuOpen(false)
-                        return
-                      }
-                      onDelete(automergeUrl)
+                    onClick={() => {
                       setIsOptionsMenuOpen(false)
                     }}
                   >
-                    <MdOutlineRemoveCircleOutline /> Delete
+                    <MdEdit /> Edit
                   </Button>
                 </li>
-              )}
-            </ul>
+                {appContext.type === 'electron-client' && (
+                  <li className="size-full rounded p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800">
+                    <Button
+                      className="flex gap-2"
+                      onClick={async () => {
+                        const deleteRecordingResponse =
+                          await appContext.ipc.send<IpcResponse>(
+                            'storage:delete-recording',
+                            {
+                              data: { filepath: recording.filepath },
+                            },
+                          )
+                        if (deleteRecordingResponse.error) {
+                          console.error(deleteRecordingResponse.error)
+                          setIsOptionsMenuOpen(false)
+                          return
+                        }
+                        onDelete(automergeUrl)
+                        setIsOptionsMenuOpen(false)
+                      }}
+                    >
+                      <MdOutlineRemoveCircleOutline /> Delete
+                    </Button>
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -193,7 +211,7 @@ function LibraryListItem({
         className={clsx(
           'absolute left-0 top-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
           {
-            '-z-50 opacity-0': !isOptionsMenuOpen,
+            'hidden opacity-0': !isOptionsMenuOpen,
             'z-40 opacity-50': isOptionsMenuOpen,
           },
         )}
@@ -201,4 +219,13 @@ function LibraryListItem({
       />
     </>
   )
+}
+
+function FormattedTime({ time }: { time: number }) {
+  // const centiseconds = ('0' + (Math.floor(time / 10) % 100)).slice(-2)
+  const seconds = ('0' + (Math.floor(time / 1000) % 60)).slice(-2)
+  const minutes = ('0' + (Math.floor(time / 60000) % 60)).slice(-2)
+  const hours = ('0' + Math.floor(time / 3600000)).slice(-2)
+
+  return `${hours}:${minutes}:${seconds}`
 }

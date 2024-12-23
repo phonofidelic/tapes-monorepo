@@ -84,6 +84,7 @@ export function Recorder() {
       doc.filename = filename
       doc.filepath = editRecordingResponse.data.filepath
       doc.name = editedName
+      doc.duration = time
       doc.id = crypto.randomUUID()
     })
 

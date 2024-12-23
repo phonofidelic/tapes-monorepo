@@ -4,11 +4,24 @@ import { execFile, ChildProcess } from 'child_process'
 import { ipcMain, app, IpcMainEvent } from 'electron'
 import { IpcChannel, IpcRequest } from '@/types'
 
+const DEFAULT_SAMPLE_RATE = 44100
+
 export class CreateRecordingChannel implements IpcChannel {
   name = 'recorder:start'
 
   private filepath: string | null = null
+  /**
+   * SoX: The Swiss Army knife of sound processing
+   *
+   * * Wikipedia: https://en.wikipedia.org/wiki/SoX
+   * * Manual: https://explainshell.com/explain/1/sox
+   * * Download: https://sourceforge.net/projects/sox
+   */
   private sox: ChildProcess | null = null
+  private soxPath =
+    process.env.NODE_ENV !== 'development'
+      ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
+      : path.resolve(app.getAppPath(), 'bin', 'sox-14.4.2-macOS')
 
   handle(event: IpcMainEvent, request: IpcRequest) {
     const { responseChannel, data } = request
@@ -22,31 +35,19 @@ export class CreateRecordingChannel implements IpcChannel {
 
     ipcMain.once('recorder:stop', this.onRecorderStop.bind(this))
 
-    const appPath = app.getAppPath()
-
-    /**
-     * SoX: The Swiss Army knife of sound processing
-     *
-     * * Wikipedia: https://en.wikipedia.org/wiki/SoX
-     * * Manual: https://explainshell.com/explain/1/sox
-     * * Download: https://sourceforge.net/projects/sox
-     */
-    const soxPath =
-      process.env.NODE_ENV !== 'development'
-        ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
-        : path.resolve(appPath, 'bin', 'sox-14.4.2-macOS')
-
     this.filepath = path.resolve(
       data.storageLocation,
       `${crypto.randomUUID()}.${data.audioFormat}`,
     )
 
     try {
-      this.sox = execFile(soxPath, [
+      this.sox = execFile(this.soxPath, [
         '--default-device',
         '--no-show-progress',
-        `--type=${data.audioFormat}`,
+        `--type=${data.audioFormat === 'mp3' ? 'wav' : data.audioFormat}`,
         `--channels=${data.audioChannelCount}`,
+        `--rate=${DEFAULT_SAMPLE_RATE}`,
+        '--compression=-1',
         this.filepath,
       ])
 
@@ -62,9 +63,6 @@ export class CreateRecordingChannel implements IpcChannel {
     // this.sox?.stderr?.on('data', (chunk) => console.error(chunk.toString()))
 
     event.sender.send(responseChannel, {
-      data: {
-        debug: `env: ${process.env.NODE_ENV} \nsoxPath: ${soxPath} \nprocess.resourcesPath: ${process.resourcesPath} \nappPath: ${appPath}`,
-      },
       success: true,
     })
   }
@@ -96,6 +94,8 @@ export class CreateRecordingChannel implements IpcChannel {
       })
       return
     }
+
+    // TODO: Get metadata
 
     event.sender.send(request.responseChannel, {
       data: { filepath: this.filepath },
