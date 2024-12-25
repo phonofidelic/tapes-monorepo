@@ -78,7 +78,7 @@ function LibraryListItem({
   onOpenEditor: () => void
 }) {
   const appContext = useAppContext()
-  const [recording, changeRecording] = useDocument<RecordingData>(automergeUrl)
+  const [recording] = useDocument<RecordingData>(automergeUrl)
 
   const initialized = useRef(false)
   const previousRecordingName = useRef(recording?.name)
@@ -105,15 +105,16 @@ function LibraryListItem({
     <>
       <div className="group flex w-full justify-between p-4">
         <span className="has-[button]:hover:shadow-sm">
-          <EditableText
-            text={recording.name}
-            label="Edit recording name"
-            onChange={(newName) => {
-              changeRecording((recording) => {
-                recording.name = newName
-              })
-            }}
-          />
+          <Button
+            className="p-1"
+            title="Edit recording name"
+            onClick={() => onOpenEditor()}
+          >
+            <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
+              {recording.name}
+            </p>
+            <MdEdit className="ml-2 opacity-0 transition-opacity ease-in group-hover:opacity-100" />
+          </Button>
         </span>
         <div className="flex gap-2">
           <p className="flex items-center text-xs text-zinc-400">
