@@ -50,10 +50,10 @@ export function Library() {
       </div>
       <div
         className={clsx(
-          'absolute bottom-0 left-0 z-50 w-screen rounded-t-lg border border-zinc-100 bg-white p-5 drop-shadow-2xl transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          'absolute bottom-0 left-0 z-50 w-screen rounded-t-lg border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
-            'translate-y-0': editingUrl,
-            'translate-y-full': !editingUrl,
+            'translate-y-0 border p-5 drop-shadow-2xl': editingUrl,
+            'translate-y-full p-0': !editingUrl,
           },
         )}
       >
@@ -65,70 +65,6 @@ export function Library() {
         onClose={() => setEditingUrl(null)}
       />
     </>
-  )
-}
-
-function Editor({
-  automergeUrl,
-  onClose,
-}: {
-  automergeUrl: AutomergeUrl | null
-  onClose: () => void
-}) {
-  const appContext = useAppContext()
-  const [recording, changeRecording] = useDocument<RecordingData>(
-    automergeUrl ?? undefined,
-  )
-
-  if (!recording) {
-    return <div>Loading...</div>
-  }
-
-  return (
-    <div className="flex size-full flex-col gap-2">
-      <div className="flex justify-between gap-1">
-        <EditableText
-          text={recording.name}
-          label="Edit recording name"
-          onChange={(newName) => {
-            changeRecording((recording) => {
-              recording.name = newName
-            })
-          }}
-        />
-        <Button
-          className="rounded-full p-2 hover:text-green-500"
-          onClick={() => onClose()}
-        >
-          <MdCheck />
-        </Button>
-      </div>
-      <div className="flex gap-1 text-xs">
-        <div className="p-1">Filename:</div>
-        <EditableText
-          text={recording.filename}
-          label="Edit recording filename"
-          onChange={async (newName) => {
-            if (appContext.type !== 'electron-client') {
-              return
-            }
-            const editFilenameResponse =
-              await appContext.ipc.send<EditRecordingResponse>(
-                'storage:edit-recording',
-                { data: { filename: newName, filepath: recording.filepath } },
-              )
-            if (!editFilenameResponse.success) {
-              console.error(editFilenameResponse.error)
-              return
-            }
-            changeRecording((recording) => {
-              recording.filename = newName
-              recording.filepath = editFilenameResponse.data.filepath
-            })
-          }}
-        />
-      </div>
-    </div>
   )
 }
 
@@ -167,16 +103,18 @@ function LibraryListItem({
 
   return (
     <>
-      <div className="group flex w-full justify-between py-4">
-        <EditableText
-          text={recording.name}
-          label="Edit recording name"
-          onChange={(newName) => {
-            changeRecording((recording) => {
-              recording.name = newName
-            })
-          }}
-        />
+      <div className="group flex w-full justify-between p-4">
+        <span className="has-[button]:hover:shadow-sm">
+          <EditableText
+            text={recording.name}
+            label="Edit recording name"
+            onChange={(newName) => {
+              changeRecording((recording) => {
+                recording.name = newName
+              })
+            }}
+          />
+        </span>
         <div className="flex gap-2">
           <p className="flex items-center text-xs text-zinc-400">
             <FormattedTime time={recording.duration} />
@@ -185,7 +123,7 @@ function LibraryListItem({
             <Button
               title="Options"
               className={clsx(
-                'rounded-full p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100',
+                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in hover:bg-none hover:shadow-sm group-hover:opacity-100',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
@@ -266,6 +204,86 @@ function LibraryListItem({
         onClose={() => setIsOptionsMenuOpen(false)}
       />
     </>
+  )
+}
+
+function Editor({
+  automergeUrl,
+  onClose,
+}: {
+  automergeUrl: AutomergeUrl | null
+  onClose: () => void
+}) {
+  const appContext = useAppContext()
+  const [recording, changeRecording] = useDocument<RecordingData>(
+    automergeUrl ?? undefined,
+  )
+
+  if (!recording) {
+    return <div className="" />
+  }
+
+  return (
+    <div className="flex size-full flex-col gap-2">
+      <div className="flex justify-between gap-1">
+        <EditableText
+          text={recording.name}
+          label="Edit recording name"
+          onChange={(newName) => {
+            changeRecording((recording) => {
+              recording.name = newName
+            })
+          }}
+        />
+        <Button
+          className="rounded-full p-2 hover:text-green-500"
+          onClick={() => onClose()}
+        >
+          <MdCheck />
+        </Button>
+      </div>
+      <div className="flex items-center gap-1 text-xs">
+        <div className="p-1">Filename:</div>
+        <EditableText
+          text={recording.filename}
+          label="Edit recording filename"
+          onChange={async (newName) => {
+            if (appContext.type !== 'electron-client') {
+              return
+            }
+            const editFilenameResponse =
+              await appContext.ipc.send<EditRecordingResponse>(
+                'storage:edit-recording',
+                { data: { filename: newName, filepath: recording.filepath } },
+              )
+            if (!editFilenameResponse.success) {
+              console.error(editFilenameResponse.error)
+              return
+            }
+            changeRecording((recording) => {
+              recording.filename = newName
+              recording.filepath = editFilenameResponse.data.filepath
+            })
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-1 text-xs">
+        <div className="p-1">Description:</div>
+        <textarea
+          className="p-2 text-zinc-800 dark:bg-zinc-900 dark:text-white"
+          id="description"
+          name="description"
+          // value={recording.description}
+          defaultValue={recording.description}
+          rows={5}
+          onChange={(event) => {
+            changeRecording((recording) => {
+              recording.description = event.target.value
+            })
+          }}
+        />
+      </div>
+    </div>
   )
 }
 

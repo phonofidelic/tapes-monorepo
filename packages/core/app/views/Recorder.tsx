@@ -107,7 +107,7 @@ export function Recorder() {
       <div className="flex h-full flex-col pb-20">
         <div
           ref={visualizerContainerRef}
-          className="absolute bottom-[79px] left-0 right-0 top-0"
+          className="absolute bottom-[80px] left-0 right-0 top-0"
         >
           {audioInputDeviceId && isMonitoring && (
             <>
@@ -145,14 +145,14 @@ export function Recorder() {
       </div>
       <div
         className={clsx(
-          'absolute bottom-[79px] left-0 right-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 drop-shadow-2xl transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          'absolute bottom-[79px] left-0 right-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
-            'translate-y-0': isEditorOpen,
+            'translate-y-0 p-4 drop-shadow-2xl': isEditorOpen,
             'translate-y-full': !isEditorOpen,
           },
         )}
       >
-        <div className="group flex size-full items-center justify-between gap-2 p-4">
+        <div className="group flex size-full items-center justify-between gap-2">
           {isEditing ? (
             <div className="w-full p-[7px]">
               <TextInput
@@ -223,19 +223,12 @@ export function Recorder() {
           )}
         </div>
       </div>
-      <div
-        className={clsx(
-          'absolute bottom-0 left-0 z-10 w-full border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900',
-          {
-            'border-t': !isMonitoring || feature !== 'frequency',
-          },
-        )}
-      >
+      <div className="absolute bottom-0 left-0 z-10 w-full bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex h-20 w-full items-center justify-center">
           {audioInputDeviceId ? (
             <>
               <Button
-                className="group relative flex size-full justify-center p-4 text-xs"
+                className="group relative flex size-full justify-center rounded-none p-4 text-xs"
                 title={isMonitoring ? 'Turn off monitor' : 'Turn on monitor'}
                 onClick={() => {
                   setIsMonitoring(!isMonitoring)
@@ -258,7 +251,7 @@ export function Recorder() {
               {storageLocation ? (
                 <Button
                   title={isRecording ? 'Stop recording' : 'Start recording'}
-                  className="group relative flex size-full justify-center p-4 text-xs"
+                  className="group relative flex size-full justify-center rounded-none p-4 text-xs"
                   disabled={isEditorOpen}
                   onClick={async () => {
                     if (appContext.type !== 'electron-client') {
@@ -324,8 +317,7 @@ export function Recorder() {
                 </Button>
               ) : appContext.type === 'electron-client' ? (
                 <Button
-                  title={isRecording ? 'Stop recording' : 'Start recording'}
-                  className="group relative flex size-full justify-center p-4 text-xs"
+                  className="group relative flex size-full justify-center rounded-none p-4 text-xs"
                   onClick={async () => {
                     const response = (await appContext.ipc.send(
                       'storage:open-directory-dialog',
