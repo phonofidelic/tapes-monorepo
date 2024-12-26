@@ -6,7 +6,7 @@ const RecordingContext = createContext<{
   setIsRecording: (state: boolean) => void
 } | null>(null)
 
-export const RecordingProvider = ({
+export const RecordingStateProvider = ({
   children,
 }: {
   children: React.ReactNode

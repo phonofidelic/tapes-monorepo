@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import {
   App,
   AppContextProvider,
-  RecordingProvider,
+  RecordingStateProvider,
   SettingsProvider,
   ViewProvider,
 } from '@tapes-monorepo/core'
@@ -19,13 +19,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <div className="flex sm:hidden">
       <AppContextProvider value={{ type: 'web', automergeUrl }}>
-        <RecordingProvider>
+        <RecordingStateProvider>
           <ViewProvider>
             <SettingsProvider>
               <App />
             </SettingsProvider>
           </ViewProvider>
-        </RecordingProvider>
+        </RecordingStateProvider>
       </AppContextProvider>
     </div>
     <div className="mx-auto hidden h-screen w-screen max-w-screen-sm flex-col items-center justify-center gap-16 sm:flex">
