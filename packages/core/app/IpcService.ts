@@ -62,7 +62,10 @@ export type EditRecordingResponse =
     }
 
 type IpcSendArgs =
-  | ['settings:set-default-audio-input-device']
+  | [
+      'settings:set-default-audio-input-device',
+      IpcRequest & { data: { deviceName: string } },
+    ]
   | ['storage:open-directory-dialog']
   | [
       'storage:edit-recording',
@@ -93,11 +96,7 @@ export class IpcService {
     this.ipcRenderer = window.api
   }
 
-  public send<T>(
-    // channel: ValidIpcChanel,
-    // request: IpcRequest = {},
-    ...[channel, request = {}]: IpcSendArgs
-  ): Promise<T> {
+  public send<T>(...[channel, request = {}]: IpcSendArgs): Promise<T> {
     // If the ipcRenderer is not available try to initialize it
     if (!this.ipcRenderer) {
       this.initializeIpcRenderer()
