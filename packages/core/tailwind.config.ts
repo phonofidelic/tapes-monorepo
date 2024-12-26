@@ -5,7 +5,11 @@ export default {
   content: ['./app/**/*.{js,jsx,ts,tsx,mdx}'],
   presets: [sharedConfig],
   theme: {
-    extend: {},
+    extend: {
+      transitionProperty: {
+        height: 'height',
+      },
+    },
   },
   plugins: [],
 } satisfies Config

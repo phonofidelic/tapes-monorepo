@@ -20,6 +20,9 @@
     "dev:https": {
       "cache": false,
       "persistent": true
+    },
+    "clean": {
+      "dependsOn": ["^clean"]
     }
   }
 }

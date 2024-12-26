@@ -23,7 +23,8 @@
     "generate:component": "turbo gen react-component",
     "build": "yarn vite build",
     "dev": "yarn vite build --watch",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@tapes-monorepo/eslint-config": "*",

@@ -31,7 +31,7 @@ export function TextInput({
   const [error, setError] = useState<string | undefined>(undefined)
 
   return (
-    <div className="relative w-full">
+    <div className="relative size-full">
       <input
         value={value}
         defaultValue={defaultValue}

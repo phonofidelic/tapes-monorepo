@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "dev:https": "turbo run @tapes-monorepo/ui#dev @tapes-monorepo/core#dev:https electron-client#dev web-client#dev",
     "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "clean": "turbo run clean"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
