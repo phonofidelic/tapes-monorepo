@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { AiFillAudio, AiOutlineAudioMuted } from 'react-icons/ai'
 import { MdOutlineCancel, MdEdit, MdCheck } from 'react-icons/md'
 import { PiRecordFill } from 'react-icons/pi'
-import { Button, TextInput } from '@tapes-monorepo/ui'
+import { Button } from '@tapes-monorepo/ui'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData, RecordingRepoState } from '@/types'
@@ -147,14 +147,14 @@ export function Recorder() {
         className={clsx(
           'absolute bottom-[79px] left-0 right-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
-            'translate-y-0 p-4 drop-shadow-2xl': isEditorOpen,
+            'translate-y-0 px-4 drop-shadow-2xl': isEditorOpen,
             'translate-y-full': !isEditorOpen,
           },
         )}
       >
-        <div className="group flex size-full items-center justify-between gap-2">
+        <div className="group flex size-full h-[82px] items-center justify-between gap-2">
           {isEditing ? (
-            <div className="w-full p-[7px]">
+            <div className="w-full justify-center p-4">
               <TextInput
                 id="new-recording-name-input"
                 name="new-recording-name"
@@ -203,7 +203,7 @@ export function Recorder() {
                 <MdOutlineCancel />
               </Button>
               <Button
-                className="flex p-4"
+                className="flex p-2"
                 title={`Rename ${editedName}`}
                 onClick={() => setIsEditing(true)}
               >
@@ -389,4 +389,89 @@ function useMonitor(selectedMediaDeviceId: string | undefined) {
     isMonitoring,
     setIsMonitoring,
   }
+}
+
+function TextInput({
+  value,
+  defaultValue,
+  id,
+  type,
+  name,
+  label,
+  autofocus,
+  validate,
+  onChange,
+  onBlur,
+  onKeyDown,
+}: {
+  id: string
+  type: 'text' | 'email' | 'password'
+  name: string
+  label: string
+  autofocus?: boolean
+  value?: string
+  defaultValue?: string
+  validate?: (value: string) => string | undefined
+  onChange?(event: React.ChangeEvent<HTMLInputElement>): void
+  onBlur?(event: React.FocusEvent<HTMLInputElement>): void
+  onKeyDown?(event: React.KeyboardEvent<HTMLInputElement>): void
+}) {
+  const [error, setError] = useState<string | undefined>(undefined)
+
+  return (
+    <div className="relative size-full">
+      <input
+        value={value}
+        defaultValue={defaultValue}
+        id={id}
+        name={name}
+        type={type}
+        autoFocus={autofocus}
+        placeholder={label}
+        onChange={(event) => {
+          setError(undefined)
+
+          if (typeof onChange !== 'function') {
+            return
+          }
+
+          if (typeof validate !== 'function') {
+            onChange(event)
+            return
+          }
+
+          const error = validate(event.target.value)
+
+          if (!error) {
+            onChange(event)
+            return
+          }
+
+          setError(error)
+          onChange(event)
+        }}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        className={clsx(
+          'peer w-full rounded p-2 text-zinc-800 placeholder-transparent outline-none dark:bg-zinc-900 dark:text-white',
+          {
+            'outline-zinc-400': error === undefined,
+            'outline-rose-500': error !== undefined,
+          },
+        )}
+      />
+      <label
+        htmlFor={id}
+        className={clsx(
+          'absolute -top-4 left-2 bg-white p-1 text-sm transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:p-0 peer-placeholder-shown:text-base peer-placeholder-shown:text-black peer-focus:-top-4 peer-focus:p-1 peer-focus:text-sm dark:bg-zinc-900',
+          {
+            'text-zinc-400 peer-focus:text-zinc-400': error === undefined,
+            'text-rose-500 peer-focus:text-rose-500': error !== undefined,
+          },
+        )}
+      >
+        {error ?? label}
+      </label>
+    </div>
+  )
 }
