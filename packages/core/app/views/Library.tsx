@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
@@ -8,7 +8,7 @@ import {
   MdOutlineRemoveCircleOutline,
   MdCheck,
 } from 'react-icons/md'
-import { Button, TextInput } from '@tapes-monorepo/ui'
+import { Button } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { useSetting } from '@/context/SettingsContext'
 import { useAppContext } from '@/context/AppContext'
@@ -219,6 +219,7 @@ function Editor({
   const [recording, changeRecording] = useDocument<RecordingData>(
     automergeUrl ?? undefined,
   )
+  const [hasErrors, setHasErrors] = useState(false)
 
   if (!recording) {
     return <div className="" />
@@ -226,29 +227,40 @@ function Editor({
 
   return (
     <div className="flex size-full flex-col gap-2">
-      <div className="flex justify-between gap-1">
+      <div className="flex justify-between">
         <EditableText
           text={recording.name}
-          label="Edit recording name"
-          onChange={(newName) => {
+          inputType="text"
+          id="recording-name"
+          name="recording-name"
+          title="Edit recording name"
+          onEdit={(newName) => {
             changeRecording((recording) => {
               recording.name = newName
             })
           }}
-        />
+        >
+          <p className="max-w-52 overflow-x-hidden text-ellipsis text-nowrap p-1">
+            {recording.name}
+          </p>
+        </EditableText>
         <Button
-          className="rounded-full p-2 hover:text-green-500"
-          onClick={() => onClose()}
+          className="rounded-full p-2 hover:text-green-500 disabled:text-zinc-400 disabled:hover:bg-transparent"
+          title="Save changes"
+          disabled={hasErrors}
+          onClick={() => !hasErrors && onClose()}
         >
           <MdCheck />
         </Button>
       </div>
-      <div className="flex items-center gap-1 text-xs">
-        <div className="p-1">Filename:</div>
+      <div className="flex w-fit flex-col gap-2 text-xs">
         <EditableText
           text={recording.filename}
-          label="Edit recording filename"
-          onChange={async (newName) => {
+          inputType="text"
+          id="recording-filename"
+          name="recording-filename"
+          title="Edit recording filename"
+          onEdit={async (newName) => {
             if (appContext.type !== 'electron-client') {
               return
             }
@@ -266,23 +278,36 @@ function Editor({
               recording.filepath = editFilenameResponse.data.filepath
             })
           }}
-        />
-      </div>
-      <div className="flex flex-col gap-1 text-xs">
-        <div className="p-1">Description:</div>
-        <textarea
-          className="p-2 text-zinc-800 dark:bg-zinc-900 dark:text-white"
-          id="description"
-          name="description"
-          // value={recording.description}
-          defaultValue={recording.description}
-          rows={5}
-          onChange={(event) => {
-            changeRecording((recording) => {
-              recording.description = event.target.value
-            })
+          validate={(value) => {
+            const hasErrors = /[^a-z0-9\s_@()-]/i.test(value)
+            setHasErrors(hasErrors)
+            return hasErrors ? 'Invalid characters' : undefined
           }}
-        />
+          hasErrors={hasErrors}
+        >
+          <p className="w-fit p-1">{recording.filename}</p>
+        </EditableText>
+      </div>
+      <div className="flex flex-col gap-2 text-xs">
+        <EditableText
+          text={recording.description ?? ''}
+          inputType="textarea"
+          id="recording-description"
+          name="recording-description"
+          title="Edit recording description"
+          onEdit={(value) =>
+            changeRecording((recording) => {
+              recording.description = value
+            })
+          }
+        >
+          <p className="size-full h-[5rem] overflow-y-auto whitespace-pre-line p-1">
+            {(recording.description &&
+              recording.description?.length > 0 &&
+              recording.description) ||
+              'Add a description'}
+          </p>
+        </EditableText>
       </div>
     </div>
   )
@@ -299,59 +324,147 @@ function FormattedTime({ time }: { time: number }) {
 
 function EditableText({
   text,
+  id,
+  name,
   label,
-  onChange,
+  title,
+  inputType,
+  onEdit,
+  hasErrors,
+  validate,
+  children,
 }: {
   text: string
-  label: string
-  onChange: (text: string) => void
+  id: string
+  name: string
+  inputType: 'text' | 'textarea'
+  label?: string
+  title?: string
+  onEdit: (text: string) => void
+  hasErrors?: boolean
+  validate?: (text: string) => string | undefined
+  children: React.ReactNode
 }) {
   const previousTextRef = useRef(text)
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedText, setEditedText] = useState(text)
-  const [hasErrors, setHasErrors] = useState(false)
+  const [error, setError] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!textAreaRef.current || !isEditing) {
+      return
+    }
+
+    const cursorPosition = textAreaRef.current.value.length
+    textAreaRef.current.setSelectionRange(cursorPosition, cursorPosition)
+    textAreaRef.current.scrollBy(0, textAreaRef.current.scrollHeight)
+  }, [isEditing])
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    setError(undefined)
+
+    if (typeof validate !== 'function') {
+      setEditedText(event.target.value)
+      onEdit(event.target.value)
+      return
+    }
+
+    const error = validate(event.target.value)
+
+    if (!error) {
+      setEditedText(event.target.value)
+      onEdit(event.target.value)
+      return
+    }
+
+    setError(error)
+    setEditedText(event.target.value)
+  }
 
   return isEditing ? (
-    <div className="w-full p-[7px]">
-      <TextInput
-        id="new-recording-name-input"
-        name="new-recording-name"
-        type="text"
-        label={label}
-        defaultValue={editedText}
-        autofocus={true}
-        validate={(value) => {
-          // TODO: update validation regex
-          const hasErrors = /[^a-z0-9\s_@()-]/i.test(value)
-          setHasErrors(hasErrors)
-          return hasErrors ? 'Invalid characters' : undefined
-        }}
-        onChange={(event) => setEditedText(event.target.value)}
-        onBlur={() => {
-          if (!editedText) {
-            setEditedText(previousTextRef.current)
-          }
-          if (!hasErrors && editedText && editedText.length > 0) {
-            onChange(editedText)
-          }
-          setIsEditing(false)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
+    <div className="flex flex-col justify-center">
+      <label
+        htmlFor={id}
+        className={clsx(
+          'bg-white text-sm transition-all peer-placeholder-shown:text-black dark:bg-zinc-900',
+          {
+            'text-zinc-400 peer-focus:text-zinc-400':
+              error === undefined && label !== undefined,
+            'h-0 translate-y-full opacity-0':
+              error === undefined && label === undefined,
+            'h-[1rem] translate-y-0 text-rose-500 opacity-100 peer-focus:text-rose-500':
+              error !== undefined,
+          },
+        )}
+      >
+        {error ?? label}
+      </label>
+      {inputType === 'text' ? (
+        <input
+          type="text"
+          className="peer w-full p-1 text-zinc-800 placeholder-transparent outline-none dark:bg-zinc-900 dark:text-white"
+          name={name}
+          id={id}
+          defaultValue={editedText}
+          autoFocus={true}
+          onChange={handleChange}
+          onBlur={() => {
+            if (!editedText) {
+              setEditedText(previousTextRef.current)
+            }
             if (!hasErrors && editedText && editedText.length > 0) {
-              onChange(editedText)
+              onEdit(editedText)
+              setIsEditing(false)
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              if (!hasErrors && editedText && editedText.length > 0) {
+                setIsEditing(false)
+              }
+            }
+          }}
+        />
+      ) : (
+        <textarea
+          ref={textAreaRef}
+          className="size-full h-[5rem] p-1 text-zinc-800 outline-none dark:bg-zinc-900 dark:text-white"
+          autoFocus={true}
+          id="description"
+          name="description"
+          defaultValue={text}
+          rows={5}
+          onChange={handleChange}
+          onBlur={() => {
+            if (!editedText) {
+              setEditedText(previousTextRef.current)
+            }
+            if (!hasErrors) {
+              onEdit(editedText)
             }
             setIsEditing(false)
-          }
-        }}
-      />
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              if (!hasErrors && editedText && editedText.length > 0) {
+                onEdit(editedText)
+              }
+              setIsEditing(false)
+            }
+          }}
+        />
+      )}
     </div>
   ) : (
-    <Button className="p-1" onClick={() => setIsEditing(true)}>
-      <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
-        {text}
-      </p>
-      <MdEdit className="ml-2 opacity-0 transition-opacity ease-in group-hover:opacity-100" />
+    <Button
+      className="justify-start text-left"
+      title={title}
+      onClick={() => setIsEditing(true)}
+    >
+      {children}
     </Button>
   )
 }
