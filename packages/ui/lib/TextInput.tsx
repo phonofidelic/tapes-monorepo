@@ -75,7 +75,7 @@ export function TextInput({
       <label
         htmlFor={id}
         className={clsx(
-          'absolute -top-4 left-2 bg-white p-1 text-sm transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:p-0 peer-placeholder-shown:text-base peer-placeholder-shown:text-black peer-focus:-top-4 peer-focus:p-1 peer-focus:text-sm dark:bg-zinc-900',
+          'absolute -top-4 left-2 bg-white p-1 text-sm transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:p-0 peer-placeholder-shown:text-base peer-placeholder-shown:text-zinc-800 peer-focus:-top-4 peer-focus:p-1 peer-focus:text-sm dark:bg-zinc-900 dark:peer-placeholder-shown:text-white',
           {
             'text-zinc-400 peer-focus:text-zinc-400': error === undefined,
             'text-rose-500 peer-focus:text-rose-500': error !== undefined,

@@ -13,8 +13,6 @@ import DownloadPrompt from './DownloadPrompt'
 const automergeUrl =
   new URLSearchParams(window.location.search).get('am') ?? undefined
 
-console.log('location.search, automergeUrl', automergeUrl)
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <div className="flex sm:hidden">

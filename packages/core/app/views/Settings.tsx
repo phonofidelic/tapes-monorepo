@@ -1,9 +1,15 @@
-import { MdOutlineRemoveCircleOutline } from 'react-icons/md'
+import { useState } from 'react'
+import {
+  MdOutlineContentCopy,
+  MdOutlineFileUpload,
+  MdOutlineRemoveCircleOutline,
+} from 'react-icons/md'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useAppContext } from '@/context/AppContext'
-import { Button } from '@tapes-monorepo/ui'
+import { Button, TextInput } from '@tapes-monorepo/ui'
+import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 
 export function Settings() {
   const appContext = useAppContext()
@@ -11,7 +17,8 @@ export function Settings() {
   const [audioChannelCount, setAudioChannelCount] =
     useSetting('audioChannelCount')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
-  const [automergeUrl] = useSetting('automergeUrl')
+  const [automergeUrl, setAutomergeUrl] = useSetting('automergeUrl')
+  const [importUrl, setImportUrl] = useState('')
 
   const baseUrl =
     process.env.NODE_ENV === 'development'
@@ -112,10 +119,61 @@ export function Settings() {
         <h2>Data</h2>
         <div className="flex flex-col gap-2 p-2">
           <p className="text-sm">Replicate your data to another device:</p>
-          <div>
+          <div className="flex items-center justify-around">
             <QRCodeSVG value={`${baseUrl}/?am=${automergeUrl}`} />
+            <p>or</p>
+            <Button
+              className="p-2"
+              title="Copy URL to clipboard"
+              onClick={() => {
+                navigator.clipboard.writeText(`${baseUrl}/?am=${automergeUrl}`)
+              }}
+            >
+              Copy URL <MdOutlineContentCopy />
+            </Button>
           </div>
-          <p className="select-text">{`${baseUrl}/?am=${automergeUrl}`}</p>
+        </div>
+        <div className="flex flex-col gap-4 p-2">
+          <p className="text-sm">Import your data from another device:</p>
+
+          <div className="flex w-full items-center justify-between gap-5">
+            <TextInput
+              label="Paste the URL here"
+              type="text"
+              name="import-url"
+              id="impor-url"
+              onChange={(e) => setImportUrl(e.target.value)}
+              validate={(value) => {
+                try {
+                  const automergeImportUrl = new URL(value).searchParams.get(
+                    'am',
+                  )
+                  if (!isValidAutomergeUrl(automergeImportUrl)) {
+                    return 'Invalid URL'
+                  }
+                  return undefined
+                } catch {
+                  return 'Invalid URL'
+                }
+              }}
+            />
+            <Button
+              className="w-fit rounded-full p-2"
+              title="Import data"
+              onClick={() => {
+                const automergeImportUrl = new URL(importUrl).searchParams.get(
+                  'am',
+                )
+                if (!isValidAutomergeUrl(automergeImportUrl)) {
+                  console.error('Invalid Automerge URL')
+                  return
+                }
+                setAutomergeUrl(automergeImportUrl)
+              }}
+            >
+              <MdOutlineFileUpload />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
