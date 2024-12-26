@@ -32,7 +32,7 @@ import {
   App,
   AppContextProvider,
   IpcService,
-  RecordingProvider,
+  RecordingStateProvider,
   SettingsProvider,
   ViewProvider,
 } from '@tapes-monorepo/core'
@@ -56,7 +56,7 @@ root.render(
         ipc: new IpcService(),
       }}
     >
-      <RecordingProvider>
+      <RecordingStateProvider>
         <ViewProvider>
           <SettingsProvider>
             <div
@@ -83,7 +83,7 @@ root.render(
             </div>
           </SettingsProvider>
         </ViewProvider>
-      </RecordingProvider>
+      </RecordingStateProvider>
     </AppContextProvider>
   </StrictMode>,
 )
