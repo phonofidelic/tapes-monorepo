@@ -1,7 +1,7 @@
 import { AutomergeUrl } from '@automerge/automerge-repo'
 
 export type RecordingData = {
-  url: string
+  url: AutomergeUrl
   filename: string
   filepath: string
   name: string

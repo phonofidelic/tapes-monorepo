@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, net, protocol } from 'electron'
 import path from 'path'
 import started from 'electron-squirrel-startup'
 import installExtension, {
@@ -24,7 +24,10 @@ export class MainWindow {
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
-    app.on('ready', this.createWindow)
+    app.on('ready', () => {
+      this.registerCustomProtocols()
+      this.createWindow()
+    })
     app.on('window-all-closed', this.onWindowAllClosed)
     app.on('activate', this.onActivate)
     this.registerIpcChannels(ipcChannels)
@@ -94,5 +97,32 @@ export class MainWindow {
         channel.handle(event, request),
       ),
     )
+  }
+
+  private registerCustomProtocols() {
+    protocol.handle('tapes', async (request) => {
+      const url = request.url.replace('tapes://', 'file://')
+      // const basename = path.basename(url);
+      // const filePath =
+      //   process.env.NODE_ENV === 'development'
+      //   ? path.join(app.getAppPath(), 'Data', basename)
+      //     : path.join(process.resourcesPath, 'Data', basename)
+      // callback(filePath);
+      const response = await net.fetch(url)
+      console.log('*** tapes fetch response:', response)
+
+      if (!response.body) {
+        throw new Error('No content-type header')
+      }
+
+      // const streamResults = await response.body.getReader().read()
+
+      // const dataUrl = `data:${response.headers.get('content-type')};base64,${Buffer.from(streamResults.value ?? '').toString('base64')}`
+      // // console.log('*** dataUrl:', dataUrl)
+
+      // return Buffer.from(streamResults.value ?? '')
+      // return new Response(url)
+      return response
+    })
   }
 }

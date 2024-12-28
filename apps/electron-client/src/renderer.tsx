@@ -31,6 +31,7 @@ import { createRoot } from 'react-dom/client'
 import {
   App,
   AppContextProvider,
+  AudioPlayerProvider,
   IpcService,
   RecordingStateProvider,
   SettingsProvider,
@@ -58,30 +59,32 @@ root.render(
     >
       <RecordingStateProvider>
         <ViewProvider>
-          <SettingsProvider>
-            <div
-              style={{
-                position: 'relative',
-                height: '100vh',
-                width: '100vw',
-                userSelect: 'none',
-                paddingTop: '32px',
-              }}
-            >
+          <AudioPlayerProvider>
+            <SettingsProvider>
               <div
-                id="titlebar"
                 style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '32px',
-                  zIndex: 999,
+                  position: 'relative',
+                  height: '100vh',
+                  width: '100vw',
+                  userSelect: 'none',
+                  paddingTop: '32px',
                 }}
-              />
-              <App />
-            </div>
-          </SettingsProvider>
+              >
+                <div
+                  id="titlebar"
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '32px',
+                    zIndex: 999,
+                  }}
+                />
+                <App />
+              </div>
+            </SettingsProvider>
+          </AudioPlayerProvider>
         </ViewProvider>
       </RecordingStateProvider>
     </AppContextProvider>

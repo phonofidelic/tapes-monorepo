@@ -15,11 +15,14 @@ import './index.css'
 import { useAppContext } from './context/AppContext'
 import { useSetting } from './context/SettingsContext'
 import { RecordingRepoState } from '@/types'
+import { AudioPlayer } from './components/AudioPlayer'
+import { useAudioPlayer } from './context/AudioPlayerContext'
 
 export function App() {
   const appContext = useAppContext()
   const [automergeUrl, setAutomergeUrl] = useSetting('automergeUrl')
   const { currentView, setCurrentView } = useView()
+  const { currentUrl } = useAudioPlayer()
   const [repo, setRepo] = useState<any | null>(null)
   const [isScrolled, setIsScrolled] = useState(false)
   const mainRef = useRef<HTMLDivElement | null>(null)
@@ -117,10 +120,16 @@ export function App() {
       </nav>
       <main
         ref={mainRef}
-        className="fixed bottom-0 left-0 right-0 box-content flex flex-col overflow-y-auto p-5"
+        className={clsx(
+          'fixed bottom-0 left-0 right-0 box-content flex flex-col overflow-y-auto p-5',
+          {
+            'pb-20': currentUrl !== undefined,
+          },
+        )}
       >
         {viewComponentMap[currentView]}
       </main>
+      <AudioPlayer />
     </RepoContext.Provider>
   )
 }

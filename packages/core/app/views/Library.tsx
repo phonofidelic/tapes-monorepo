@@ -7,18 +7,21 @@ import {
   MdOutlineMoreVert,
   MdOutlineRemoveCircleOutline,
   MdCheck,
+  MdPlayArrow,
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { useSetting } from '@/context/SettingsContext'
 import { useAppContext } from '@/context/AppContext'
 import { EditRecordingResponse, IpcResponse } from '@/IpcService'
+import { useAudioPlayer } from '@/context/AudioPlayerContext'
 
 export function Library() {
   const [autoMergeUrl] = useSetting('automergeUrl')
   const [docState, changeDocState] = useDocument<RecordingRepoState>(
     isValidAutomergeUrl(autoMergeUrl) ? autoMergeUrl : undefined,
   )
+  const { currentUrl } = useAudioPlayer()
 
   const [editingUrl, setEditingUrl] = useState<AutomergeUrl | null>(null)
 
@@ -52,8 +55,10 @@ export function Library() {
         className={clsx(
           'absolute bottom-0 left-0 z-50 w-screen rounded-t-lg border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
-            'translate-y-0 border p-5 drop-shadow-2xl': editingUrl,
+            'border p-5 drop-shadow-2xl': editingUrl,
             'translate-y-full p-0': !editingUrl,
+            'translate-y-0': editingUrl && currentUrl === undefined,
+            '-translate-y-20': editingUrl && currentUrl !== undefined,
           },
         )}
       >
@@ -79,10 +84,12 @@ function LibraryListItem({
 }) {
   const appContext = useAppContext()
   const [recording] = useDocument<RecordingData>(automergeUrl)
+  const { setCurrentUrl, setIsPlaying } = useAudioPlayer()
 
   const initialized = useRef(false)
   const previousRecordingName = useRef(recording?.name)
   const optionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const audioElementRef = useRef<HTMLAudioElement | null>(null)
 
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false)
   const [, setEditedName] = useState(recording?.name)
@@ -97,6 +104,38 @@ function LibraryListItem({
     initialized.current = true
   }, [recording])
 
+  useEffect(() => {
+    if (!audioElementRef.current || !initialized.current || !recording) {
+      return
+    }
+    const audioElement = audioElementRef.current
+
+    const onCanPlay = () => {
+      console.log('can play')
+    }
+
+    const onError = () => {
+      console.log('Audio error:', audioElement.error?.message, audioElement.src)
+    }
+
+    try {
+      console.log('loading audio')
+      audioElement.load()
+    } catch (error) {
+      console.error('Audio error:', error)
+    }
+
+    audioElement.addEventListener('canplay', onCanPlay)
+    audioElement.addEventListener('error', onError)
+
+    // audioElement.src = `tapes://${recording.filepath}`
+
+    return () => {
+      audioElement.removeEventListener('canplay', onCanPlay)
+      audioElement.removeEventListener('error', onError)
+    }
+  }, [initialized.current, recording])
+
   if (!recording) {
     return null
   }
@@ -104,23 +143,34 @@ function LibraryListItem({
   return (
     <>
       <div className="group flex w-full justify-between p-4">
-        <span className="has-[button]:hover:shadow-sm">
-          <Button
-            className="p-1"
-            title="Edit recording name"
-            onClick={() => onOpenEditor()}
-          >
-            <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
-              {recording.name}
-            </p>
-            <MdEdit className="ml-2 opacity-0 transition-opacity ease-in group-hover:opacity-100" />
-          </Button>
-        </span>
-        <div className="flex gap-2">
-          <p className="flex items-center text-xs text-zinc-400">
+        <div>
+          <span className="has-[button]:hover:shadow-sm">
+            <Button
+              className="p-1"
+              title="Edit recording name"
+              onClick={() => onOpenEditor()}
+            >
+              <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
+                {recording.name}
+              </p>
+              <MdEdit
+                className={clsx('ml-2 transition-opacity ease-in', {
+                  'opacity-0 hover:opacity-0 group-hover:opacity-0':
+                    isOptionsMenuOpen,
+                  'opacity-0 group-hover:opacity-100': !isOptionsMenuOpen,
+                })}
+              />
+            </Button>
+          </span>
+          <p className="flex items-center p-1 text-xs text-zinc-400">
             <FormattedTime time={recording.duration} />
           </p>
-          <div ref={optionsMenuRef} className="relative">
+        </div>
+        <div className="flex gap-2">
+          <div
+            ref={optionsMenuRef}
+            className="relative flex items-center gap-2"
+          >
             <Button
               title="Options"
               className={clsx(
@@ -132,6 +182,20 @@ function LibraryListItem({
               onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
             >
               <MdOutlineMoreVert />
+            </Button>
+            <Button
+              className={clsx(
+                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in hover:bg-none hover:shadow-sm group-hover:opacity-100',
+                {
+                  'opacity-100': isOptionsMenuOpen,
+                },
+              )}
+              onClick={() => {
+                setCurrentUrl(recording.url)
+                setIsPlaying(true)
+              }}
+            >
+              <MdPlayArrow />
             </Button>
             <div
               className={clsx('absolute top-0 z-50', {
@@ -199,6 +263,12 @@ function LibraryListItem({
           </div>
         </div>
       </div>
+      {/* <audio
+        ref={audioElementRef}
+        controls
+        src={`tapes://${recording.filepath}`}
+      ></audio> */}
+
       <Backdrop
         title="Close menu"
         isOpen={isOptionsMenuOpen}
@@ -285,7 +355,7 @@ function Editor({
           }}
           hasErrors={hasErrors}
         >
-          <p className="w-fit p-1">{recording.filename}</p>
+          <p className="w-fit p-1">{recording.filepath}</p>
         </EditableText>
       </div>
       <div className="flex flex-col gap-2 text-xs">

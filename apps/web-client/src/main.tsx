@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import {
   App,
   AppContextProvider,
+  AudioPlayerProvider,
   RecordingStateProvider,
   SettingsProvider,
   ViewProvider,
@@ -19,9 +20,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <AppContextProvider value={{ type: 'web', automergeUrl }}>
         <RecordingStateProvider>
           <ViewProvider>
-            <SettingsProvider>
-              <App />
-            </SettingsProvider>
+            <AudioPlayerProvider>
+              <SettingsProvider>
+                <App />
+              </SettingsProvider>
+            </AudioPlayerProvider>
           </ViewProvider>
         </RecordingStateProvider>
       </AppContextProvider>
