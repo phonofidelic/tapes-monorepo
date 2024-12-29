@@ -11,15 +11,16 @@ import {
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
-import { useSetting } from '@/context/SettingsContext'
 import { useAppContext } from '@/context/AppContext'
 import { EditRecordingResponse, IpcResponse } from '@/IpcService'
 import { useAudioPlayer } from '@/context/AudioPlayerContext'
+import { FormattedTime } from '@/components/FormattedTime'
+import { useAutomergeUrl } from '@/utils'
 
 export function Library() {
-  const [autoMergeUrl] = useSetting('automergeUrl')
+  const { automergeUrl } = useAutomergeUrl()
   const [docState, changeDocState] = useDocument<RecordingRepoState>(
-    isValidAutomergeUrl(autoMergeUrl) ? autoMergeUrl : undefined,
+    isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
   )
   const { currentUrl } = useAudioPlayer()
 
@@ -84,7 +85,7 @@ function LibraryListItem({
 }) {
   const appContext = useAppContext()
   const [recording] = useDocument<RecordingData>(automergeUrl)
-  const { setCurrentUrl, setIsPlaying } = useAudioPlayer()
+  const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
 
   const initialized = useRef(false)
   const previousRecordingName = useRef(recording?.name)
@@ -191,6 +192,7 @@ function LibraryListItem({
                 },
               )}
               onClick={() => {
+                setCurrentSource(recording.filepath)
                 setCurrentUrl(recording.url)
                 setIsPlaying(true)
               }}
@@ -381,15 +383,6 @@ function Editor({
       </div>
     </div>
   )
-}
-
-function FormattedTime({ time }: { time: number }) {
-  // const centiseconds = ('0' + (Math.floor(time / 10) % 100)).slice(-2)
-  const seconds = ('0' + (Math.floor(time / 1000) % 60)).slice(-2)
-  const minutes = ('0' + (Math.floor(time / 60000) % 60)).slice(-2)
-  const hours = ('0' + Math.floor(time / 3600000)).slice(-2)
-
-  return `${hours}:${minutes}:${seconds}`
 }
 
 function EditableText({

@@ -1,15 +1,13 @@
-import { IpcService } from '@/IpcService'
 import { createContext, useContext } from 'react'
+import { IpcService } from '@/IpcService'
 
-type AppContextValue =
+export type AppContextValue =
   | {
       type: 'electron-client'
       ipc: IpcService
-      automergeUrl?: string
     }
   | {
-      type: 'web'
-      automergeUrl?: string
+      type: 'web-client'
     }
 
 const AppContext = createContext<AppContextValue | null>(null)

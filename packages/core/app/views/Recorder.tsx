@@ -10,7 +10,7 @@ import { RecordingData, RecordingRepoState } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
-import { getAudioStream } from '@/utils'
+import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecordingState } from '@/context/RecordingContext'
 import {
@@ -28,11 +28,11 @@ export function Recorder() {
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [audioChannelCount] = useSetting('audioChannelCount')
   const [audioFormat] = useSetting('audioFormat')
-  const [autoMergeUrl] = useSetting('automergeUrl')
+  const { automergeUrl } = useAutomergeUrl()
 
   const repo = useRepo()
   const [, changeDocState] = useDocument<RecordingRepoState>(
-    isValidAutomergeUrl(autoMergeUrl) ? autoMergeUrl : undefined,
+    isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
   )
 
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
