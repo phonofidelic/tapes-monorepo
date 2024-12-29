@@ -1,4 +1,6 @@
-import { app, BrowserWindow, ipcMain, net, protocol } from 'electron'
+import crypto from 'crypto'
+import { copyFile } from 'fs/promises'
+import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import path from 'path'
 import started from 'electron-squirrel-startup'
 import installExtension, {
@@ -101,28 +103,23 @@ export class MainWindow {
 
   private registerCustomProtocols() {
     protocol.handle('tapes', async (request) => {
-      const url = request.url.replace('tapes://', 'file://')
-      // const basename = path.basename(url);
-      // const filePath =
-      //   process.env.NODE_ENV === 'development'
-      //   ? path.join(app.getAppPath(), 'Data', basename)
-      //     : path.join(process.resourcesPath, 'Data', basename)
-      // callback(filePath);
-      const response = await net.fetch(url)
-      console.log('*** tapes fetch response:', response)
+      const decodedUrl = decodeURI(request.url)
+      const filepath = decodedUrl.replace('tapes://', '')
 
-      if (!response.body) {
-        throw new Error('No content-type header')
-      }
+      const filename = crypto
+        .createHash('sha256')
+        .update(filepath)
+        .digest('hex')
+      const extension = path.extname(filepath)
 
-      // const streamResults = await response.body.getReader().read()
+      await copyFile(
+        filepath,
+        path.resolve(app.getAppPath(), 'cache', filename + extension),
+      )
 
-      // const dataUrl = `data:${response.headers.get('content-type')};base64,${Buffer.from(streamResults.value ?? '').toString('base64')}`
-      // // console.log('*** dataUrl:', dataUrl)
-
-      // return Buffer.from(streamResults.value ?? '')
-      // return new Response(url)
-      return response
+      return Response.redirect(
+        `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/cache/${filename + extension}`,
+      )
     })
   }
 }

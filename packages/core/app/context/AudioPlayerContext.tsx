@@ -1,10 +1,13 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AutomergeUrl } from '@automerge/automerge-repo'
+import { useAppContext } from './AppContext'
 
 type AudioPlayerContextValue = {
-  audio: HTMLAudioElement
+  audioRef: React.RefObject<HTMLAudioElement>
   currentTime: number
   duration: number
+  currentSource: string | undefined
+  setCurrentSource: React.Dispatch<React.SetStateAction<string | undefined>>
   currentUrl: AutomergeUrl | undefined
   setCurrentUrl: React.Dispatch<React.SetStateAction<AutomergeUrl | undefined>>
   isPlaying: boolean
@@ -22,7 +25,11 @@ export const AudioPlayerProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const audio = new Audio()
+  const appContext = useAppContext()
+  const audioRef = useRef<HTMLAudioElement>(new Audio())
+  const [currentSource, setCurrentSource] = useState<string | undefined>(
+    undefined,
+  )
   const [currentUrl, setCurrentUrl] = useState<AutomergeUrl | undefined>(
     undefined,
   )
@@ -31,12 +38,62 @@ export const AudioPlayerProvider = ({
   const [isPlaying, setIsPlaying] = useState(false)
   const [clickedTime, setClickedTime] = useState(0)
 
+  useEffect(() => {
+    if (!currentSource || appContext.type !== 'electron-client') {
+      return
+    }
+
+    const audio = audioRef.current
+
+    audio.src = `tapes://${currentSource}`
+    console.log(audio.currentSrc)
+    audio.load()
+    isPlaying
+      ? audio
+          .play()
+          .then(() => console.log('playing'))
+          .catch((error) => console.error('Play error:', error))
+      : audio.pause()
+
+    const onLoadedMetadata = () => {
+      console.log('*** loadedmetadata')
+      setDuration(audio.duration)
+    }
+
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime)
+    }
+
+    const onEnded = () => {
+      console.log('*** ended')
+      audio.currentTime = duration / 1000
+    }
+
+    const onError = () => {
+      console.error('Audio error:', audio.error?.message)
+    }
+
+    audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('error', onError)
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('error', onError)
+    }
+  }, [currentSource, isPlaying, duration])
+
   return (
     <AudioPlayerContext.Provider
       value={{
-        audio,
+        audioRef,
         currentTime,
         duration,
+        currentSource,
+        setCurrentSource,
         currentUrl,
         setCurrentUrl,
         isPlaying,
