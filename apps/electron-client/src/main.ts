@@ -8,6 +8,7 @@ import installExtension, {
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
+import { cacheServer } from './cacheServer'
 
 updateElectronApp()
 
@@ -27,6 +28,7 @@ export class MainWindow {
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
     app.on('ready', () => {
+      this.startCacheServer()
       this.registerCustomProtocols()
       this.createWindow()
     })
@@ -101,6 +103,15 @@ export class MainWindow {
     )
   }
 
+  private startCacheServer() {
+    const cachePath =
+      process.env.NODE_ENV !== 'development'
+        ? path.resolve(process.resourcesPath, 'cache')
+        : path.resolve(app.getAppPath(), 'cache')
+
+    cacheServer(cachePath)
+  }
+
   private registerCustomProtocols() {
     protocol.handle('tapes', async (request) => {
       const decodedUrl = decodeURI(request.url)
@@ -112,14 +123,14 @@ export class MainWindow {
         .digest('hex')
       const extension = path.extname(filepath)
 
-      await copyFile(
-        filepath,
-        path.resolve(app.getAppPath(), 'cache', filename + extension),
-      )
+      const cachePath =
+        process.env.NODE_ENV !== 'development'
+          ? path.resolve(process.resourcesPath, 'cache')
+          : path.resolve(app.getAppPath(), 'cache')
 
-      return Response.redirect(
-        `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/cache/${filename + extension}`,
-      )
+      await copyFile(filepath, path.join(cachePath, filename + extension))
+
+      return Response.redirect(`http://localhost:9000/${filename + extension}`)
     })
   }
 }
