@@ -10,7 +10,7 @@ import { RecordingData, RecordingRepoState } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
-import { getAudioStream } from '@/utils'
+import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecordingState } from '@/context/RecordingContext'
 import {
@@ -28,11 +28,11 @@ export function Recorder() {
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [audioChannelCount] = useSetting('audioChannelCount')
   const [audioFormat] = useSetting('audioFormat')
-  const [autoMergeUrl] = useSetting('automergeUrl')
+  const { automergeUrl } = useAutomergeUrl()
 
   const repo = useRepo()
   const [, changeDocState] = useDocument<RecordingRepoState>(
-    isValidAutomergeUrl(autoMergeUrl) ? autoMergeUrl : undefined,
+    isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
   )
 
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
@@ -104,7 +104,7 @@ export function Recorder() {
 
   return (
     <>
-      <div className="flex h-full flex-col pb-20">
+      <div className="flex flex-col">
         <div
           ref={visualizerContainerRef}
           className="absolute bottom-[80px] left-0 right-0 top-0"
@@ -145,14 +145,14 @@ export function Recorder() {
       </div>
       <div
         className={clsx(
-          'absolute bottom-[79px] left-0 right-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          'fixed bottom-[79px] left-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
             'translate-y-0 px-4 drop-shadow-2xl': isEditorOpen,
             'translate-y-full': !isEditorOpen,
           },
         )}
       >
-        <div className="group flex size-full h-[82px] items-center justify-between gap-2">
+        <div className="group flex size-full h-[82px] items-center justify-between">
           {isEditing ? (
             <div className="w-full justify-center p-4">
               <TextInput

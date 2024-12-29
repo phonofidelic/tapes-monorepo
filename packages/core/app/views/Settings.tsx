@@ -10,6 +10,7 @@ import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useAppContext } from '@/context/AppContext'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
+import { useAutomergeUrl } from '@/utils'
 
 export function Settings() {
   const appContext = useAppContext()
@@ -17,7 +18,7 @@ export function Settings() {
   const [audioChannelCount, setAudioChannelCount] =
     useSetting('audioChannelCount')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
-  const [automergeUrl, setAutomergeUrl] = useSetting('automergeUrl')
+  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
   const [importUrl, setImportUrl] = useState('')
 
   const baseUrl =

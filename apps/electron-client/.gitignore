@@ -93,3 +93,6 @@ out/
 
 bin/*
 !bin/.gitkeep
+
+cache/*
+!cache/.gitkeep

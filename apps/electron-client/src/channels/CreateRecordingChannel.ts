@@ -47,7 +47,6 @@ export class CreateRecordingChannel implements IpcChannel {
         `--type=${data.audioFormat === 'mp3' ? 'wav' : data.audioFormat}`,
         `--channels=${data.audioChannelCount}`,
         `--rate=${DEFAULT_SAMPLE_RATE}`,
-        '--compression=-1',
         this.filepath,
       ])
 

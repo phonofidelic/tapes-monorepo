@@ -1,4 +1,6 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import crypto from 'crypto'
+import { copyFile } from 'fs/promises'
+import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import path from 'path'
 import started from 'electron-squirrel-startup'
 import installExtension, {
@@ -6,6 +8,7 @@ import installExtension, {
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
+import { cacheServer } from './cacheServer'
 
 updateElectronApp()
 
@@ -24,7 +27,11 @@ export class MainWindow {
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
-    app.on('ready', this.createWindow)
+    app.on('ready', () => {
+      this.startCacheServer()
+      this.registerCustomProtocols()
+      this.createWindow()
+    })
     app.on('window-all-closed', this.onWindowAllClosed)
     app.on('activate', this.onActivate)
     this.registerIpcChannels(ipcChannels)
@@ -94,5 +101,36 @@ export class MainWindow {
         channel.handle(event, request),
       ),
     )
+  }
+
+  private startCacheServer() {
+    const cachePath =
+      process.env.NODE_ENV !== 'development'
+        ? path.resolve(process.resourcesPath, 'cache')
+        : path.resolve(app.getAppPath(), 'cache')
+
+    cacheServer(cachePath)
+  }
+
+  private registerCustomProtocols() {
+    protocol.handle('tapes', async (request) => {
+      const decodedUrl = decodeURI(request.url)
+      const filepath = decodedUrl.replace('tapes://', '')
+
+      const filename = crypto
+        .createHash('sha256')
+        .update(filepath)
+        .digest('hex')
+      const extension = path.extname(filepath)
+
+      const cachePath =
+        process.env.NODE_ENV !== 'development'
+          ? path.resolve(process.resourcesPath, 'cache')
+          : path.resolve(app.getAppPath(), 'cache')
+
+      await copyFile(filepath, path.join(cachePath, filename + extension))
+
+      return Response.redirect(`http://localhost:9000/${filename + extension}`)
+    })
   }
 }
