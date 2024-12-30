@@ -6,6 +6,7 @@
   "main": ".vite/build/index.js",
   "repository": "github:phonofidelic/tapes-monorepo",
   "scripts": {
+    "get-bin": "tsc downloadExecutables.ts && node downloadExecutables.js",
     "dev": "dotenvx run --env-file=.env -- electron-forge start -- --trace-warnings",
     "package": "dotenvx run --env-file=.env -- electron-forge package",
     "make": "dotenvx run --env-file=.env -- electron-forge make",
@@ -75,6 +76,7 @@
     "@tapes-monorepo/core": "*",
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
+    "node-stream-zip": "^1.15.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "update-electron-app": "^3.1.0"

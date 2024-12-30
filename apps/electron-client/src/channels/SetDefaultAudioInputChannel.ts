@@ -35,8 +35,8 @@ export class SetDefaultAudioInputChannel implements IpcChannel {
      */
     const switchAudioSourcePath =
       process.env.NODE_ENV !== 'development'
-        ? path.resolve(process.resourcesPath, 'SwitchAudioSource')
-        : path.resolve(appPath, 'bin', 'SwitchAudioSource')
+        ? path.resolve(process.resourcesPath, 'SwitchAudioSource-1.2.2-macOS')
+        : path.resolve(appPath, 'bin', 'SwitchAudioSource-1.2.2-macOS')
 
     try {
       await execFile(switchAudioSourcePath, [

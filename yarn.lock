@@ -5552,6 +5552,7 @@ __metadata:
     esbuild-register: "npm:^3.6.0"
     eslint: "npm:^9.0.0"
     eslint-plugin-import: "npm:^2.25.0"
+    node-stream-zip: "npm:^1.15.0"
     postcss: "npm:^8.4.49"
     prettier-plugin-tailwindcss: "npm:^0.6.9"
     react: "npm:^19.0.0"
@@ -9894,6 +9895,13 @@ __metadata:
   version: 0.1.1
   resolution: "node-statsd@npm:0.1.1"
   checksum: 10c0/b0fcf6b551afa9d4fca0530122d9ad7c45abb71c4e5a404767b2e9408e89743442ef4084ded103ae33f52fdb6979e996f0e6a340e0800ba5e5bdfbe5d1734d3d
+  languageName: node
+  linkType: hard
+
+"node-stream-zip@npm:^1.15.0":
+  version: 1.15.0
+  resolution: "node-stream-zip@npm:1.15.0"
+  checksum: 10c0/429fce95d7e90e846adbe096c61d2ea8d18defc155c0345d25d0f98dd6fc72aeb95039318484a4e0a01dc3814b6d0d1ae0fe91847a29669dff8676ec064078c9
   languageName: node
   linkType: hard
 
