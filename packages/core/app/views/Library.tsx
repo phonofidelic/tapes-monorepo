@@ -325,7 +325,7 @@ function Editor({
           <MdCheck />
         </Button>
       </div>
-      <div className="flex w-fit flex-col gap-2 text-xs">
+      <div className="flex w-full flex-col gap-2 text-xs">
         <EditableText
           text={recording.filename}
           inputType="text"
@@ -448,7 +448,7 @@ function EditableText({
   }
 
   return isEditing ? (
-    <div className="flex flex-col justify-center">
+    <div className="flex w-full flex-col justify-center">
       <label
         htmlFor={id}
         className={clsx(

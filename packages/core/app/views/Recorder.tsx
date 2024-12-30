@@ -13,11 +13,7 @@ import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecordingState } from '@/context/RecordingContext'
-import {
-  EditRecordingResponse,
-  IpcResponse,
-  StopRecordingResponse,
-} from '@/IpcService'
+import { IpcResponse, StopRecordingResponse } from '@/IpcService'
 
 const NEW_RECORDING_DEFAULT_NAME = 'New recording'
 
@@ -42,18 +38,15 @@ export function Recorder() {
     'frequency',
   )
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [filepath, setFilepath] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(NEW_RECORDING_DEFAULT_NAME)
-  const [filepath, setFilepath] = useState('')
   const [hasErrors, setHasErrors] = useState(false)
 
-  const commitFileChange = async ({ filename }: { filename: string }) => {
-    if (appContext.type !== 'electron-client') {
-      return
-    }
-
+  const createRecordingDocument = () => {
     if (hasErrors) {
       // TODO: add error feedback
+      console.log('Validation errors')
       return
     }
 
@@ -61,28 +54,13 @@ export function Recorder() {
       setEditedName(NEW_RECORDING_DEFAULT_NAME)
     }
 
-    const editRecordingResponse =
-      await appContext.ipc.send<EditRecordingResponse>(
-        'storage:edit-recording',
-        {
-          data: {
-            filename,
-            filepath,
-          },
-        },
-      )
-
-    if (!editRecordingResponse.success) {
-      // TODO: add error feedback
-      return
-    }
-
     const handle = repo.create<RecordingData>()
     const url = handle.url
     handle.change((doc) => {
       doc.url = url
-      doc.filename = filename
-      doc.filepath = editRecordingResponse.data.filepath
+      // Extract the filename from the filepath, and remove the extension
+      doc.filename = filepath.split('.')[0].replace(/(^.+\/)/, '')
+      doc.filepath = filepath
       doc.name = editedName
       doc.duration = time
       doc.id = crypto.randomUUID()
@@ -95,11 +73,6 @@ export function Recorder() {
       }
       repoState.recordings = [url]
     })
-
-    setIsEditing(false)
-    setIsEditorOpen(false)
-    setEditedName(NEW_RECORDING_DEFAULT_NAME)
-    setFilepath('')
   }
 
   return (
@@ -176,7 +149,10 @@ export function Recorder() {
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
-                    commitFileChange({ filename: editedName })
+                    createRecordingDocument()
+                    setIsEditing(false)
+                    setIsEditorOpen(false)
+                    setEditedName(NEW_RECORDING_DEFAULT_NAME)
                   }
                 }}
               />
@@ -196,8 +172,8 @@ export function Recorder() {
                     },
                   })
                   setEditedName(NEW_RECORDING_DEFAULT_NAME)
-                  setFilepath('')
                   setIsEditorOpen(false)
+                  setFilepath('')
                 }}
               >
                 <MdOutlineCancel />
@@ -215,7 +191,11 @@ export function Recorder() {
               <Button
                 title="Save recoding"
                 className="rounded-full p-4 hover:text-green-500"
-                onClick={() => commitFileChange({ filename: editedName })}
+                onClick={() => {
+                  createRecordingDocument()
+                  setIsEditing(false)
+                  setEditedName(NEW_RECORDING_DEFAULT_NAME)
+                }}
               >
                 <MdCheck />
               </Button>
@@ -295,6 +275,7 @@ export function Recorder() {
                       if (!stopResponse.success) {
                         // TODO: Handle error
                         console.error(stopResponse.error)
+                        return
                       }
 
                       setFilepath(stopResponse.data.filepath)
