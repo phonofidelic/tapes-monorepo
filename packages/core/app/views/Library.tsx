@@ -54,7 +54,7 @@ export function Library() {
       </div>
       <div
         className={clsx(
-          'absolute bottom-0 left-0 z-50 w-screen rounded-t-lg border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          'fixed bottom-0 left-0 z-50 w-screen rounded-t-lg border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
             'border p-5 drop-shadow-2xl': editingUrl,
             'translate-y-full p-0': !editingUrl,
@@ -90,7 +90,6 @@ function LibraryListItem({
   const initialized = useRef(false)
   const previousRecordingName = useRef(recording?.name)
   const optionsMenuRef = useRef<HTMLDivElement | null>(null)
-  const audioElementRef = useRef<HTMLAudioElement | null>(null)
 
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false)
   const [, setEditedName] = useState(recording?.name)
@@ -104,38 +103,6 @@ function LibraryListItem({
     setEditedName(recording.name)
     initialized.current = true
   }, [recording])
-
-  useEffect(() => {
-    if (!audioElementRef.current || !initialized.current || !recording) {
-      return
-    }
-    const audioElement = audioElementRef.current
-
-    const onCanPlay = () => {
-      console.log('can play')
-    }
-
-    const onError = () => {
-      console.log('Audio error:', audioElement.error?.message, audioElement.src)
-    }
-
-    try {
-      console.log('loading audio')
-      audioElement.load()
-    } catch (error) {
-      console.error('Audio error:', error)
-    }
-
-    audioElement.addEventListener('canplay', onCanPlay)
-    audioElement.addEventListener('error', onError)
-
-    // audioElement.src = `tapes://${recording.filepath}`
-
-    return () => {
-      audioElement.removeEventListener('canplay', onCanPlay)
-      audioElement.removeEventListener('error', onError)
-    }
-  }, [initialized.current, recording])
 
   if (!recording) {
     return null
@@ -265,12 +232,6 @@ function LibraryListItem({
           </div>
         </div>
       </div>
-      {/* <audio
-        ref={audioElementRef}
-        controls
-        src={`tapes://${recording.filepath}`}
-      ></audio> */}
-
       <Backdrop
         title="Close menu"
         isOpen={isOptionsMenuOpen}
@@ -558,7 +519,7 @@ function Backdrop({
     <button
       title={isOpen ? title : ''}
       className={clsx(
-        'absolute left-0 top-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
+        'fixed left-0 top-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
         {
           'hidden opacity-0': !isOpen,
           'z-40 opacity-50': isOpen,
