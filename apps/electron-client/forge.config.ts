@@ -24,7 +24,11 @@ const config: ForgeConfig = {
     asar: true,
     osxSign: {},
     osxNotarize: notarizeOptions,
-    extraResource: ['bin/sox-14.4.2-macOS', 'bin/SwitchAudioSource', 'cache'],
+    extraResource: [
+      'bin/sox-14.4.2-macOS',
+      'bin/SwitchAudioSource-1.2.2-macOS',
+      'cache',
+    ],
   },
   publishers: [
     {
