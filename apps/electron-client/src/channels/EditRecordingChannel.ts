@@ -29,6 +29,7 @@ export class EditRecordingChannel implements IpcChannel {
         data: { filepath: newPath },
       })
     } catch (error) {
+      console.error(error)
       event.sender.send(responseChannel, {
         success: false,
         error: new Error('Could not rename file'),
