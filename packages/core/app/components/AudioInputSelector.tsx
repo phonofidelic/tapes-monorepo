@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Button } from '@tapes-monorepo/ui'
-import { useSetting } from '@/context/SettingsContext'
 import clsx from 'clsx'
+import { Button } from '@tapes-monorepo/ui'
 import { useAppContext } from '@/context/AppContext'
+import { useSetting } from '@/context/SettingsContext'
 import { IpcResponse } from '@/IpcService'
 
 export function AudioInputSelector({ className }: { className?: string }) {
@@ -16,9 +16,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
   useEffect(() => {
     const getMediaDevices = async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        })
         const foundDevices = await navigator.mediaDevices.enumerateDevices()
         const audioInputs = foundDevices
           .filter((device) => device.kind === 'audioinput')
@@ -34,30 +31,8 @@ export function AudioInputSelector({ className }: { className?: string }) {
     getMediaDevices()
   }, [])
 
-  if (audioInputDevices.length === 0) {
-    return (
-      <Button
-        className={clsx(className)}
-        onClick={async () => {
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            console.error('getUserMedia is not supported in this browser')
-            return
-          }
-          await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          })
-          const foundDevices = await navigator.mediaDevices.enumerateDevices()
-          const audioInputs = foundDevices
-            .filter((device) => device.kind === 'audioinput')
-            .filter((device) => device.deviceId !== 'default')
-            .filter((device) => !device.label.match(/\(Virtual\)/))
-
-          setAudioInputDevices(audioInputs)
-        }}
-      >
-        Select an audio input device
-      </Button>
-    )
+  if (!audioInputDevices.length) {
+    return <Button className={className}>Loading devices...</Button>
   }
 
   return (
@@ -66,6 +41,22 @@ export function AudioInputSelector({ className }: { className?: string }) {
         'flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800',
         className,
       )}
+      onClick={async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('getUserMedia is not supported in this browser')
+          return
+        }
+        await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        })
+        const foundDevices = await navigator.mediaDevices.enumerateDevices()
+        const audioInputs = foundDevices
+          .filter((device) => device.kind === 'audioinput')
+          .filter((device) => device.deviceId !== 'default')
+          .filter((device) => !device.label.match(/\(Virtual\)/))
+
+        setAudioInputDevices(audioInputs)
+      }}
       onChange={async (event) => {
         if (!event.target.value) {
           setAudioInputDeviceId('')

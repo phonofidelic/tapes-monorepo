@@ -378,14 +378,18 @@ function useMonitor(selectedMediaDeviceId: string | undefined) {
 
     const audioCtx = new window.AudioContext()
 
-    getAudioStream(selectedMediaDeviceId).then((audioStream) => {
-      if (audioCtx.state === 'closed') return
-
-      const sourceNode = audioCtx.createMediaStreamSource(audioStream)
-      if (isMonitoring) {
-        sourceNode.connect(audioCtx.destination)
+    const monitor = async () => {
+      if (audioCtx.state === 'closed') {
+        return
       }
-    })
+      const audioStream = await getAudioStream(selectedMediaDeviceId)
+      const sourceNode = audioCtx.createMediaStreamSource(audioStream)
+      sourceNode.connect(audioCtx.destination)
+    }
+
+    if (isMonitoring) {
+      monitor()
+    }
 
     return () => {
       audioCtx.close()
