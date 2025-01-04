@@ -75,17 +75,15 @@ onmessage = async (event) => {
       break
     }
     case 'recorder:write': {
-      console.log('recorder:write, ctx.accessHandle:', ctx.accessHandle)
       const { chunk } = payload as { chunk: Blob }
       if (ctx.accessHandle) {
         try {
-          console.log('writing to file')
           ctx.accessHandle.write(await chunk.arrayBuffer())
           ctx.accessHandle.flush()
           ctx.accessHandle.close()
           ctx.accessHandle = null
         } catch (error) {
-          console.log('error writing to file:', error)
+          console.error('error writing to file:', error)
         }
       }
       break

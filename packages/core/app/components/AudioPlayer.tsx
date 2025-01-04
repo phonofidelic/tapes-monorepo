@@ -49,7 +49,7 @@ export function AudioPlayer({}: {}) {
               <FormattedTime time={currentTime * 1000} />
             </p>
             <p className="text-sm">
-              <FormattedTime time={duration * 1000} />
+              {isFinite(duration) && <FormattedTime time={duration * 1000} />}
             </p>
           </div>
         </div>

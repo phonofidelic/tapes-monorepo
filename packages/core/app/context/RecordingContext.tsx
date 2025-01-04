@@ -44,7 +44,7 @@ export const RecordingStateProvider = ({
 
     // Function with retries to attempt finding supported mimetype
     // https://stackoverflow.com/a/78132616
-    const mimeTypes = ['audio/webm', 'audio/mp4']
+    const mimeTypes = ['audio/mp4']
     const getMediaRecorder = async (stream: MediaStream, mimeIndex = 0) => {
       try {
         const mimeType = mimeTypes[mimeIndex]
@@ -109,19 +109,11 @@ export const RecordingStateProvider = ({
         payload: { chunk: event.data },
       })
     }
-    const onStop = () => {
-      if (!handleFilenameRef.current) {
-        return
-      }
-      console.log('File saved to:', handleFilenameRef.current)
-    }
 
     mediaRecorder.addEventListener('dataavailable', onDataAvailable)
-    mediaRecorder.addEventListener('stop', onStop)
 
     return () => {
       mediaRecorder.removeEventListener('dataavailable', onDataAvailable)
-      mediaRecorder.removeEventListener('stop', onStop)
     }
   }, [mediaRecorderRef.current, handleFilenameRef.current])
 
