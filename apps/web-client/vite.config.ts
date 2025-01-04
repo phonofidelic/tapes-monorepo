@@ -24,4 +24,12 @@ export default defineConfig({
     },
   },
   plugins: [wasm(), topLevelAwait(), react(), basicSsl()],
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'esnext',
+    },
+  },
+  build: {
+    target: 'esnext',
+  },
 })
