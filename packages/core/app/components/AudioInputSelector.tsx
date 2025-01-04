@@ -12,27 +12,43 @@ export function AudioInputSelector({ className }: { className?: string }) {
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
   )
+  const [microphonePermissionState, setMicrophonePermissionState] =
+    useState<PermissionState>('prompt')
 
   useEffect(() => {
-    const getMediaDevices = async () => {
-      try {
-        const foundDevices = await navigator.mediaDevices.enumerateDevices()
-        const audioInputs = foundDevices
-          .filter((device) => device.kind === 'audioinput')
-          .filter((device) => device.deviceId !== 'default')
-          .filter((device) => !device.label.match(/\(Virtual\)/))
-
-        setAudioInputDevices(audioInputs)
-      } catch (error) {
-        console.error('Error accessing media devices:', error)
-      }
-    }
-
-    getMediaDevices()
+    navigator.permissions
+      .query({ name: 'microphone' as PermissionDescriptor['name'] })
+      .then(({ state }) => {
+        setMicrophonePermissionState(state)
+      })
   }, [])
 
-  if (!audioInputDevices.length) {
-    return <Button className={className}>Loading devices...</Button>
+  if (microphonePermissionState !== 'granted') {
+    return (
+      <Button
+        className={className}
+        onClick={async () => {
+          try {
+            await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: false,
+            })
+            setMicrophonePermissionState('granted')
+            const foundDevices = await navigator.mediaDevices.enumerateDevices()
+            const audioInputs = foundDevices
+              .filter((device) => device.kind === 'audioinput')
+              .filter((device) => device.deviceId !== 'default')
+              .filter((device) => !device.label.match(/\(Virtual\)/))
+
+            setAudioInputDevices(audioInputs)
+          } catch (error) {
+            console.error('Error accessing microphone:', error)
+          }
+        }}
+      >
+        Allow access to audio input devices
+      </Button>
+    )
   }
 
   return (
@@ -46,9 +62,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
           console.error('getUserMedia is not supported in this browser')
           return
         }
-        await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        })
         const foundDevices = await navigator.mediaDevices.enumerateDevices()
         const audioInputs = foundDevices
           .filter((device) => device.kind === 'audioinput')
