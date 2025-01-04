@@ -19,15 +19,15 @@ export default function Providers({
 }) {
   return (
     <AppContextProvider value={values.appContext}>
-      <RepoContext.Provider value={values.repoContext}>
-        <RecordingStateProvider>
-          <ViewProvider>
-            <AudioPlayerProvider>
-              <SettingsProvider>{children}</SettingsProvider>
-            </AudioPlayerProvider>
-          </ViewProvider>
-        </RecordingStateProvider>
-      </RepoContext.Provider>
+      <SettingsProvider>
+        <RepoContext.Provider value={values.repoContext}>
+          <RecordingStateProvider>
+            <ViewProvider>
+              <AudioPlayerProvider>{children}</AudioPlayerProvider>
+            </ViewProvider>
+          </RecordingStateProvider>
+        </RepoContext.Provider>
+      </SettingsProvider>
     </AppContextProvider>
   )
 }

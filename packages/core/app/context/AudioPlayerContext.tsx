@@ -39,25 +39,63 @@ export const AudioPlayerProvider = ({
   const [clickedTime, setClickedTime] = useState(0)
 
   useEffect(() => {
-    if (!currentSource || appContext.type !== 'electron-client') {
+    if (!currentSource) {
       return
     }
 
-    const audio = audioRef.current
+    const onMessage = async (event: MessageEvent) => {
+      if (!audioRef.current) {
+        return
+      }
 
-    audio.src = `tapes://${currentSource}`
-    console.log(audio.currentSrc)
+      if (event.data.type === 'storage:get:response') {
+        if (!event.data.success) {
+          console.error('Play error:', event.data.error)
+          setCurrentUrl(undefined)
+          return
+        }
+
+        const { url } = event.data.payload as {
+          url: string
+        }
+
+        audioRef.current.src = url
+      }
+    }
+
+    if (appContext.type === 'web-client') {
+      appContext.worker.addEventListener('message', onMessage)
+      appContext.worker.postMessage({
+        type: 'storage:get',
+        payload: {
+          filename: currentSource,
+        },
+      })
+    } else {
+      audioRef.current.src = `tapes://${currentSource}`
+    }
+
+    return () => {
+      if (appContext.type === 'web-client') {
+        appContext.worker.removeEventListener('message', onMessage)
+      }
+    }
+  }, [currentSource])
+
+  useEffect(() => {
+    const audio = audioRef.current
     audio.load()
-    isPlaying
-      ? audio
-          .play()
-          .then(() => console.log('playing'))
-          .catch((error) => console.error('Play error:', error))
-      : audio.pause()
 
     const onLoadedMetadata = () => {
-      console.log('*** loadedmetadata')
-      setDuration(audio.duration)
+      setDuration(
+        audio.duration / (appContext.type === 'electron-client' ? 1000 : 1),
+      )
+    }
+
+    const onCanPlay = async () => {
+      if (isPlaying) {
+        await audio.play()
+      }
     }
 
     const onTimeUpdate = () => {
@@ -65,26 +103,30 @@ export const AudioPlayerProvider = ({
     }
 
     const onEnded = () => {
-      console.log('*** ended')
-      audio.currentTime = duration / 1000
+      audio.pause()
+      setIsPlaying(false)
+      setCurrentTime(0)
+      audio.currentTime = duration
     }
 
     const onError = () => {
-      console.error('Audio error:', audio.error?.message)
+      console.error('Audio error:', audio.error)
     }
 
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('canplay', onCanPlay)
     audio.addEventListener('timeupdate', onTimeUpdate)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
 
     return () => {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('canplay', onCanPlay)
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [currentSource, isPlaying, duration])
+  }, [isPlaying])
 
   return (
     <AudioPlayerContext.Provider

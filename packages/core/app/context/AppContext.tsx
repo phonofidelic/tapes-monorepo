@@ -8,6 +8,7 @@ export type AppContextValue =
     }
   | {
       type: 'web-client'
+      worker: Worker
     }
 
 const AppContext = createContext<AppContextValue | null>(null)

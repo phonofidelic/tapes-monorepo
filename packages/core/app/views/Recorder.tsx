@@ -12,7 +12,7 @@ import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
-import { useRecordingState } from '@/context/RecordingContext'
+import { useRecorder } from '@/context/RecordingContext'
 import { IpcResponse, StopRecordingResponse } from '@/IpcService'
 
 const NEW_RECORDING_DEFAULT_NAME = 'New recording'
@@ -24,16 +24,17 @@ export function Recorder() {
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const [audioChannelCount] = useSetting('audioChannelCount')
   const [audioFormat] = useSetting('audioFormat')
-  const { automergeUrl } = useAutomergeUrl()
 
+  const { automergeUrl } = useAutomergeUrl()
   const repo = useRepo()
   const [, changeDocState] = useDocument<RecordingRepoState>(
     isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
   )
 
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
-  const { time, isRecording, setIsRecording } = useRecordingState()
+  const { time, isRecording, handleFilename, setIsRecording } = useRecorder()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
+
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
   )
@@ -163,14 +164,13 @@ export function Recorder() {
                 title="Delete recording"
                 className="rounded-full p-4 hover:text-rose-500"
                 onClick={() => {
-                  if (appContext.type !== 'electron-client') {
-                    return
+                  if (appContext.type === 'electron-client') {
+                    appContext.ipc.send('storage:delete-recording', {
+                      data: {
+                        filepath,
+                      },
+                    })
                   }
-                  appContext.ipc.send('storage:delete-recording', {
-                    data: {
-                      filepath,
-                    },
-                  })
                   setEditedName(NEW_RECORDING_DEFAULT_NAME)
                   setIsEditorOpen(false)
                   setFilepath('')
@@ -194,6 +194,7 @@ export function Recorder() {
                 onClick={() => {
                   createRecordingDocument()
                   setIsEditing(false)
+                  setIsEditorOpen(false)
                   setEditedName(NEW_RECORDING_DEFAULT_NAME)
                 }}
               >
@@ -228,17 +229,41 @@ export function Recorder() {
                   )}
                 </div>
               </Button>
-              {storageLocation ? (
+              {(storageLocation ?? appContext.type === 'web-client') ? (
                 <Button
                   title={isRecording ? 'Stop recording' : 'Start recording'}
                   className="group relative flex size-full justify-center rounded-none p-4 text-xs"
                   disabled={isEditorOpen}
                   onClick={async () => {
-                    if (appContext.type !== 'electron-client') {
+                    if (appContext.type === 'web-client' && !isRecording) {
+                      appContext.worker.postMessage({
+                        type: 'recorder:start',
+                        payload: { audioFormat, audioInputDeviceId },
+                      })
+
+                      setIsRecording(true)
+                      console.log('Recording started')
+
                       return
                     }
 
-                    if (!isRecording) {
+                    if (appContext.type === 'web-client' && isRecording) {
+                      appContext.worker.postMessage({
+                        type: 'recorder:stop',
+                      })
+                      setIsRecording(false)
+                      if (handleFilename) {
+                        setFilepath(handleFilename)
+                        setIsEditorOpen(true)
+                      }
+                      return
+                    }
+
+                    if (
+                      appContext.type === 'electron-client' &&
+                      !isRecording &&
+                      storageLocation
+                    ) {
                       setIsRecording(true)
                       const startResponse =
                         await appContext.ipc.send<IpcResponse>(
@@ -262,8 +287,9 @@ export function Recorder() {
                       return
                     }
 
-                    if (isRecording) {
+                    if (appContext.type === 'electron-client' && isRecording) {
                       setIsRecording(false)
+
                       const stopResponse =
                         await appContext.ipc.send<StopRecordingResponse>(
                           'recorder:stop',
@@ -332,7 +358,7 @@ export function Recorder() {
 }
 
 function Timer() {
-  const { time } = useRecordingState()
+  const { time } = useRecorder()
 
   const centiseconds = ('0' + (Math.floor(time / 10) % 100)).slice(-2)
   const seconds = ('0' + (Math.floor(time / 1000) % 60)).slice(-2)
