@@ -5,7 +5,8 @@ export const getAudioStream = async (selectedMediaDeviceId: string) => {
       audio: { deviceId: selectedMediaDeviceId },
       video: false,
     })
-  } catch (err) {
+  } catch (error) {
+    console.error(error)
     throw new Error('Could not get media stream')
   }
   return audioStream

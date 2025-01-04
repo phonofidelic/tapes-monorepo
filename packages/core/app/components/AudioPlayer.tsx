@@ -18,8 +18,7 @@ export function AudioPlayer({}: {}) {
   } = useAudioPlayer()
   const [recording] = useDocument<RecordingData>(currentUrl)
 
-  const progress = (currentTime * 1000) / duration
-  // console.log('*** progress:', progress)
+  const progress = currentTime / duration
 
   return (
     <div
@@ -43,7 +42,6 @@ export function AudioPlayer({}: {}) {
         </div>
       </div>
       <div className="flex h-20 w-full items-center justify-between">
-        {/* <div className="flex size-20 border"></div> */}
         <div className="w-full p-4">
           <p>{recording?.name}</p>
           <div className="flex w-full justify-between gap-2">
@@ -51,7 +49,7 @@ export function AudioPlayer({}: {}) {
               <FormattedTime time={currentTime * 1000} />
             </p>
             <p className="text-sm">
-              <FormattedTime time={duration} />
+              <FormattedTime time={duration * 1000} />
             </p>
           </div>
         </div>

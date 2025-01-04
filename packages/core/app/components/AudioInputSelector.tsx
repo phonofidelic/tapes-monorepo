@@ -85,17 +85,24 @@ export function AudioInputSelector({ className }: { className?: string }) {
             if (setAudioInputDeviceResponse.error) {
               throw setAudioInputDeviceResponse.error
             }
-            setAudioInputDeviceId(event.target.value)
           } catch (error) {
             console.error('Error setting default audio input device:', error)
           }
         }
+        setAudioInputDeviceId(event.target.value)
       }}
       defaultValue={audioInputDeviceId ?? ''}
     >
       <option value="">Select an audio input device</option>
       {audioInputDevices.map((device) => (
-        <option key={device.deviceId} value={device.label}>
+        <option
+          key={device.deviceId}
+          value={
+            appContext.type === 'electron-client'
+              ? device.label
+              : device.deviceId
+          }
+        >
           {device.label}
         </option>
       ))}
