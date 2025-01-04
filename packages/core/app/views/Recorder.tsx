@@ -164,14 +164,13 @@ export function Recorder() {
                 title="Delete recording"
                 className="rounded-full p-4 hover:text-rose-500"
                 onClick={() => {
-                  if (appContext.type !== 'electron-client') {
-                    return
+                  if (appContext.type === 'electron-client') {
+                    appContext.ipc.send('storage:delete-recording', {
+                      data: {
+                        filepath,
+                      },
+                    })
                   }
-                  appContext.ipc.send('storage:delete-recording', {
-                    data: {
-                      filepath,
-                    },
-                  })
                   setEditedName(NEW_RECORDING_DEFAULT_NAME)
                   setIsEditorOpen(false)
                   setFilepath('')
@@ -195,6 +194,7 @@ export function Recorder() {
                 onClick={() => {
                   createRecordingDocument()
                   setIsEditing(false)
+                  setIsEditorOpen(false)
                   setEditedName(NEW_RECORDING_DEFAULT_NAME)
                 }}
               >
