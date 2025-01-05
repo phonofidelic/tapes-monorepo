@@ -23,6 +23,26 @@ export function AudioInputSelector({ className }: { className?: string }) {
       })
   }, [])
 
+  useEffect(() => {
+    const loadAudioInputDevices = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('getUserMedia is not supported in this browser')
+        return
+      }
+      const foundDevices = await navigator.mediaDevices.enumerateDevices()
+      const audioInputs = foundDevices
+        .filter((device) => device.kind === 'audioinput')
+        .filter((device) => device.deviceId !== 'default')
+        .filter((device) => !device.label.match(/\(Virtual\)/))
+
+      setAudioInputDevices(audioInputs)
+    }
+
+    if (microphonePermissionState === 'granted') {
+      loadAudioInputDevices()
+    }
+  }, [microphonePermissionState])
+
   if (microphonePermissionState !== 'granted') {
     return (
       <Button
@@ -34,13 +54,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
               video: false,
             })
             setMicrophonePermissionState('granted')
-            const foundDevices = await navigator.mediaDevices.enumerateDevices()
-            const audioInputs = foundDevices
-              .filter((device) => device.kind === 'audioinput')
-              .filter((device) => device.deviceId !== 'default')
-              .filter((device) => !device.label.match(/\(Virtual\)/))
-
-            setAudioInputDevices(audioInputs)
           } catch (error) {
             console.error('Error accessing microphone:', error)
           }
@@ -57,19 +70,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
         'flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800',
         className,
       )}
-      onClick={async () => {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          console.error('getUserMedia is not supported in this browser')
-          return
-        }
-        const foundDevices = await navigator.mediaDevices.enumerateDevices()
-        const audioInputs = foundDevices
-          .filter((device) => device.kind === 'audioinput')
-          .filter((device) => device.deviceId !== 'default')
-          .filter((device) => !device.label.match(/\(Virtual\)/))
-
-        setAudioInputDevices(audioInputs)
-      }}
       onChange={async (event) => {
         if (!event.target.value) {
           setAudioInputDeviceId('')
