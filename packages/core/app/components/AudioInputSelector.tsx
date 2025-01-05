@@ -64,6 +64,10 @@ export function AudioInputSelector({ className }: { className?: string }) {
     )
   }
 
+  if (audioInputDevices.length === 0) {
+    return <p className={className}>No audio input devices found</p>
+  }
+
   return (
     <select
       className={clsx(
