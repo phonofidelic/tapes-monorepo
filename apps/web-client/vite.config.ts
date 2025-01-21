@@ -5,6 +5,11 @@ import topLevelAwait from 'vite-plugin-top-level-await'
 import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 
+const plugins = [wasm(), topLevelAwait(), react()]
+
+if (process.env.HTTPS === 'true') {
+  plugins.push(basicSsl())
+}
 // https://vitejs.dev/config/
 export default defineConfig({
   resolve: {
@@ -23,7 +28,7 @@ export default defineConfig({
       ),
     },
   },
-  plugins: [wasm(), topLevelAwait(), react(), basicSsl()],
+  plugins,
   optimizeDeps: {
     esbuildOptions: {
       target: 'esnext',
