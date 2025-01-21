@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
-import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
+// import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
 import { Button } from '@tapes-monorepo/ui'
@@ -18,32 +18,41 @@ import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
 import { useAutomergeUrl } from './utils'
 
-export function App({ appContextValue }: { appContextValue: AppContextValue }) {
+export function App({
+  appContextValue,
+  syncServerUrl,
+}: {
+  appContextValue: AppContextValue
+  syncServerUrl: string
+}) {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
   const [repo, setRepo] = useState<Repo | null>(null)
   const mainRef = useRef<HTMLDivElement | null>(null)
   const handleRef = useRef<DocHandle<unknown> | null>(null)
 
   useEffect(() => {
-    const onEphemeralMessage = (message: any) => {
-      console.log('got an ephemeral message: ', message)
-    }
+    // const onEphemeralMessage = (message: any) => {
+    //   console.log('got an ephemeral message: ', message)
+    // }
 
     const initialize = async () => {
       if (repo) {
         return
       }
 
-      const broadcast = new BroadcastChannelNetworkAdapter()
+      // const broadcast = new BroadcastChannelNetworkAdapter()
       // TODO: Set up sync server
       const websocket = new BrowserWebSocketClientAdapter(
-        'wss://sync.automerge.org',
+        // process.env.NODE_ENV === 'development'
+        //   ? `ws://${import.meta.env.VITE_LOCAL_NETWORK_IP}:433`
+        //   : 'wss://sync.automerge.org',
+        syncServerUrl,
       )
       const indexedDB = new IndexedDBStorageAdapter()
 
       const _repo = new Repo({
         storage: indexedDB,
-        network: [websocket, broadcast],
+        network: [websocket],
       })
 
       if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
@@ -53,18 +62,18 @@ export function App({ appContextValue }: { appContextValue: AppContextValue }) {
         setAutomergeUrl(handleRef.current.url)
       }
 
-      handleRef.current.on('ephemeral-message', onEphemeralMessage)
-      handleRef.current.broadcast({ message: 'Connected to repo' })
+      // handleRef.current.on('ephemeral-message', onEphemeralMessage)
+      // handleRef.current.broadcast({ message: 'Connected to repo' })
 
       setRepo(_repo)
     }
     initialize()
 
-    return () => {
-      if (handleRef.current) {
-        handleRef.current.off('ephemeral-message', onEphemeralMessage)
-      }
-    }
+    // return () => {
+    //   if (handleRef.current) {
+    //     handleRef.current.off('ephemeral-message', onEphemeralMessage)
+    //   }
+    // }
   }, [])
 
   if (!repo) {

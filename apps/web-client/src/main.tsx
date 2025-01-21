@@ -4,6 +4,10 @@ import { App } from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
 
+if (!import.meta.env.VITE_SYNC_SERVER_URL) {
+  throw new Error('VITE_SYNC_SERVER_URL not set')
+}
+
 if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
@@ -27,7 +31,10 @@ if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <div className="flex sm:hidden">
-        <App appContextValue={{ type: 'web-client', worker }} />
+        <App
+          appContextValue={{ type: 'web-client', worker }}
+          syncServerUrl={import.meta.env.VITE_SYNC_SERVER_URL}
+        />
       </div>
       <div className="mx-auto hidden h-screen w-screen max-w-screen-sm flex-col items-center justify-center gap-16 sm:flex">
         <DownloadPrompt />

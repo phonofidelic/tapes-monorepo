@@ -8,6 +8,10 @@ if (!rootElement) {
   throw new Error('Root element not found')
 }
 
+if (!import.meta.env.VITE_SYNC_SERVER_URL) {
+  throw new Error('VITE_SYNC_SERVER_URL not set')
+}
+
 const appContextValue = {
   type: 'electron-client' as const,
   ipc: new IpcService(),
@@ -36,7 +40,10 @@ root.render(
           zIndex: 999,
         }}
       />
-      <App appContextValue={appContextValue} />
+      <App
+        appContextValue={appContextValue}
+        syncServerUrl={import.meta.env.VITE_SYNC_SERVER_URL}
+      />
     </div>
   </StrictMode>,
 )

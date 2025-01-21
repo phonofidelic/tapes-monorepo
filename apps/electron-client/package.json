@@ -7,7 +7,7 @@
   "repository": "github:phonofidelic/tapes-monorepo",
   "scripts": {
     "get-bin": "tsc downloadExecutables.ts && node downloadExecutables.js",
-    "dev": "dotenvx run --env-file=.env -- electron-forge start -- --trace-warnings",
+    "dev": "LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" dotenvx run --env-file=.env.local -- electron-forge start -- --trace-warnings",
     "package": "dotenvx run --env-file=.env -- electron-forge package",
     "make": "dotenvx run --env-file=.env -- electron-forge make",
     "publish": "dotenvx run --env-file=.env -- electron-forge publish",
