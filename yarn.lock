@@ -7035,7 +7035,7 @@ __metadata:
     "@vitejs/plugin-react": "npm:^4.3.4"
     autoprefixer: "npm:^10.4.20"
     clsx: "npm:^2.1.1"
-    electron: "npm:33.2.1"
+    electron: "npm:33.4.8"
     electron-devtools-installer: "npm:^4.0.0"
     electron-squirrel-startup: "npm:^1.0.1"
     esbuild-register: "npm:^3.6.0"
@@ -7180,16 +7180,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:33.2.1":
-  version: 33.2.1
-  resolution: "electron@npm:33.2.1"
+"electron@npm:33.4.8":
+  version: 33.4.8
+  resolution: "electron@npm:33.4.8"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^20.9.0"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/25111ab9b48bf95a24b916292c8d4f4d05309b12823d5e942636f377a8033c9c47d466f686895bfe4619b80d222470a439d9b0227516740c8e19fa14991b880b
+  checksum: 10c0/0e3e61528c4cc52115a2eedf1b156d3a95c7b41374e8d8b1aacf08f21b840ba5b6fe4b36a0b6a5d4751fccd5d4b72e17a54481d385228543e69767e4ca4c11aa
   languageName: node
   linkType: hard
 
