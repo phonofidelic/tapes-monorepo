@@ -12,7 +12,8 @@
     "make": "dotenvx run --env-file=.env -- electron-forge make",
     "publish": "dotenvx run --env-file=.env -- electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "clean": "rm -rf .vite"
+    "clean": "rm -rf .vite",
+    "pull": "vercel env pull .env.local"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.6.0",
