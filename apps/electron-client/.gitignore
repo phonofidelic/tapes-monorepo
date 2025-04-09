@@ -98,3 +98,5 @@ cache/*
 !cache/.gitkeep
 
 downloadExecutables.js
+.vercel
+.env*.local
