@@ -21,5 +21,6 @@ RUN turbo run build --filter=api...
 
 FROM base AS runner
 WORKDIR /app
+EXPOSE 433
 COPY --from=installer /app .
 CMD [ "node", "apps/api/dist/main.js" ]
