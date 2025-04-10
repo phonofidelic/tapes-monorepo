@@ -5,6 +5,7 @@ RUN corepack enable
 WORKDIR /app
 # RUN npm install -g turbo
 COPY . .
+RUN ls -la
 RUN npx turbo prune --scope=api --docker
 
 # FROM base AS installer
