@@ -1,7 +1,7 @@
 FROM node:18-alpine AS base
 RUN corepack enable
 
-# FROM base AS builder
+FROM base AS builder
 WORKDIR /app
 # RUN npm install -g turbo
 COPY . .
