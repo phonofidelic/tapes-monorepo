@@ -8,8 +8,8 @@ COPY . .
 RUN ls -la
 RUN npx turbo prune --scope=api --docker
 
-# FROM base AS installer
-# WORKDIR /app
+FROM base AS installer
+WORKDIR /app
 COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/yarn.lock ./yarn.lock
@@ -19,7 +19,7 @@ RUN yarn install
 RUN npm install -g @nestjs/cli turbo
 RUN turbo run build --filter=api...
 
-# FROM base AS runner
-# WORKDIR /app
-# COPY --from=installer /app .
+FROM base AS runner
+WORKDIR /app
+COPY --from=installer /app .
 CMD [ "node", "apps/api/dist/main.js" ]
