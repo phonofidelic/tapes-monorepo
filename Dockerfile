@@ -1,4 +1,4 @@
-FROM node:18-alpine AS base
+FROM node:22.14.0-alpine AS base
 RUN corepack enable
 
 FROM base AS builder
@@ -22,4 +22,4 @@ FROM base AS runner
 WORKDIR /app
 # EXPOSE 433
 COPY --from=installer /app .
-CMD [ "PORT=8080 && yarn start:prod", "apps/api/dist/main.js" ]
+CMD [ "yarn", "start:prod" ]
