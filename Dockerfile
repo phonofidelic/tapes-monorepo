@@ -22,4 +22,4 @@ FROM base AS runner
 WORKDIR /app
 # EXPOSE 433
 COPY --from=installer /app .
-CMD [ "PORT=8080 && node", "apps/api/dist/main.js" ]
+CMD [ "PORT=8080 && yarn start:prod", "apps/api/dist/main.js" ]
