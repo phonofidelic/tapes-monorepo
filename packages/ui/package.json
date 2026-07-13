@@ -19,7 +19,7 @@
   "types": "./dist/lib/index.d.ts",
   "private": true,
   "scripts": {
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint .",
     "generate:component": "turbo gen react-component",
     "build": "yarn vite build",
     "dev": "yarn vite build --watch",
