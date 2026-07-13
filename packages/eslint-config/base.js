@@ -27,6 +27,8 @@ export const config = [
     },
   },
   {
-    ignores: ["dist/**"],
+    // Build output and CommonJS config shims (postcss.config.cjs, etc.) are
+    // not application source and should not be linted.
+    ignores: ["dist/**", "**/*.cjs"],
   },
 ];
