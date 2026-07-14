@@ -115,20 +115,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge-repo-react-hooks@npm:^1.2.1":
-  version: 1.2.1
-  resolution: "@automerge/automerge-repo-react-hooks@npm:1.2.1"
+"@automerge/automerge-repo-react-hooks@npm:^2.0.0":
+  version: 2.5.6
+  resolution: "@automerge/automerge-repo-react-hooks@npm:2.5.6"
   dependencies:
-    "@automerge/automerge": "npm:^2.2.5"
-    "@automerge/automerge-repo": "npm:1.2.1"
+    "@automerge/automerge": "npm:2.2.8 - 3"
+    "@automerge/automerge-repo": "npm:2.5.6"
     eventemitter3: "npm:^5.0.1"
-    react: "npm:^18.2.0"
-    react-dom: "npm:^18.2.0"
     react-usestateref: "npm:^1.0.8"
   peerDependencies:
-    react: ">16.8.0"
-    react-dom: ">16.8.0"
-  checksum: 10c0/9f0ca9abf195590c95c03b40cd1b4ff69882e6d085bf9ea65419324f923072e3f81852338613ce2da975dabd948004ae3cbaac3ff39813e03f7f01a6ac06dde2
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  checksum: 10c0/0f74820dbeed621ab87e2ec346699226c6e482574c3417e4fe78d300680761f4286d0c4dc6010386662c372e1bd8a710567f321a4375645a01825f66944348ef
   languageName: node
   linkType: hard
 
@@ -4641,7 +4639,7 @@ __metadata:
     "@automerge/automerge-repo": "npm:^2.0.0"
     "@automerge/automerge-repo-network-broadcastchannel": "npm:^2.0.0"
     "@automerge/automerge-repo-network-websocket": "npm:^2.0.0"
-    "@automerge/automerge-repo-react-hooks": "npm:^1.2.1"
+    "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
     "@automerge/automerge-repo-storage-indexeddb": "npm:^1.2.1"
     "@tapes-monorepo/eslint-config": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
@@ -12485,7 +12483,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"loose-envify@npm:^1.1.0, loose-envify@npm:^1.4.0":
+"loose-envify@npm:^1.4.0":
   version: 1.4.0
   resolution: "loose-envify@npm:1.4.0"
   dependencies:
@@ -14701,18 +14699,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-dom@npm:^18.2.0":
-  version: 18.3.1
-  resolution: "react-dom@npm:18.3.1"
-  dependencies:
-    loose-envify: "npm:^1.1.0"
-    scheduler: "npm:^0.23.2"
-  peerDependencies:
-    react: ^18.3.1
-  checksum: 10c0/a752496c1941f958f2e8ac56239172296fcddce1365ce45222d04a1947e0cc5547df3e8447f855a81d6d39f008d7c32eab43db3712077f09e3f67c4874973e85
-  languageName: node
-  linkType: hard
-
 "react-dom@npm:^19.0.0":
   version: 19.2.7
   resolution: "react-dom@npm:19.2.7"
@@ -14767,15 +14753,6 @@ __metadata:
   peerDependencies:
     react: ">16.0.0"
   checksum: 10c0/3d05cbac1ce7329d5515a8c887e2b6478e732adc43ecdcfe9e23027c2c856f9101cf02503882232a0e96c157edc0fad01b29924204d93255319ac25e17d8b974
-  languageName: node
-  linkType: hard
-
-"react@npm:^18.2.0":
-  version: 18.3.1
-  resolution: "react@npm:18.3.1"
-  dependencies:
-    loose-envify: "npm:^1.1.0"
-  checksum: 10c0/283e8c5efcf37802c9d1ce767f302dd569dd97a70d9bb8c7be79a789b9902451e0d16334b05d73299b20f048cbc3c7d288bbbde10b701fa194e2089c237dbea3
   languageName: node
   linkType: hard
 
@@ -15429,15 +15406,6 @@ __metadata:
   version: 2.1.2
   resolution: "safer-buffer@npm:2.1.2"
   checksum: 10c0/7e3c8b2e88a1841c9671094bbaeebd94448111dd90a81a1f606f3f67708a6ec57763b3b47f06da09fc6054193e0e6709e77325415dc8422b04497a8070fa02d4
-  languageName: node
-  linkType: hard
-
-"scheduler@npm:^0.23.2":
-  version: 0.23.2
-  resolution: "scheduler@npm:0.23.2"
-  dependencies:
-    loose-envify: "npm:^1.1.0"
-  checksum: 10c0/26383305e249651d4c58e6705d5f8425f153211aef95f15161c151f7b8de885f24751b377e4a0b3dd42cce09aad3f87a61dab7636859c0d89b7daf1a1e2a5c78
   languageName: node
   linkType: hard
 
