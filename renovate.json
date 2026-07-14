@@ -21,6 +21,39 @@
       "matchDepTypes": ["dependencies"],
       "matchUpdateTypes": ["major"],
       "automerge": false
+    },
+    {
+      "description": "Hold TypeScript 7 (tsgo) until Nest, typescript-eslint, and api-extractor support it",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "Hold tailwindcss 4 until the CSS-first config migration lands",
+      "matchPackageNames": ["tailwindcss"],
+      "allowedVersions": "<4"
+    },
+    {
+      "description": "Group vite stack updates into a single PR",
+      "matchPackageNames": [
+        "vite",
+        "@vitejs/plugin-react",
+        "vite-plugin-dts",
+        "vite-plugin-wasm",
+        "vite-plugin-top-level-await"
+      ],
+      "groupName": "vite stack"
+    },
+    {
+      "description": "Hold vite stack majors until the vite 8 migration branch lands",
+      "matchPackageNames": [
+        "vite",
+        "@vitejs/plugin-react",
+        "vite-plugin-dts",
+        "vite-plugin-wasm",
+        "vite-plugin-top-level-await"
+      ],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ],
   "lockFileMaintenance": {
