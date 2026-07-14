@@ -17440,12 +17440,12 @@ __metadata:
   linkType: hard
 
 "update-electron-app@npm:^3.1.0":
-  version: 3.1.1
-  resolution: "update-electron-app@npm:3.1.1"
+  version: 3.3.0
+  resolution: "update-electron-app@npm:3.3.0"
   dependencies:
     github-url-to-object: "npm:^4.0.4"
     ms: "npm:^2.1.1"
-  checksum: 10c0/b3c72bd13a02a7227d7116dc939b96a458545371d2dd25a26bf488cefb40d55af4a7c6c81ef025f14fd97f2d9c86256d3e200c7895a5fc4e3ddd3e5594f2ff12
+  checksum: 10c0/692d82ecb9df4824f0d712f69a38fbf5c05ec42c9ffc3bb85bbdb7142e80eaf0c7668a465242cdce9bda022f6bd0896ffa305d292e6e187bee0e0a28d9d7f257
   languageName: node
   linkType: hard
 
