@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@automerge/automerge-repo": "^2.0.0",
-    "@automerge/automerge-repo-network-websocket": "^1.2.1",
+    "@automerge/automerge-repo-network-websocket": "^2.0.0",
     "@automerge/automerge-repo-storage-nodefs": "^1.2.1",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
