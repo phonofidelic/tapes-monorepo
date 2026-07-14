@@ -56,7 +56,7 @@ export function App({
       })
 
       if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
-        handleRef.current = _repo.find(automergeUrl)
+        handleRef.current = await _repo.find(automergeUrl)
       } else {
         handleRef.current = _repo.create<RecordingRepoState>({ recordings: [] })
         setAutomergeUrl(handleRef.current.url)
