@@ -92,12 +92,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge-repo-network-broadcastchannel@npm:^1.2.1":
-  version: 1.2.1
-  resolution: "@automerge/automerge-repo-network-broadcastchannel@npm:1.2.1"
+"@automerge/automerge-repo-network-broadcastchannel@npm:^2.0.0":
+  version: 2.5.6
+  resolution: "@automerge/automerge-repo-network-broadcastchannel@npm:2.5.6"
   dependencies:
-    "@automerge/automerge-repo": "npm:1.2.1"
-  checksum: 10c0/f74a7d8ec87953aa1c3da3f1ca0f07e1a246663f8a58b4a35564b10d6dff23e1011aa621fe196032e9b89d5ecd0bfd5feba50a3d8be42e6131188b459468b75e
+    "@automerge/automerge-repo": "npm:2.5.6"
+  checksum: 10c0/5119460654f96bd2a7c35e501efdf88127b3410e6388683dd41d2d747db2aff7a0c153b598ac4e6d70586fd0c869b6db90e179b0392e803480f455fa5e44e0a0
   languageName: node
   linkType: hard
 
@@ -169,7 +169,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge-repo@npm:^2.0.0":
+"@automerge/automerge-repo@npm:2.5.6, @automerge/automerge-repo@npm:^2.0.0":
   version: 2.5.6
   resolution: "@automerge/automerge-repo@npm:2.5.6"
   dependencies:
@@ -4639,7 +4639,7 @@ __metadata:
   resolution: "@tapes-monorepo/core@workspace:packages/core"
   dependencies:
     "@automerge/automerge-repo": "npm:^2.0.0"
-    "@automerge/automerge-repo-network-broadcastchannel": "npm:^1.2.1"
+    "@automerge/automerge-repo-network-broadcastchannel": "npm:^2.0.0"
     "@automerge/automerge-repo-network-websocket": "npm:^1.2.1"
     "@automerge/automerge-repo-react-hooks": "npm:^1.2.1"
     "@automerge/automerge-repo-storage-indexeddb": "npm:^1.2.1"
