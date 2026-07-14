@@ -42,7 +42,7 @@
     "electron": "33.4.11",
     "electron-devtools-installer": "^4.0.0",
     "esbuild-register": "^3.6.0",
-    "eslint": "^9.0.0",
+    "eslint": "^10.0.0",
     "eslint-plugin-import": "^2.25.0",
     "postcss": "^8.4.49",
     "prettier-plugin-tailwindcss": "^0.8.0",
