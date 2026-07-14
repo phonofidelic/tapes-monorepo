@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@tapes-monorepo/ui": "*",
-    "next": "^15.0.0",
+    "next": "^16.0.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -23,13 +23,13 @@
     "@tapes-monorepo/eslint-config": "*",
     "@tapes-monorepo/tailwind-config": "*",
     "@tapes-monorepo/typescript-config": "*",
-    "@types/node": "^22.0.0",
-    "@types/react": "19.1.0",
-    "@types/react-dom": "19.1.2",
+    "@types/node": "^24.0.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
     "autoprefixer": "^10.4.20",
     "eslint": "^10.0.0",
     "postcss": "^8.4.49",
     "tailwind": "^4.0.0",
-    "typescript": "5.8.3"
+    "typescript": "5.9.3"
   }
 }
