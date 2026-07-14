@@ -23,15 +23,9 @@
     "@tapes-monorepo/eslint-config": "*",
     "@tapes-monorepo/tailwind-config": "*",
     "@tapes-monorepo/typescript-config": "*",
-<<<<<<< HEAD
     "@types/node": "^24.0.0",
-    "@types/react": "19.1.0",
-    "@types/react-dom": "19.1.2",
-=======
-    "@types/node": "^22.0.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
->>>>>>> origin/main
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "postcss": "^8.4.49",

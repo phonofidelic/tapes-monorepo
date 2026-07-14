@@ -41,15 +41,9 @@
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
     "@types/express": "^5.0.0",
-<<<<<<< HEAD
-    "@types/jest": "^29.5.2",
-    "@types/node": "^24.0.0",
-    "@types/supertest": "^6.0.0",
-=======
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
->>>>>>> origin/main
     "@types/ws": "^8.5.13",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
