@@ -10020,9 +10020,9 @@ __metadata:
   linkType: hard
 
 "helmet@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "helmet@npm:8.0.0"
-  checksum: 10c0/c3d273df206cbb4e5e830ea68afdbd3d0f8e055b2707f67f651ebb4b679c7fd4d6ac77ce6188a2cee32e853d4e24aa00548f787989bbe6e5f98ebfb703855d09
+  version: 8.3.0
+  resolution: "helmet@npm:8.3.0"
+  checksum: 10c0/69f33ca716ed3ce34f1f2f48ce8618846dfa9c89e3a15d6bccefc882541e8b028517448c6b0e7450792fd23e5580bfe6d410d4f22bedc2a94f6b1188817a059a
   languageName: node
   linkType: hard
 
