@@ -32,7 +32,7 @@
     "@tapes-monorepo/tailwind-config": "*",
     "@tapes-monorepo/typescript-config": "*",
     "@types/electron-squirrel-startup": "^1.0.2",
-    "@types/node": "^22.10.1",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
