@@ -4885,12 +4885,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitejs/plugin-basic-ssl@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "@vitejs/plugin-basic-ssl@npm:1.2.0"
+"@vitejs/plugin-basic-ssl@npm:^2.0.0":
+  version: 2.3.0
+  resolution: "@vitejs/plugin-basic-ssl@npm:2.3.0"
   peerDependencies:
-    vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0
-  checksum: 10c0/0d360fcca01f91ade6e451edbea09a107ff9e95cd3c3766c7a069d1a168709df92d96c0bd1eccc66e2739a153e07c75a45321ec487450c0da942606200d8441d
+    vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+  checksum: 10c0/754ebe29a61ac694e665477187f425b7c3b41e30af8d392613250bf65f9b2741e7f5a6ec00a3f88f1a14bfda96e93c6b5e0f75e86357737bc4e92c8dc455c1c0
   languageName: node
   linkType: hard
 
@@ -16337,7 +16337,7 @@ __metadata:
     "@tapes-monorepo/typescript-config": "npm:*"
     "@types/react": "npm:^19.0.2"
     "@types/react-dom": "npm:^19.0.2"
-    "@vitejs/plugin-basic-ssl": "npm:^1.2.0"
+    "@vitejs/plugin-basic-ssl": "npm:^2.0.0"
     "@vitejs/plugin-react": "npm:^4.3.4"
     autoprefixer: "npm:^10.4.20"
     eslint: "npm:^9.17.0"
