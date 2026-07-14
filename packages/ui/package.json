@@ -21,8 +21,8 @@
   "scripts": {
     "lint": "eslint .",
     "generate:component": "turbo gen react-component",
-    "build": "yarn vite build",
-    "dev": "yarn vite build --watch",
+    "build": "vp build",
+    "dev": "vp build --watch",
     "check-types": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
