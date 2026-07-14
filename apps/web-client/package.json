@@ -1,6 +1,6 @@
 {
   "name": "web-client",
-  "packageManager": "yarn@4.6.0",
+  "packageManager": "yarn@4.17.1",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -24,7 +24,7 @@
     "@tapes-monorepo/typescript-config": "*",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-basic-ssl": "^1.2.0",
+    "@vitejs/plugin-basic-ssl": "^2.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
