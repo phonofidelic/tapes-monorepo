@@ -23,7 +23,7 @@
     "@tapes-monorepo/eslint-config": "*",
     "@tapes-monorepo/tailwind-config": "*",
     "@tapes-monorepo/typescript-config": "*",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.2",
     "autoprefixer": "^10.4.20",
