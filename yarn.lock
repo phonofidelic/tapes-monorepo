@@ -2,7 +2,7 @@
 # Manual changes might be lost - proceed with caution!
 
 __metadata:
-  version: 8
+  version: 10
   cacheKey: 10c0
 
 "@alloc/quick-lru@npm:^5.2.0":
@@ -4194,8 +4194,8 @@ __metadata:
     "@tapes-monorepo/typescript-config": "npm:*"
     "@turbo/gen": "npm:^2.0.0"
     "@types/node": "npm:^22.0.0"
-    "@types/react": "npm:19.1.0"
-    "@types/react-dom": "npm:19.1.2"
+    "@types/react": "npm:19.2.17"
+    "@types/react-dom": "npm:19.2.3"
     "@vitejs/plugin-react": "npm:^4.3.4"
     autoprefixer: "npm:^10.4.20"
     clsx: "npm:^2.1.1"
@@ -4634,16 +4634,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react-dom@npm:19.1.2":
-  version: 19.1.2
-  resolution: "@types/react-dom@npm:19.1.2"
-  peerDependencies:
-    "@types/react": ^19.0.0
-  checksum: 10c0/100c341cacba9ec8ae1d47ee051072a3450e9573bf8eeb7262490e341cb246ea0f95a07a1f2077e61cf92648f812a0324c602fcd811bd87b7ce41db2811510cd
-  languageName: node
-  linkType: hard
-
-"@types/react-dom@npm:^19.0.1, @types/react-dom@npm:^19.0.2":
+"@types/react-dom@npm:19.2.3, @types/react-dom@npm:^19.0.1, @types/react-dom@npm:^19.0.2":
   version: 19.2.3
   resolution: "@types/react-dom@npm:19.2.3"
   peerDependencies:
@@ -4652,16 +4643,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:19.1.0":
-  version: 19.1.0
-  resolution: "@types/react@npm:19.1.0"
-  dependencies:
-    csstype: "npm:^3.0.2"
-  checksum: 10c0/632fd20ee176e55801a61c5f854141b043571a3e363ef106b047b766a813a12735cbb37abb3d61d126346979f530f2ed269a60c8ef3cdee54e5e9fe4174e5dad
-  languageName: node
-  linkType: hard
-
-"@types/react@npm:^19.0.1, @types/react@npm:^19.0.2":
+"@types/react@npm:19.2.17, @types/react@npm:^19.0.1, @types/react@npm:^19.0.2":
   version: 19.2.17
   resolution: "@types/react@npm:19.2.17"
   dependencies:
@@ -4717,13 +4699,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/supertest@npm:^6.0.0":
-  version: 6.0.3
-  resolution: "@types/supertest@npm:6.0.3"
+"@types/supertest@npm:^7.0.0":
+  version: 7.2.1
+  resolution: "@types/supertest@npm:7.2.1"
   dependencies:
     "@types/methods": "npm:^1.1.4"
     "@types/superagent": "npm:^8.1.0"
-  checksum: 10c0/a2080f870154b09db123864a484fb633bc9e2a0f7294a194388df4c7effe5af9de36d5a5ebf819f72b404fa47b5e813c47d5a3a51354251fd2fa8589bfb64f2c
+  checksum: 10c0/c1ca876d591dd1cead0d5f0fd53d21b8f15a84bdb59a1229c95ada0a031fc64bb83a5ddd88fd9a247dd1af1b9aee39b9d56815176b62104676d4f4cb4a042370
   languageName: node
   linkType: hard
 
@@ -4903,12 +4885,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitejs/plugin-basic-ssl@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "@vitejs/plugin-basic-ssl@npm:1.2.0"
+"@vitejs/plugin-basic-ssl@npm:^2.0.0":
+  version: 2.3.0
+  resolution: "@vitejs/plugin-basic-ssl@npm:2.3.0"
   peerDependencies:
-    vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0
-  checksum: 10c0/0d360fcca01f91ade6e451edbea09a107ff9e95cd3c3766c7a069d1a168709df92d96c0bd1eccc66e2739a153e07c75a45321ec487450c0da942606200d8441d
+    vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+  checksum: 10c0/754ebe29a61ac694e665477187f425b7c3b41e30af8d392613250bf65f9b2741e7f5a6ec00a3f88f1a14bfda96e93c6b5e0f75e86357737bc4e92c8dc455c1c0
   languageName: node
   linkType: hard
 
@@ -5563,7 +5545,7 @@ __metadata:
     "@types/express": "npm:^5.0.0"
     "@types/jest": "npm:^29.5.2"
     "@types/node": "npm:^22.0.0"
-    "@types/supertest": "npm:^6.0.0"
+    "@types/supertest": "npm:^7.0.0"
     "@types/ws": "npm:^8.5.13"
     "@typescript-eslint/eslint-plugin": "npm:^8.0.0"
     "@typescript-eslint/parser": "npm:^8.0.0"
@@ -7099,7 +7081,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"csstype@npm:^3.0.2, csstype@npm:^3.2.2":
+"csstype@npm:^3.2.2":
   version: 3.2.3
   resolution: "csstype@npm:3.2.3"
   checksum: 10c0/cd29c51e70fa822f1cecd8641a1445bed7063697469d35633b516e60fe8c1bde04b08f6c5b6022136bb669b64c63d4173af54864510fbb4ee23281801841a3ce
@@ -7395,8 +7377,8 @@ __metadata:
     "@tapes-monorepo/typescript-config": "npm:*"
     "@tapes-monorepo/ui": "npm:*"
     "@types/node": "npm:^22.0.0"
-    "@types/react": "npm:19.1.0"
-    "@types/react-dom": "npm:19.1.2"
+    "@types/react": "npm:19.2.17"
+    "@types/react-dom": "npm:19.2.3"
     eslint: "npm:^9.17.0"
     next: "npm:^16.0.0"
     react: "npm:^19.0.0"
@@ -13842,7 +13824,7 @@ __metadata:
 
 "resolve@patch:resolve@npm%3A^1.1.6#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A^1.1.7#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A^1.10.0#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A^1.20.0#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A^1.22.1#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A^1.22.8#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A~1.22.1#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A~1.22.2#optional!builtin<compat/resolve>":
   version: 1.22.12
-  resolution: "resolve@patch:resolve@npm%3A1.22.12#optional!builtin<compat/resolve>::version=1.22.12&hash=c3c19d"
+  resolution: "resolve@patch:resolve@npm%3A1.22.12#optional!builtin<compat/resolve>::version=1.22.12&hash=9bd1a5"
   dependencies:
     es-errors: "npm:^1.3.0"
     is-core-module: "npm:^2.16.1"
@@ -13850,13 +13832,13 @@ __metadata:
     supports-preserve-symlinks-flag: "npm:^1.0.0"
   bin:
     resolve: bin/resolve
-  checksum: 10c0/fc6519984ae1f894d877c0060ba8b1f5ba3bc0e85a02f74e141929c118c23d74d9735619a9cc2965397387e514884245c65d72a40731dcb6cfc84c7bcdc8321e
+  checksum: 10c0/e12af106e16e652bd83060e8afacece4ee3dcbd0f4cf028e3d9ad178e6ced9ecb1c87ee60158b239582313902a717f8adc57a9b76ea54b1994141ba15f420c65
   languageName: node
   linkType: hard
 
 "resolve@patch:resolve@npm%3A^2.0.0-next.5#optional!builtin<compat/resolve>, resolve@patch:resolve@npm%3A^2.0.0-next.6#optional!builtin<compat/resolve>":
   version: 2.0.0-next.7
-  resolution: "resolve@patch:resolve@npm%3A2.0.0-next.7#optional!builtin<compat/resolve>::version=2.0.0-next.7&hash=c3c19d"
+  resolution: "resolve@patch:resolve@npm%3A2.0.0-next.7#optional!builtin<compat/resolve>::version=2.0.0-next.7&hash=9bd1a5"
   dependencies:
     es-errors: "npm:^1.3.0"
     is-core-module: "npm:^2.16.2"
@@ -13866,7 +13848,7 @@ __metadata:
     supports-preserve-symlinks-flag: "npm:^1.0.0"
   bin:
     resolve: bin/resolve
-  checksum: 10c0/6bb6f1d8a1789f7a5b4e35d950e76bc0ba632ff7d51fe86b6f34fb5f41e1ce0f7b884ec166828cfc0728ddffeaee49527711d752d12398297f90c51acd22195e
+  checksum: 10c0/911e8321c64ec2a723247dbeabfcb7663577adf52af642bfda61ddee686fbef2255ad529ff57ee8e3884ee23186b85b2637988bfafc0a9a3a81a98bd4af1e2fc
   languageName: node
   linkType: hard
 
@@ -16355,7 +16337,7 @@ __metadata:
     "@tapes-monorepo/typescript-config": "npm:*"
     "@types/react": "npm:^19.0.2"
     "@types/react-dom": "npm:^19.0.2"
-    "@vitejs/plugin-basic-ssl": "npm:^1.2.0"
+    "@vitejs/plugin-basic-ssl": "npm:^2.0.0"
     "@vitejs/plugin-react": "npm:^4.3.4"
     autoprefixer: "npm:^10.4.20"
     eslint: "npm:^9.17.0"
@@ -16381,8 +16363,8 @@ __metadata:
     "@tapes-monorepo/typescript-config": "npm:*"
     "@tapes-monorepo/ui": "npm:*"
     "@types/node": "npm:^22.0.0"
-    "@types/react": "npm:19.1.0"
-    "@types/react-dom": "npm:19.1.2"
+    "@types/react": "npm:19.2.17"
+    "@types/react-dom": "npm:19.2.3"
     autoprefixer: "npm:^10.4.20"
     eslint: "npm:^9.17.0"
     next: "npm:^16.0.0"
