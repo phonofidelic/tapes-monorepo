@@ -26,7 +26,7 @@
     "@electron-forge/plugin-fuses": "^7.6.0",
     "@electron-forge/plugin-vite": "^7.6.0",
     "@electron-forge/publisher-github": "^7.6.0",
-    "@electron/fuses": "^1.8.0",
+    "@electron/fuses": "^2.0.0",
     "@rollup/plugin-typescript": "^12.1.1",
     "@tapes-monorepo/eslint-config": "*",
     "@tapes-monorepo/tailwind-config": "*",
