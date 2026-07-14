@@ -32,7 +32,7 @@
     "@automerge/automerge-repo-network-broadcastchannel": "^1.2.1",
     "@automerge/automerge-repo-network-websocket": "^1.2.1",
     "@automerge/automerge-repo-react-hooks": "^1.2.1",
-    "@automerge/automerge-repo-storage-indexeddb": "^1.2.1",
+    "@automerge/automerge-repo-storage-indexeddb": "^2.0.0",
     "@tapes-monorepo/ui": "*",
     "clsx": "^2.1.1",
     "qrcode.react": "^4.2.0",
