@@ -38,7 +38,7 @@ export default defineConfig({
         },
         preserveModules: true,
       },
-      plugins: [preserveDirectives],
+      plugins: [preserveDirectives()],
     },
   },
 })
