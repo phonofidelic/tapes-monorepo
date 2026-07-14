@@ -83,20 +83,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge-repo-react-hooks@npm:^1.2.1":
-  version: 1.2.1
-  resolution: "@automerge/automerge-repo-react-hooks@npm:1.2.1"
+"@automerge/automerge-repo-react-hooks@npm:^2.0.0":
+  version: 2.5.6
+  resolution: "@automerge/automerge-repo-react-hooks@npm:2.5.6"
   dependencies:
-    "@automerge/automerge": "npm:^2.2.5"
-    "@automerge/automerge-repo": "npm:1.2.1"
+    "@automerge/automerge": "npm:2.2.8 - 3"
+    "@automerge/automerge-repo": "npm:2.5.6"
     eventemitter3: "npm:^5.0.1"
-    react: "npm:^18.2.0"
-    react-dom: "npm:^18.2.0"
     react-usestateref: "npm:^1.0.8"
   peerDependencies:
-    react: ">16.8.0"
-    react-dom: ">16.8.0"
-  checksum: 10c0/9f0ca9abf195590c95c03b40cd1b4ff69882e6d085bf9ea65419324f923072e3f81852338613ce2da975dabd948004ae3cbaac3ff39813e03f7f01a6ac06dde2
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  checksum: 10c0/0f74820dbeed621ab87e2ec346699226c6e482574c3417e4fe78d300680761f4286d0c4dc6010386662c372e1bd8a710567f321a4375645a01825f66944348ef
   languageName: node
   linkType: hard
 
@@ -134,6 +132,29 @@ __metadata:
     uuid: "npm:^9.0.0"
     xstate: "npm:^5.9.1"
   checksum: 10c0/cb9366f508ed1e0417a899b67b16ae4325e2d38ecb7aa1a023cdc4d7ca841233c9e77e173de2f6ee902f94ee9f09514e0b5ae282107e6a10fa92df402f5e2c8f
+  languageName: node
+  linkType: hard
+
+"@automerge/automerge-repo@npm:2.5.6":
+  version: 2.5.6
+  resolution: "@automerge/automerge-repo@npm:2.5.6"
+  dependencies:
+    "@automerge/automerge": "npm:2.2.8 - 3"
+    bs58check: "npm:^3.0.1"
+    cbor-x: "npm:^1.3.0"
+    debug: "npm:^4.3.4"
+    eventemitter3: "npm:^5.0.1"
+    fast-sha256: "npm:^1.3.0"
+    uuid: "npm:^9.0.0"
+    xstate: "npm:^5.9.1"
+  checksum: 10c0/a847b0773998ed70035889caaeb84a0c4b4a268b91fef4f17048aecf843c5db588360cc518584c529439bb8225fa7b29b602f3ae1019a410a3920483cbcdc05f
+  languageName: node
+  linkType: hard
+
+"@automerge/automerge@npm:2.2.8 - 3":
+  version: 3.3.1
+  resolution: "@automerge/automerge@npm:3.3.1"
+  checksum: 10c0/a0c113bdb1e5fd59cba06c2985a35164b4ce88a9f1f2613b9e5ef66233c746abd5952de46308aecb35461642fa011ebc0a49ed9d9e22d1e6f5b61b11cb3e5d84
   languageName: node
   linkType: hard
 
@@ -4073,7 +4094,7 @@ __metadata:
     "@automerge/automerge-repo": "npm:^1.2.1"
     "@automerge/automerge-repo-network-broadcastchannel": "npm:^1.2.1"
     "@automerge/automerge-repo-network-websocket": "npm:^1.2.1"
-    "@automerge/automerge-repo-react-hooks": "npm:^1.2.1"
+    "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
     "@automerge/automerge-repo-storage-indexeddb": "npm:^1.2.1"
     "@tapes-monorepo/eslint-config": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
@@ -11697,7 +11718,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"loose-envify@npm:^1.1.0, loose-envify@npm:^1.4.0":
+"loose-envify@npm:^1.4.0":
   version: 1.4.0
   resolution: "loose-envify@npm:1.4.0"
   dependencies:
@@ -13720,18 +13741,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-dom@npm:^18.2.0":
-  version: 18.3.1
-  resolution: "react-dom@npm:18.3.1"
-  dependencies:
-    loose-envify: "npm:^1.1.0"
-    scheduler: "npm:^0.23.2"
-  peerDependencies:
-    react: ^18.3.1
-  checksum: 10c0/a752496c1941f958f2e8ac56239172296fcddce1365ce45222d04a1947e0cc5547df3e8447f855a81d6d39f008d7c32eab43db3712077f09e3f67c4874973e85
-  languageName: node
-  linkType: hard
-
 "react-dom@npm:^19.0.0":
   version: 19.2.7
   resolution: "react-dom@npm:19.2.7"
@@ -13779,15 +13788,6 @@ __metadata:
   peerDependencies:
     react: ">16.0.0"
   checksum: 10c0/3d05cbac1ce7329d5515a8c887e2b6478e732adc43ecdcfe9e23027c2c856f9101cf02503882232a0e96c157edc0fad01b29924204d93255319ac25e17d8b974
-  languageName: node
-  linkType: hard
-
-"react@npm:^18.2.0":
-  version: 18.3.1
-  resolution: "react@npm:18.3.1"
-  dependencies:
-    loose-envify: "npm:^1.1.0"
-  checksum: 10c0/283e8c5efcf37802c9d1ce767f302dd569dd97a70d9bb8c7be79a789b9902451e0d16334b05d73299b20f048cbc3c7d288bbbde10b701fa194e2089c237dbea3
   languageName: node
   linkType: hard
 
@@ -14377,15 +14377,6 @@ __metadata:
   version: 2.1.2
   resolution: "safer-buffer@npm:2.1.2"
   checksum: 10c0/7e3c8b2e88a1841c9671094bbaeebd94448111dd90a81a1f606f3f67708a6ec57763b3b47f06da09fc6054193e0e6709e77325415dc8422b04497a8070fa02d4
-  languageName: node
-  linkType: hard
-
-"scheduler@npm:^0.23.2":
-  version: 0.23.2
-  resolution: "scheduler@npm:0.23.2"
-  dependencies:
-    loose-envify: "npm:^1.1.0"
-  checksum: 10c0/26383305e249651d4c58e6705d5f8425f153211aef95f15161c151f7b8de885f24751b377e4a0b3dd42cce09aad3f87a61dab7636859c0d89b7daf1a1e2a5c78
   languageName: node
   linkType: hard
 
