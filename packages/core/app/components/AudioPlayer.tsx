@@ -6,7 +6,7 @@ import { Button } from '@tapes-monorepo/ui'
 import { RecordingData } from '@/types'
 import { FormattedTime } from './FormattedTime'
 
-export function AudioPlayer({}: {}) {
+export function AudioPlayer() {
   const {
     currentUrl,
     setCurrentUrl,

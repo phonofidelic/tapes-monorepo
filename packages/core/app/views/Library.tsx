@@ -89,7 +89,6 @@ function LibraryListItem({
 
   const initialized = useRef(false)
   const previousRecordingName = useRef(recording?.name)
-  const optionsMenuRef = useRef<HTMLDivElement | null>(null)
 
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false)
   const [, setEditedName] = useState(recording?.name)
@@ -135,10 +134,7 @@ function LibraryListItem({
           </p>
         </div>
         <div className="flex gap-2">
-          <div
-            ref={optionsMenuRef}
-            className="relative flex items-center gap-2"
-          >
+          <div className="relative flex items-center gap-2">
             <Button
               title="Options"
               className={clsx(
@@ -167,13 +163,10 @@ function LibraryListItem({
               <MdPlayArrow />
             </Button>
             <div
-              className={clsx('absolute top-0 z-50', {
+              className={clsx('absolute right-full top-0 z-50', {
                 'hidden opacity-0': !isOptionsMenuOpen,
                 'flex opacity-100': isOptionsMenuOpen,
               })}
-              style={{
-                right: `${optionsMenuRef.current?.getBoundingClientRect().width ?? 0}px`,
-              }}
             >
               <ul
                 className={clsx(

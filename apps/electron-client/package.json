@@ -12,6 +12,7 @@
     "make": "dotenvx run --env-file=.env -- electron-forge make",
     "publish": "dotenvx run --env-file=.env -- electron-forge publish",
     "lint": "eslint .",
+    "check-types": "tsc --noEmit",
     "clean": "rm -rf .vite",
     "pull": "vercel env pull .env.local"
   },

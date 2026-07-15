@@ -2,7 +2,6 @@ import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import turboPlugin from "eslint-plugin-turbo";
 import tseslint from "typescript-eslint";
-import onlyWarn from "eslint-plugin-only-warn";
 
 /**
  * A shared ESLint configuration for the repository.
@@ -19,11 +18,11 @@ export const config = [
     },
     rules: {
       "turbo/no-undeclared-env-vars": "warn",
-    },
-  },
-  {
-    plugins: {
-      onlyWarn,
+      // Advisory, not blocking: a backlog of pre-existing violations that each
+      // need per-site judgement to type properly. Visible, but not a CI gate.
+      // Remove this override once #218 clears them. (react-hooks/exhaustive-deps
+      // is likewise advisory, but ships as "warn" upstream and needs no override.)
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
   {

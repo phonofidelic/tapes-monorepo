@@ -1,12 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
 export default function DownloadPrompt() {
-  const [url, setUrl] = useState('')
-
-  useEffect(() => {
-    setUrl(window.location.href)
-  }, [])
+  const [url] = useState(() => window.location.href)
 
   return (
     <>
