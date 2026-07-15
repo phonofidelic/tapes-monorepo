@@ -3,7 +3,7 @@ import { open, mkdir, rm, chmod, cp } from 'fs/promises'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
 import { execSync } from 'child_process'
-const StreamZip = require('node-stream-zip')
+import * as StreamZip from 'node-stream-zip'
 
 async function main() {
   const tmpDir = await getDir('tmp')
@@ -63,6 +63,7 @@ async function downloadFile(url: string, destination: string) {
     throw new Error('No body in response')
   }
 
-  // @ts-ignore
+  // @ts-expect-error the DOM ReadableStream from fetch isn't assignable to
+  // Node's stream/web ReadableStream type.
   await finished(Readable.fromWeb(response.body).pipe(fileStream))
 }

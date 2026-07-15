@@ -65,7 +65,7 @@ export const RecordingStateProvider = ({
     const onMessage = async (event: MessageEvent) => {
       const { type, payload } = event.data
       switch (type) {
-        case 'recorder:start:response':
+        case 'recorder:start:response': {
           const { filename } = payload as {
             handle: FileSystemFileHandle
             filename: string
@@ -75,6 +75,7 @@ export const RecordingStateProvider = ({
           mediaRecorderRef.current = await getMediaRecorder(audioStream)
           mediaRecorderRef.current.start()
           break
+        }
         case 'recorder:stop:response':
           if (!mediaRecorderRef.current) {
             console.error('mediaRecorderRef.current is null')
@@ -115,18 +116,28 @@ export const RecordingStateProvider = ({
     return () => {
       mediaRecorder.removeEventListener('dataavailable', onDataAvailable)
     }
+    // These refs are read during render so the effect re-attaches and consumers
+    // re-read after the worker swaps the recorder. Ref writes don't re-render,
+    // so both only settle on the next render (today, `setIsRecording`). Fixing
+    // this properly means mirroring the refs into state; the refs exist because
+    // the worker's `onMessage` closure needs values state would make stale.
+    // Tracked in #218.
+    // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
   }, [mediaRecorderRef.current, handleFilenameRef.current])
 
+  const value = {
+    isRecording,
+    time,
+    // eslint-disable-next-line react-hooks/refs -- see note above (#218)
+    handleFilename: handleFilenameRef.current,
+    // eslint-disable-next-line react-hooks/refs -- see note above (#218)
+    mediaRecorder: mediaRecorderRef.current,
+    setIsRecording,
+  }
+
   return (
-    <RecordingContext.Provider
-      value={{
-        isRecording,
-        time,
-        handleFilename: handleFilenameRef.current,
-        mediaRecorder: mediaRecorderRef.current,
-        setIsRecording,
-      }}
-    >
+    // eslint-disable-next-line react-hooks/refs -- see note above (#218)
+    <RecordingContext.Provider value={value}>
       {children}
     </RecordingContext.Provider>
   )

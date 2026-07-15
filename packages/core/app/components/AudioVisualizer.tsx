@@ -11,12 +11,15 @@ export function AudioVisualizer({
   containerRef: React.RefObject<HTMLDivElement | null>
 }) {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light',
+  )
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    setTheme(mediaQuery.matches ? 'dark' : 'light')
 
     const onThemeChange = (event: MediaQueryListEvent) => {
       setTheme(event.matches ? 'dark' : 'light')
@@ -70,12 +73,14 @@ export function AudioVisualizer({
         analyser.fftSize = 128
         source.connect(analyser)
 
-        let dataArray = new Uint8Array(analyser.frequencyBinCount)
+        const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
         const tick = () => {
-          feature === 'frequency'
-            ? analyser.getByteFrequencyData(dataArray)
-            : analyser.getByteTimeDomainData(dataArray)
+          if (feature === 'frequency') {
+            analyser.getByteFrequencyData(dataArray)
+          } else {
+            analyser.getByteTimeDomainData(dataArray)
+          }
 
           draw({
             dataArray,
@@ -149,7 +154,9 @@ const draw = ({
     ctx.lineTo(canvasWidth, aveY)
     ctx.stroke()
   }
-  feature === 'frequency' && drawAverage()
+  if (feature === 'frequency') {
+    drawAverage()
+  }
 
   // Draw curve
   ctx.globalAlpha = 1
@@ -163,6 +170,10 @@ const draw = ({
     ctx.lineTo(x, y)
     x += sliceWidth
   }
-  feature === 'frequency' ? ctx.lineTo(x, 0) : ctx.lineTo(x, canvasHeight / 2)
+  if (feature === 'frequency') {
+    ctx.lineTo(x, 0)
+  } else {
+    ctx.lineTo(x, canvasHeight / 2)
+  }
   ctx.stroke()
 }

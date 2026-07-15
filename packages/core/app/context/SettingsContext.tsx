@@ -76,18 +76,16 @@ function readSettingsFromLocalStorage(): Partial<Settings> {
     localStorage.getItem('settings') ?? '{}',
   ) as Partial<Settings>
 
-  if (
-    !storedSettings ||
-    !storedSettings.audioChannelCount ||
-    !storedSettings.audioFormat
-  ) {
-    !storedSettings.audioChannelCount &&
+  if (!storedSettings?.audioChannelCount || !storedSettings?.audioFormat) {
+    if (!storedSettings?.audioChannelCount) {
       writeSettingToLocalStorage('audioChannelCount', '1')
-    !storedSettings.audioFormat &&
+    }
+    if (!storedSettings?.audioFormat) {
       writeSettingToLocalStorage('audioFormat', 'wav')
+    }
     return {
-      audioChannelCount: storedSettings.audioChannelCount ?? '1',
-      audioFormat: storedSettings.audioFormat ?? 'wav',
+      audioChannelCount: storedSettings?.audioChannelCount ?? '1',
+      audioFormat: storedSettings?.audioFormat ?? 'wav',
     }
   }
 

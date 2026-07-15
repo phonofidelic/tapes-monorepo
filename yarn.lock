@@ -4714,7 +4714,6 @@ __metadata:
     "@typescript-eslint/parser": "npm:^8.15.0"
     eslint: "npm:^9.15.0"
     eslint-config-prettier: "npm:^10.0.0"
-    eslint-plugin-only-warn: "npm:^1.1.0"
     eslint-plugin-react: "npm:^7.37.2"
     eslint-plugin-react-hooks: "npm:^7.0.0"
     eslint-plugin-turbo: "npm:^2.3.0"
@@ -9267,13 +9266,6 @@ __metadata:
   peerDependencies:
     eslint: ^2 || ^3 || ^4 || ^5 || ^6 || ^7.2.0 || ^8 || ^9
   checksum: 10c0/bfb1b8fc8800398e62ddfefbf3638d185286edfed26dfe00875cc2846d954491b4f5112457831588b757fa789384e1ae585f812614c4797f0499fa234fd4a48b
-  languageName: node
-  linkType: hard
-
-"eslint-plugin-only-warn@npm:^1.1.0":
-  version: 1.2.1
-  resolution: "eslint-plugin-only-warn@npm:1.2.1"
-  checksum: 10c0/4eacc41105b57fdf27f873c7395b3fdaf80d4c8a8c2217d9dd7ce25bd09c8ffc24895080efabf65109113bc80e1ba0cad33ab6819e4e4965781bdf3e968a9de5
   languageName: node
   linkType: hard
 
