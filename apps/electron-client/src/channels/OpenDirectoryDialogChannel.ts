@@ -18,7 +18,7 @@ export class OpenDirectoryDialogChannel implements IpcChannel {
         return
       }
       event.sender.send(responseChannel, result.filePaths[0])
-    } catch (error) {
+    } catch {
       event.sender.send(responseChannel, undefined)
     }
   }

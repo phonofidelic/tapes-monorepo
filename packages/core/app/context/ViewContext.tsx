@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { Library } from '@/views/Library'
 import { Recorder } from '@/views/Recorder'
 import { Settings } from '@/views/Settings'
@@ -15,24 +15,14 @@ const ViewContext = createContext<{
 } | null>(null)
 
 export function ViewProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setView] = useState<View | null>(null)
+  const [currentView, setView] = useState<View>(() => {
+    const storedView = localStorage.getItem('currentView')
+    return storedView && isValidView(storedView) ? storedView : 'recorder'
+  })
 
   const setCurrentView = (view: View) => {
     localStorage.setItem('currentView', view)
     setView(view)
-  }
-
-  useEffect(() => {
-    const storedView = localStorage.getItem('currentView')
-    if (storedView && isValidView(storedView)) {
-      setView(storedView)
-      return
-    }
-    setView('recorder')
-  }, [])
-
-  if (!currentView) {
-    return null
   }
 
   return (

@@ -12,7 +12,7 @@ if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <div className="flex size-full items-center justify-center">
-        <p>Your'e browser does not support webb workers</p>
+        <p>Your browser does not support web workers</p>
       </div>
     </React.StrictMode>,
   )

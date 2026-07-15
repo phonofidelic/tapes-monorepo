@@ -6,12 +6,11 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets'
-import { Server, WebSocket } from 'ws'
+import { Server } from 'ws'
 import { Repo } from '@automerge/automerge-repo'
 import { NodeWSServerAdapter } from '@automerge/automerge-repo-network-websocket'
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
 import { Logger } from '@nestjs/common'
-import { IncomingMessage } from 'http'
 
 @WebSocketGateway(433, {
   serveClient: false,
@@ -27,12 +26,13 @@ export class SyncGateway
   isReady = false
   repo: Repo
 
-  afterInit(wss: Server) {
+  afterInit() {
     this.repo = new Repo({
-      // @ts-ignore
+      // @ts-expect-error automerge-repo's network adapter types don't line up
+      // with the `ws` Server instance Nest hands us.
       network: [new NodeWSServerAdapter(this.server)],
       storage: new NodeFSStorageAdapter('./data'),
-      // @ts-ignore
+      // @ts-expect-error peerId is typed as a branded PeerId, not a string.
       peerId: `storage-server-test`,
       sharePolicy: async () => false,
     })
@@ -50,8 +50,7 @@ export class SyncGateway
     })
   }
 
-  handleConnection(client: WebSocket, message: IncomingMessage) {
-    // @ts-ignore
+  handleConnection() {
     // client.on('upgrade', (request, socket, head) => {
     //   console.log('upgrade')
     //   this.server.handleUpgrade(request, socket, head, (ws) => {
@@ -76,7 +75,7 @@ export class SyncGateway
   //   })
   // }
 
-  handleDisconnect(client: any) {
+  handleDisconnect() {
     this.logger.log(`Client disconnected`)
   }
 

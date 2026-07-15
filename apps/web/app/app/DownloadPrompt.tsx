@@ -7,7 +7,11 @@ import Link from 'next/link'
 export default function DownloadPrompt() {
   const [url, setUrl] = useState('')
 
+  // `window` is unavailable during the server render, and seeding this from
+  // location on the client only would desync the two passes. Set it after
+  // hydration; the empty `url` renders a placeholder of matching size.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(window.location.href)
   }, [])
 
