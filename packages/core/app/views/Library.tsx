@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
@@ -25,6 +25,7 @@ export function Library() {
   const { currentUrl } = useAudioPlayer()
 
   const [editingUrl, setEditingUrl] = useState<AutomergeUrl | null>(null)
+  const handleCloseEditor = useCallback(() => setEditingUrl(null), [])
 
   const deleteRecording = (url: AutomergeUrl) => {
     changeDocState((doc) => {
@@ -63,12 +64,12 @@ export function Library() {
           },
         )}
       >
-        <Editor automergeUrl={editingUrl} onClose={() => setEditingUrl(null)} />
+        <Editor automergeUrl={editingUrl} onClose={handleCloseEditor} />
       </div>
       <Backdrop
         title="Close editor"
         isOpen={editingUrl !== null}
-        onClose={() => setEditingUrl(null)}
+        onClose={handleCloseEditor}
       />
     </>
   )
@@ -91,6 +92,7 @@ function LibraryListItem({
   const previousRecordingName = useRef(recording?.name)
 
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false)
+  const handleCloseMenu = useCallback(() => setIsOptionsMenuOpen(false), [])
   const [, setEditedName] = useState(recording?.name)
 
   useEffect(() => {
@@ -228,7 +230,7 @@ function LibraryListItem({
       <Backdrop
         title="Close menu"
         isOpen={isOptionsMenuOpen}
-        onClose={() => setIsOptionsMenuOpen(false)}
+        onClose={handleCloseMenu}
       />
     </>
   )
@@ -496,6 +498,9 @@ function Backdrop({
   onClose: () => void
 }) {
   useEffect(() => {
+    if (!isOpen) {
+      return
+    }
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose()
@@ -506,7 +511,7 @@ function Backdrop({
     return () => {
       document.removeEventListener('keydown', onEscape)
     }
-  }, [])
+  }, [isOpen, onClose])
 
   return (
     <button

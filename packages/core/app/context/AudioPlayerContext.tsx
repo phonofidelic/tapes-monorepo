@@ -35,6 +35,9 @@ export const AudioPlayerProvider = ({
   )
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  // Mirrors `duration` so `onEnded` can read the latest value without the
+  // audio effect re-running (and calling audio.load()) whenever it changes.
+  const durationRef = useRef(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [clickedTime, setClickedTime] = useState(0)
 
@@ -87,9 +90,10 @@ export const AudioPlayerProvider = ({
     audio.load()
 
     const onLoadedMetadata = () => {
-      setDuration(
-        audio.duration / (appContext.type === 'electron-client' ? 1000 : 1),
-      )
+      const scaledDuration =
+        audio.duration / (appContext.type === 'electron-client' ? 1000 : 1)
+      durationRef.current = scaledDuration
+      setDuration(scaledDuration)
     }
 
     const onCanPlay = async () => {
@@ -106,7 +110,7 @@ export const AudioPlayerProvider = ({
       audio.pause()
       setIsPlaying(false)
       setCurrentTime(0)
-      audio.currentTime = duration
+      audio.currentTime = durationRef.current
     }
 
     const onError = () => {
@@ -126,7 +130,7 @@ export const AudioPlayerProvider = ({
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [isPlaying])
+  }, [isPlaying, appContext.type])
 
   return (
     <AudioPlayerContext.Provider

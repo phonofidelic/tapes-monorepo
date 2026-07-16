@@ -12,14 +12,14 @@ export const getAudioStream = async (selectedMediaDeviceId: string) => {
   return audioStream
 }
 
+export function setAutomergeUrl(url: string) {
+  localStorage.setItem('automergeUrl', url)
+}
+
 export function useAutomergeUrl() {
   const automergeUrl =
     new URLSearchParams(window.location.search).get('am') ??
     localStorage.getItem('automergeUrl')
-
-  const setAutomergeUrl = (url: string) => {
-    localStorage.setItem('automergeUrl', url)
-  }
 
   return { automergeUrl, setAutomergeUrl }
 }
