@@ -32,7 +32,9 @@ type EventData =
       }
     }
 
-const ctx: DedicatedWorkerGlobalScope = self as any
+// `self` is typed as the base WorkerGlobalScope; assert to the augmented
+// DedicatedWorkerGlobalScope (with fileHandle/accessHandle) declared above.
+const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope
 ctx.fileHandle = null
 ctx.accessHandle = null
 

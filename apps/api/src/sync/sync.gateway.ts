@@ -22,8 +22,6 @@ export class SyncGateway
 
   @WebSocketServer()
   server: Server
-  readyResolvers: ((value: any) => void)[] = []
-  isReady = false
   repo: Repo
 
   afterInit() {
@@ -36,18 +34,7 @@ export class SyncGateway
       peerId: `storage-server-test`,
       sharePolicy: async () => false,
     })
-    this.isReady = true
     this.logger.log('Initialized')
-  }
-
-  async ready() {
-    if (this.isReady) {
-      return true
-    }
-
-    return new Promise((resolve) => {
-      this.readyResolvers.push(resolve)
-    })
   }
 
   handleConnection() {
