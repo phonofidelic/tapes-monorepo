@@ -50,7 +50,7 @@ export function AudioVisualizer({
     return () => {
       window.removeEventListener('resize', onResize)
     }
-  }, [])
+  }, [containerRef])
 
   useEffect(() => {
     if (!canvasRef.current) {
@@ -59,15 +59,25 @@ export function AudioVisualizer({
 
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    const audioContext = new AudioContext()
-    let rafId: number
 
     if (!ctx) {
       return
     }
 
+    const audioContext = new AudioContext()
+    let rafId: number
+    let stream: MediaStream | undefined
+    let cancelled = false
+
     getAudioStream(audioInputDeviceId)
-      .then((stream) => {
+      .then((mediaStream) => {
+        // getAudioStream is async; the effect may have been torn down (device
+        // change, unmount) before it resolved. Don't start a second graph.
+        if (cancelled) {
+          mediaStream.getTracks().forEach((track) => track.stop())
+          return
+        }
+        stream = mediaStream
         const source = audioContext.createMediaStreamSource(stream)
         const analyser = audioContext.createAnalyser()
         analyser.fftSize = 128
@@ -101,9 +111,12 @@ export function AudioVisualizer({
       })
 
     return () => {
+      cancelled = true
       cancelAnimationFrame(rafId)
+      stream?.getTracks().forEach((track) => track.stop())
+      audioContext.close().catch(() => {})
     }
-  }, [feature, theme])
+  }, [audioInputDeviceId, feature, theme])
 
   return (
     <canvas
@@ -125,7 +138,7 @@ const draw = ({
   canvasWidth,
   canvasHeight,
 }: {
-  dataArray: Uint8Array | []
+  dataArray: Uint8Array
   feature: 'frequency' | 'time-domain'
   theme: 'dark' | 'light'
   ctx: CanvasRenderingContext2D
@@ -140,7 +153,7 @@ const draw = ({
 
   const drawAverage = () => {
     // Draw average
-    const sum = (dataArray as any[]).reduce((a: number, b: number) => a + b)
+    const sum = dataArray.reduce((a: number, b: number) => a + b, 0)
     const average = sum / dataArray.length || 0
     ctx.strokeStyle = theme === 'dark' ? '#a1a1aa' : '#a1a1aa'
     if (average >= 128) {
