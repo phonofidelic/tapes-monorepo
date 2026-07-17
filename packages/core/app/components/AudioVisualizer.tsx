@@ -50,7 +50,7 @@ export function AudioVisualizer({
     return () => {
       window.removeEventListener('resize', onResize)
     }
-  }, [])
+  }, [containerRef])
 
   useEffect(() => {
     if (!canvasRef.current) {
@@ -138,7 +138,7 @@ const draw = ({
   canvasWidth,
   canvasHeight,
 }: {
-  dataArray: Uint8Array | []
+  dataArray: Uint8Array
   feature: 'frequency' | 'time-domain'
   theme: 'dark' | 'light'
   ctx: CanvasRenderingContext2D
@@ -153,7 +153,7 @@ const draw = ({
 
   const drawAverage = () => {
     // Draw average
-    const sum = (dataArray as any[]).reduce((a: number, b: number) => a + b)
+    const sum = dataArray.reduce((a: number, b: number) => a + b, 0)
     const average = sum / dataArray.length || 0
     ctx.strokeStyle = theme === 'dark' ? '#a1a1aa' : '#a1a1aa'
     if (average >= 128) {
