@@ -18,11 +18,6 @@ export const config = [
     },
     rules: {
       "turbo/no-undeclared-env-vars": "warn",
-      // Advisory, not blocking: a backlog of pre-existing violations that each
-      // need per-site judgement to type properly. Visible, but not a CI gate.
-      // Remove this override once #218 clears them. (react-hooks/exhaustive-deps
-      // is likewise advisory, but ships as "warn" upstream and needs no override.)
-      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
   {
