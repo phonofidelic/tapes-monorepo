@@ -861,22 +861,22 @@ __metadata:
   linkType: hard
 
 "@dotenvx/dotenvx@npm:^2.0.0":
-  version: 2.7.3
-  resolution: "@dotenvx/dotenvx@npm:2.7.3"
+  version: 2.14.0
+  resolution: "@dotenvx/dotenvx@npm:2.14.0"
   dependencies:
-    "@dotenvx/primitives": "npm:^1.8.1"
+    "@dotenvx/primitives": "npm:^2.1.0"
     "@dotenvx/tooling": "npm:^1.0.2"
     yocto-spinner: "npm:^1.2.1"
   bin:
     dotenvx: src/cli/dotenvx.js
-  checksum: 10c0/e6ad1dff2c50f0e54b02f0580972e8e022c9c829586f3e91df80fefe9f4123f2d0e5b0c218395976b17aea166cddbfaf62bb8721c349164dd24eac42083f3846
+  checksum: 10c0/10e031e77de73d78d05940ca4735346f7c2e2c71739642215b5b20485a4dde5cfd6ca102e6d269db98ccaf385b1671b3e8386b01498b8d924bc402237c602e66
   languageName: node
   linkType: hard
 
-"@dotenvx/primitives@npm:^1.8.1":
-  version: 1.8.1
-  resolution: "@dotenvx/primitives@npm:1.8.1"
-  checksum: 10c0/02bb6b5c3761626a37d178fdf95599d8c516658b627c10960c5cff6a3125cf386aab13c7594253449a2f785ea4fb265667836cde0861d3bb170d1fc4fe16b577
+"@dotenvx/primitives@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "@dotenvx/primitives@npm:2.1.0"
+  checksum: 10c0/2e6d66cfd34cd017e5dfd8a78fbfb2fc89e37e279e5e1a8ddfbc3a0b36fbab5873d962cb4998e20f163a057666ac64c363452fcd5e5f4afe35169cc9909bc81d
   languageName: node
   linkType: hard
 
