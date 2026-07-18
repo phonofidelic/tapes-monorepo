@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useAppContext } from './AppContext'
 import { getAudioStream } from '@/utils'
 import { useSetting } from './SettingsContext'
@@ -6,7 +13,6 @@ import { useSetting } from './SettingsContext'
 const RecordingContext = createContext<{
   isRecording: boolean
   time: number
-  mediaRecorder: MediaRecorder | null
   handleFilename: string | null
   setIsRecording: (state: boolean) => void
 } | null>(null)
@@ -20,8 +26,11 @@ export const RecordingStateProvider = ({
   const [audioInputDeviceId] = useSetting('audioInputDeviceId')
   const [isRecording, setIsRecording] = useState(false)
   const [time, setTime] = useState(0)
+  const [handleFilename, setHandleFilename] = useState<string | null>(null)
+  // The active recorder must survive this effect re-running (e.g. on a device
+  // change) between the start and stop messages, so it lives in a ref rather
+  // than an effect-local variable.
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const handleFilenameRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isRecording) {
@@ -50,8 +59,11 @@ export const RecordingStateProvider = ({
         const mimeType = mimeTypes[mimeIndex]
         MediaRecorder.isTypeSupported(mimeType)
         return new MediaRecorder(stream, { mimeType })
-      } catch (error: any) {
-        if (error.code === 9) {
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === 'NotSupportedError'
+        ) {
           console.error(`Mime type "${mimeTypes[mimeIndex]}" is not supported`)
         }
         if (mimeIndex < mimeTypes.length) {
@@ -62,28 +74,53 @@ export const RecordingStateProvider = ({
     }
 
     const { worker } = appContext
+
+    const onDataAvailable = (event: BlobEvent) => {
+      worker.postMessage({
+        type: 'recorder:write',
+        payload: { chunk: event.data },
+      })
+    }
+
     const onMessage = async (event: MessageEvent) => {
       const { type, payload } = event.data
       switch (type) {
         case 'recorder:start:response': {
-          const { filename } = payload as {
-            handle: FileSystemFileHandle
-            filename: string
-          }
-          handleFilenameRef.current = filename
+          setHandleFilename(payload.filename)
           const audioStream = await getAudioStream(audioInputDeviceId ?? '')
-          mediaRecorderRef.current = await getMediaRecorder(audioStream)
-          mediaRecorderRef.current.start()
+          const recorder = await getMediaRecorder(audioStream)
+          // Attach the listener at construction, before start(), so the first
+          // (and only, without a timeslice) `dataavailable` is never missed.
+          recorder.addEventListener('dataavailable', onDataAvailable)
+          mediaRecorderRef.current = recorder
+          recorder.start()
           break
         }
-        case 'recorder:stop:response':
-          if (!mediaRecorderRef.current) {
+        case 'recorder:start:error':
+          // Without this the UI stays in the recording state with no recorder.
+          console.error('Failed to start recording:', payload.error)
+          setIsRecording(false)
+          break
+        case 'recorder:stop:response': {
+          const recorder = mediaRecorderRef.current
+          if (!recorder) {
             console.error('mediaRecorderRef.current is null')
             return
           }
-          mediaRecorderRef.current.stop()
+          // stop() fires a final `dataavailable` asynchronously, so the
+          // listener must stay attached; release the mic tracks once the
+          // recorder has actually stopped.
+          recorder.addEventListener(
+            'stop',
+            () => {
+              recorder.stream.getTracks().forEach((track) => track.stop())
+            },
+            { once: true },
+          )
+          recorder.stop()
           mediaRecorderRef.current = null
           break
+        }
         default:
           // Unhandled message
           break
@@ -94,49 +131,19 @@ export const RecordingStateProvider = ({
     return () => {
       worker.removeEventListener('message', onMessage)
     }
-  }, [])
+  }, [appContext, audioInputDeviceId])
 
-  useEffect(() => {
-    if (appContext.type !== 'web-client' || !mediaRecorderRef.current) {
-      return
-    }
-
-    const mediaRecorder = mediaRecorderRef.current
-    const { worker } = appContext
-
-    const onDataAvailable = (event: BlobEvent) => {
-      worker.postMessage({
-        type: 'recorder:write',
-        payload: { chunk: event.data },
-      })
-    }
-
-    mediaRecorder.addEventListener('dataavailable', onDataAvailable)
-
-    return () => {
-      mediaRecorder.removeEventListener('dataavailable', onDataAvailable)
-    }
-    // These refs are read during render so the effect re-attaches and consumers
-    // re-read after the worker swaps the recorder. Ref writes don't re-render,
-    // so both only settle on the next render (today, `setIsRecording`). Fixing
-    // this properly means mirroring the refs into state; the refs exist because
-    // the worker's `onMessage` closure needs values state would make stale.
-    // Tracked in #218.
-    // eslint-disable-next-line react-hooks/refs, react-hooks/exhaustive-deps
-  }, [mediaRecorderRef.current, handleFilenameRef.current])
-
-  const value = {
-    isRecording,
-    time,
-    // eslint-disable-next-line react-hooks/refs -- see note above (#218)
-    handleFilename: handleFilenameRef.current,
-    // eslint-disable-next-line react-hooks/refs -- see note above (#218)
-    mediaRecorder: mediaRecorderRef.current,
-    setIsRecording,
-  }
+  const value = useMemo(
+    () => ({
+      isRecording,
+      time,
+      handleFilename,
+      setIsRecording,
+    }),
+    [isRecording, time, handleFilename],
+  )
 
   return (
-    // eslint-disable-next-line react-hooks/refs -- see note above (#218)
     <RecordingContext.Provider value={value}>
       {children}
     </RecordingContext.Provider>

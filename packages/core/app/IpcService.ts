@@ -5,8 +5,8 @@
 declare global {
   interface Window {
     api: {
-      send(channel: string, data: any): void
-      receive(channel: string, data: any): void
+      send(channel: ValidIpcChanel, data: IpcRequest): void
+      receive(channel: string, func: (...args: unknown[]) => void): void
     }
   }
 }
@@ -84,10 +84,7 @@ type IpcSendArgs =
     ]
   | ['recorder:stop', IpcRequest]
 export class IpcService {
-  private ipcRenderer?: {
-    send(channel: ValidIpcChanel, data: any): void
-    receive(channel: string, data: any): void
-  }
+  private ipcRenderer?: Window['api']
 
   private initializeIpcRenderer() {
     if (!window || !window.api) {
@@ -124,8 +121,8 @@ export class IpcService {
 
     // This method returns a promise which will be resolved when the response has arrived.
     return new Promise((resolve) => {
-      ipcRenderer.receive(request.responseChannel ?? '', (response: any) => {
-        resolve(response)
+      ipcRenderer.receive(request.responseChannel ?? '', (...args: unknown[]) => {
+        resolve(args[0] as T)
       })
     })
   }

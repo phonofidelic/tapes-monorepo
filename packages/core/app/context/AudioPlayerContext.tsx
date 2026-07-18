@@ -83,7 +83,7 @@ export const AudioPlayerProvider = ({
         appContext.worker.removeEventListener('message', onMessage)
       }
     }
-  }, [currentSource])
+  }, [currentSource, appContext])
 
   useEffect(() => {
     const audio = audioRef.current
