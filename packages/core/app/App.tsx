@@ -16,7 +16,7 @@ import { AudioPlayer } from './components/AudioPlayer'
 import { useAudioPlayer } from './context/AudioPlayerContext'
 import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
-import { useAutomergeUrl } from './utils'
+import { setAutomergeUrl, useAutomergeUrl } from './utils'
 
 export function App({
   appContextValue,
@@ -25,10 +25,11 @@ export function App({
   appContextValue: AppContextValue
   syncServerUrl: string
 }) {
-  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
+  const { automergeUrl } = useAutomergeUrl()
   const [repo, setRepo] = useState<Repo | null>(null)
   const mainRef = useRef<HTMLDivElement | null>(null)
   const handleRef = useRef<DocHandle<unknown> | null>(null)
+  const didInitRef = useRef(false)
 
   useEffect(() => {
     // const onEphemeralMessage = (message: any) => {
@@ -36,9 +37,13 @@ export function App({
     // }
 
     const initialize = async () => {
-      if (repo) {
+      // Guard against re-init (StrictMode double-invoke, dep changes). A `repo`
+      // state check can't do this: initialize() is async and setRepo lands only
+      // at the end, so concurrent runs would each build a Repo and websocket.
+      if (didInitRef.current) {
         return
       }
+      didInitRef.current = true
 
       // const broadcast = new BroadcastChannelNetworkAdapter()
       // TODO: Set up sync server
@@ -74,7 +79,7 @@ export function App({
     //     handleRef.current.off('ephemeral-message', onEphemeralMessage)
     //   }
     // }
-  }, [])
+  }, [automergeUrl, syncServerUrl])
 
   if (!repo) {
     return <div>Loading...</div>

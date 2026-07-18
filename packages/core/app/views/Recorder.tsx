@@ -394,7 +394,7 @@ function useMonitor(selectedMediaDeviceId: string | undefined) {
     return () => {
       audioCtx.close()
     }
-  }, [isMonitoring])
+  }, [isMonitoring, selectedMediaDeviceId])
 
   return {
     isMonitoring,
