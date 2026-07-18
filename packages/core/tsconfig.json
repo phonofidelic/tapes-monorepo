@@ -22,8 +22,6 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    /* Paths */
-    "baseUrl" : ".",
     "paths": {
       "@/*": ["./app/*"],
     }
