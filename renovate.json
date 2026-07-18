@@ -42,18 +42,6 @@
         "vite-plugin-top-level-await"
       ],
       "groupName": "vite stack"
-    },
-    {
-      "description": "Hold vite stack majors until the vite 8 migration branch lands",
-      "matchPackageNames": [
-        "vite",
-        "@vitejs/plugin-react",
-        "vite-plugin-dts",
-        "vite-plugin-wasm",
-        "vite-plugin-top-level-await"
-      ],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
     }
   ],
   "lockFileMaintenance": {

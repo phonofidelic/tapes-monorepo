@@ -29,11 +29,6 @@ export default defineConfig({
     },
   },
   plugins,
-  optimizeDeps: {
-    esbuildOptions: {
-      target: 'esnext',
-    },
-  },
   build: {
     target: 'esnext',
   },
