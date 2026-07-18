@@ -37,7 +37,7 @@ export function Settings() {
         <label className="flex flex-col gap-2 text-sm">
           <h3>Recording format:</h3>
           <select
-            className="flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             onChange={(event) => {
               setAudioFormat(
                 event.target.value as 'mp3' | 'wav' | 'ogg' | 'flac',
@@ -54,7 +54,7 @@ export function Settings() {
         <label className="flex flex-col gap-2 text-sm">
           <h3>Channels:</h3>
           <select
-            className="flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             onChange={(event) => {
               setAudioChannelCount(event.target.value)
             }}

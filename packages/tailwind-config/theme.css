@@ -1,0 +1,29 @@
+/*
+ * Shared Tailwind v4 theme + compatibility layer for @tapes-monorepo.
+ * Consumers import this after `@import "tailwindcss"` in their CSS entry.
+ */
+
+/*
+ * Preserve Tailwind v3's default border color. v4 changed the default from
+ * gray-200 to `currentColor`; without this shim, borders that don't set an
+ * explicit color (e.g. the light-mode `border-b` on the app nav) would change.
+ */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
+/* Ported from the former JS preset (theme.backgroundImage['glow-conic']). */
+@utility bg-glow-conic {
+  background-image: conic-gradient(
+    from 180deg at 50% 50%,
+    #2a8af6 0deg,
+    #a853ba 180deg,
+    #e92a67 360deg
+  );
+}

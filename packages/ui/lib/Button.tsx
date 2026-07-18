@@ -24,7 +24,7 @@ export function Button({
       id={id}
       title={title}
       className={clsx(
-        'flex items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800',
+        'flex items-center rounded-sm hover:bg-zinc-100 dark:hover:bg-zinc-800',
         className,
       )}
       disabled={disabled}

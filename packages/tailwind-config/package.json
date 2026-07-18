@@ -4,13 +4,6 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
-    ".": {
-      "import": "./tailwind.config.ts",
-      "default": "./tailwind.config.ts"
-    }
-  },
-  "devDependencies": {
-    "@tapes-monorepo/typescript-config": "*",
-    "tailwindcss": "^3.4.1"
+    "./theme.css": "./theme.css"
   }
 }

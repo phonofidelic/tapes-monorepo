@@ -65,7 +65,7 @@ export function TextInput({
         onBlur={onBlur}
         onKeyDown={onKeyDown}
         className={clsx(
-          'peer w-full rounded p-2 text-zinc-800 placeholder-transparent outline-none dark:bg-zinc-900 dark:text-white',
+          'peer w-full rounded-sm p-2 text-zinc-800 placeholder-transparent outline-hidden dark:bg-zinc-900 dark:text-white',
           {
             'outline-zinc-400': error === undefined,
             'outline-rose-500': error !== undefined,

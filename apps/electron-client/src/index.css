@@ -1,8 +1,9 @@
-@import '@tapes-monorepo/core-styles';
+@import 'tailwindcss';
+@import '@tapes-monorepo/tailwind-config/theme.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Generate utilities for the core + shared UI components this app renders. */
+@source '../../../packages/core/app';
+@source '../../../packages/ui/lib';
 
 :root {
   --background: #ffffff;

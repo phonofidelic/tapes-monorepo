@@ -81,27 +81,33 @@ export function Recorder() {
       <div className="flex flex-col">
         <div
           ref={visualizerContainerRef}
-          className="absolute bottom-[80px] left-0 right-0 top-0"
+          className="absolute top-0 right-0 bottom-[80px] left-0"
         >
           {audioInputDeviceId && isMonitoring && (
             <>
               <div className="absolute top-0 z-50 flex w-full justify-end gap-1 p-4 text-xs">
                 <p className="p-1 text-zinc-400">Visualization:</p>
                 <Button
-                  className={clsx('rounded border p-1 dark:border-zinc-800', {
-                    'bg-zinc-100 dark:bg-zinc-800': feature === 'frequency',
-                    'text-zinc-400': feature !== 'frequency',
-                  })}
+                  className={clsx(
+                    'rounded-sm border p-1 dark:border-zinc-800',
+                    {
+                      'bg-zinc-100 dark:bg-zinc-800': feature === 'frequency',
+                      'text-zinc-400': feature !== 'frequency',
+                    },
+                  )}
                   disabled={feature === 'frequency'}
                   onClick={() => setFeature('frequency')}
                 >
                   frequency
                 </Button>
                 <Button
-                  className={clsx('rounded border p-1 dark:border-zinc-800', {
-                    'bg-zinc-100 dark:bg-zinc-800': feature === 'time-domain',
-                    'text-zinc-400': feature !== 'time-domain',
-                  })}
+                  className={clsx(
+                    'rounded-sm border p-1 dark:border-zinc-800',
+                    {
+                      'bg-zinc-100 dark:bg-zinc-800': feature === 'time-domain',
+                      'text-zinc-400': feature !== 'time-domain',
+                    },
+                  )}
                   disabled={feature === 'time-domain'}
                   onClick={() => setFeature('time-domain')}
                 >
@@ -183,7 +189,7 @@ export function Recorder() {
                 title={`Rename ${editedName}`}
                 onClick={() => setIsEditing(true)}
               >
-                <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
+                <p className="max-w-52 overflow-hidden text-nowrap text-ellipsis">
                   {editedName}
                 </p>
                 <MdEdit className="ml-2 opacity-0 transition-opacity delay-75 ease-in group-hover:opacity-100" />
@@ -216,7 +222,7 @@ export function Recorder() {
                 }}
               >
                 {isMonitoring && (
-                  <div className="absolute left-0 top-0 flex w-full p-2 text-rose-500">
+                  <div className="absolute top-0 left-0 flex w-full p-2 text-rose-500">
                     Monitoring
                   </div>
                 )}
@@ -310,7 +316,7 @@ export function Recorder() {
                   }}
                 >
                   {isRecording && (
-                    <div className="absolute right-0 top-0 flex p-2 text-xs text-rose-500">
+                    <div className="absolute top-0 right-0 flex p-2 text-xs text-rose-500">
                       <Timer />
                     </div>
                   )}
@@ -464,7 +470,7 @@ function TextInput({
         onBlur={onBlur}
         onKeyDown={onKeyDown}
         className={clsx(
-          'peer w-full rounded p-2 text-zinc-800 placeholder-transparent outline-none dark:bg-zinc-900 dark:text-white',
+          'peer w-full rounded-sm p-2 text-zinc-800 placeholder-transparent outline-hidden dark:bg-zinc-900 dark:text-white',
           {
             'outline-zinc-400': error === undefined,
             'outline-rose-500': error !== undefined,
