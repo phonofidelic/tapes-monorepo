@@ -1,5 +1,9 @@
-@import '@tapes-monorepo/ui-styles';
+@import 'tailwindcss';
+@import '@tapes-monorepo/tailwind-config/theme.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Generate utilities for the shared UI components rendered by core. */
+@source '../../ui/lib';
+
+@theme {
+  --transition-property-height: height;
+}

@@ -71,7 +71,7 @@ export function AudioInputSelector({ className }: { className?: string }) {
   return (
     <select
       className={clsx(
-        'flex appearance-none items-center justify-center rounded bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800',
+        'flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800',
         className,
       )}
       onChange={async (event) => {

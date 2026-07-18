@@ -113,18 +113,18 @@ function LibraryListItem({
     <>
       <div className="group flex w-full justify-between p-4">
         <div>
-          <span className="has-[button]:hover:shadow-sm">
+          <span className="has-[button]:hover:shadow-xs">
             <Button
               className="p-1"
               title="Edit recording name"
               onClick={() => onOpenEditor()}
             >
-              <p className="max-w-52 overflow-hidden text-ellipsis text-nowrap">
+              <p className="max-w-52 overflow-hidden text-nowrap text-ellipsis">
                 {recording.name}
               </p>
               <MdEdit
                 className={clsx('ml-2 transition-opacity ease-in', {
-                  'opacity-0 hover:opacity-0 group-hover:opacity-0':
+                  'opacity-0 group-hover:opacity-0 hover:opacity-0':
                     isOptionsMenuOpen,
                   'opacity-0 group-hover:opacity-100': !isOptionsMenuOpen,
                 })}
@@ -140,7 +140,7 @@ function LibraryListItem({
             <Button
               title="Options"
               className={clsx(
-                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in hover:bg-none hover:shadow-sm group-hover:opacity-100',
+                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
@@ -151,7 +151,7 @@ function LibraryListItem({
             </Button>
             <Button
               className={clsx(
-                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in hover:bg-none hover:shadow-sm group-hover:opacity-100',
+                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
@@ -165,7 +165,7 @@ function LibraryListItem({
               <MdPlayArrow />
             </Button>
             <div
-              className={clsx('absolute right-full top-0 z-50', {
+              className={clsx('absolute top-0 right-full z-50', {
                 'hidden opacity-0': !isOptionsMenuOpen,
                 'flex opacity-100': isOptionsMenuOpen,
               })}
@@ -181,7 +181,7 @@ function LibraryListItem({
               >
                 <li>
                   <Button
-                    className="flex size-full gap-2 rounded p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    className="flex size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     onClick={() => {
                       setIsOptionsMenuOpen(false)
                       onOpenEditor()
@@ -193,7 +193,7 @@ function LibraryListItem({
                 {appContext.type === 'electron-client' && (
                   <li>
                     <Button
-                      className="flex size-full gap-2 rounded p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800"
+                      className="flex size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800"
                       onClick={async () => {
                         const deleteRecordingResponse =
                           await appContext.ipc.send<IpcResponse>(
@@ -268,7 +268,7 @@ function Editor({
             })
           }}
         >
-          <p className="max-w-52 overflow-x-hidden text-ellipsis text-nowrap p-1">
+          <p className="max-w-52 overflow-x-hidden p-1 text-nowrap text-ellipsis">
             {recording.name}
           </p>
         </EditableText>
@@ -329,7 +329,7 @@ function Editor({
             })
           }
         >
-          <p className="size-full h-[5rem] overflow-y-auto whitespace-pre-line p-1">
+          <p className="size-full h-[5rem] overflow-y-auto p-1 whitespace-pre-line">
             {(recording.description &&
               recording.description?.length > 0 &&
               recording.description) ||
@@ -424,7 +424,7 @@ function EditableText({
       {inputType === 'text' ? (
         <input
           type="text"
-          className="peer w-full p-1 text-zinc-800 placeholder-transparent outline-none dark:bg-zinc-900 dark:text-white"
+          className="peer w-full p-1 text-zinc-800 placeholder-transparent outline-hidden dark:bg-zinc-900 dark:text-white"
           name={name}
           id={id}
           defaultValue={editedText}
@@ -450,7 +450,7 @@ function EditableText({
       ) : (
         <textarea
           ref={textAreaRef}
-          className="size-full h-[5rem] p-1 text-zinc-800 outline-none dark:bg-zinc-900 dark:text-white"
+          className="size-full h-[5rem] p-1 text-zinc-800 outline-hidden dark:bg-zinc-900 dark:text-white"
           autoFocus={true}
           id="description"
           name="description"
@@ -517,7 +517,7 @@ function Backdrop({
     <button
       title={isOpen ? title : ''}
       className={clsx(
-        'fixed left-0 top-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
+        'fixed top-0 left-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
         {
           'hidden opacity-0': !isOpen,
           'z-40 opacity-50': isOpen,

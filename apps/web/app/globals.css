@@ -1,8 +1,15 @@
-@import '@tapes-monorepo/ui/style.css';
+@import 'tailwindcss';
+@import '@tapes-monorepo/tailwind-config/theme.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Generate utilities for the core + shared UI components this site renders. */
+@source '../../../packages/core/app';
+@source '../../../packages/ui/lib';
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

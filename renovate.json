@@ -28,11 +28,6 @@
       "allowedVersions": "<7"
     },
     {
-      "description": "Hold tailwindcss 4 until the CSS-first config migration lands",
-      "matchPackageNames": ["tailwindcss"],
-      "allowedVersions": "<4"
-    },
-    {
       "description": "Group vite stack updates into a single PR",
       "matchPackageNames": [
         "vite",
