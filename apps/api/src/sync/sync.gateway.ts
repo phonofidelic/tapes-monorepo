@@ -21,13 +21,11 @@ export class SyncGateway
   private readonly logger = new Logger(SyncGateway.name)
 
   @WebSocketServer()
-  server: Server
-  repo: Repo
+  server!: Server
+  repo!: Repo
 
   afterInit() {
     this.repo = new Repo({
-      // @ts-expect-error automerge-repo's network adapter types don't line up
-      // with the `ws` Server instance Nest hands us.
       network: [new NodeWSServerAdapter(this.server)],
       storage: new NodeFSStorageAdapter('./data'),
       // @ts-expect-error peerId is typed as a branded PeerId, not a string.
