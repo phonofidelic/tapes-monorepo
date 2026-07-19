@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+// supertest is a CommonJS `export =` module; `import = require` keeps it
+// callable under TS 6 without enabling esModuleInterop (which breaks the
+// ts-jest transpilation of automerge-repo's ESM at runtime).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import request = require('supertest');
 import { AppModule } from './../src/app.module';
 
 describe('AppController (e2e)', () => {
