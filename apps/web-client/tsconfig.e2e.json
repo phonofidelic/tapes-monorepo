@@ -1,0 +1,15 @@
+{
+  "extends": "@tapes-monorepo/typescript-config/base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // DOM is required because page.evaluate/addInitScript bodies are
+    // type-checked against browser APIs.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "strict": true
+  },
+  "include": ["e2e", "playwright.config.ts"]
+}

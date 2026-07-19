@@ -37,3 +37,65 @@ jobs:
 
       - name: Build
         run: yarn build
+
+  e2e:
+    name: E2E (web-client)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v7
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install Dependencies
+        run: yarn --immutable
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+
+      - name: Install Chromium
+        run: yarn workspace web-client exec playwright install --with-deps chromium
+
+      # ubuntu-latest has no audio stack at all (no /dev/snd, no PulseAudio),
+      # and --use-fake-device-for-media-capture supplies fake *samples* but not
+      # a fake *device*: without this step enumerateDevices() returns no
+      # audioinput and getUserMedia throws NotFoundError. Two virtual sources
+      # so the device-switching test has something to switch between.
+      # `pulseaudio --start` must run unsudoed for Chromium to inherit the socket.
+      - name: Start PulseAudio with two virtual sources
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pulseaudio
+          pulseaudio --check || pulseaudio --start --exit-idle-time=-1
+          sleep 2
+          for n in 1 2; do
+            pactl load-module module-null-sink sink_name=vsink$n \
+              sink_properties=device.description=VirtualSink$n
+            pactl load-module module-virtual-source source_name=vsource$n \
+              master=vsink$n.monitor \
+              source_properties=device.description=VirtualMic$n
+          done
+          sleep 1
+          pactl list short sources
+
+      - name: Run e2e
+        run: yarn turbo run e2e --filter=web-client
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: apps/web-client/playwright-report/
+          retention-days: 7
