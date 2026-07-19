@@ -150,6 +150,7 @@ function LibraryListItem({
               <MdOutlineMoreVert />
             </Button>
             <Button
+              title="Play recording"
               className={clsx(
                 'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs',
                 {
