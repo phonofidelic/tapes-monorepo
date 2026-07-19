@@ -119,7 +119,14 @@ export const deviceOptionValues = async (page: Page) => {
 }
 
 export const selectDevice = async (page: Page, deviceId: string) => {
-  await page.getByRole('combobox').first().selectOption(deviceId)
+  // Target the select that actually offers this device rather than a
+  // positional one. The Settings view has three comboboxes (input device,
+  // recording format, channels) and the device selector populates last —
+  // it waits on a permissions query and enumerateDevices — so `.first()`
+  // races it and lands on the format select on a slow machine.
+  const select = page.locator(`select:has(option[value="${deviceId}"])`)
+  await expect(select).toBeVisible()
+  await select.selectOption(deviceId)
 }
 
 /**
