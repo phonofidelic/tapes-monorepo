@@ -90,10 +90,8 @@ export const AudioPlayerProvider = ({
     audio.load()
 
     const onLoadedMetadata = () => {
-      const scaledDuration =
-        audio.duration / (appContext.type === 'electron-client' ? 1000 : 1)
-      durationRef.current = scaledDuration
-      setDuration(scaledDuration)
+      durationRef.current = audio.duration
+      setDuration(audio.duration)
     }
 
     const onCanPlay = async () => {
@@ -130,7 +128,7 @@ export const AudioPlayerProvider = ({
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [isPlaying, appContext.type])
+  }, [isPlaying])
 
   return (
     <AudioPlayerContext.Provider
