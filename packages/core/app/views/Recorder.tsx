@@ -195,7 +195,7 @@ export function Recorder() {
                 <MdEdit className="ml-2 opacity-0 transition-opacity delay-75 ease-in group-hover:opacity-100" />
               </Button>
               <Button
-                title="Save recoding"
+                title="Save recording"
                 className="rounded-full p-4 hover:text-green-500"
                 onClick={() => {
                   createRecordingDocument()

@@ -55,12 +55,14 @@ export function AudioPlayer() {
         </div>
         <div className="flex gap-2 p-4">
           <Button
+            title={isPlaying ? 'Pause' : 'Play'}
             className="rounded-full p-2"
             onClick={() => setIsPlaying(!isPlaying)}
           >
             {isPlaying ? <MdPause /> : <MdPlayArrow />}
           </Button>
           <Button
+            title="Stop"
             className="rounded-full p-2"
             onClick={() => {
               setIsPlaying(false)
