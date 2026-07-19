@@ -394,7 +394,10 @@ function useMonitor(selectedMediaDeviceId: string | undefined) {
     }
 
     if (isMonitoring) {
-      monitor()
+      monitor().catch((error) => {
+        console.error('Could not monitor the selected input:', error)
+        setIsMonitoring(false)
+      })
     }
 
     return () => {
