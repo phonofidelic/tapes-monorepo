@@ -87,7 +87,16 @@ export const RecordingStateProvider = ({
       switch (type) {
         case 'recorder:start:response': {
           setHandleFilename(payload.filename)
-          const audioStream = await getAudioStream(audioInputDeviceId ?? '')
+          let audioStream: MediaStream
+          try {
+            audioStream = await getAudioStream(audioInputDeviceId ?? '')
+          } catch (error) {
+            // Otherwise this rejects inside an event listener and the UI stays
+            // in the recording state with no recorder behind it.
+            console.error('Failed to open the audio input:', error)
+            setIsRecording(false)
+            break
+          }
           const recorder = await getMediaRecorder(audioStream)
           // Attach the listener at construction, before start(), so the first
           // (and only, without a timeslice) `dataavailable` is never missed.
