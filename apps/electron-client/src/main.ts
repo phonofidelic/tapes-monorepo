@@ -10,7 +10,11 @@ import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
 import { cacheServer } from './cacheServer'
 import { startSyncServer, stopSyncServer } from './syncServer'
-import { readSyncServerConfig, syncStoragePath } from './syncServerConfig'
+import {
+  readSyncServerConfig,
+  syncStoragePath,
+  webClientPath,
+} from './syncServerConfig'
 
 updateElectronApp()
 
@@ -116,6 +120,7 @@ export class MainWindow {
         storagePath: syncStoragePath(),
         host: config.lanEnabled ? '0.0.0.0' : '127.0.0.1',
         peerId: config.peerId,
+        webClientPath: webClientPath(),
       })
     } catch (error) {
       console.error('Failed to start sync server:', error)

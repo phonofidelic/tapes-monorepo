@@ -25,6 +25,10 @@ export type SyncServerInfo = {
   running: boolean
   url: string
   lanUrl?: string
+  /** URL of the hosted web-client bundle, when one is being served. */
+  webAppUrl?: string
+  /** LAN-reachable URL of the hosted web-client bundle. */
+  lanWebAppUrl?: string
   port: number
   host: string
 }

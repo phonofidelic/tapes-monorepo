@@ -21,11 +21,27 @@ export function Settings() {
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
   const [importUrl, setImportUrl] = useState('')
+  const [syncServerLanEnabled] = useSetting('syncServerLanEnabled')
+  const [hostedBaseUrl, setHostedBaseUrl] = useState<string | null>(null)
+
+  // On the desktop app, guests should load the web-client from this host
+  // (same origin as the sync server) rather than the deployed Vercel build,
+  // so they don't hit HTTPS-vs-ws mixed-content. Only the LAN-reachable URL
+  // works for another device; without it we fall back to the hosted build.
+  useEffect(() => {
+    if (appContext.type !== 'electron-client') {
+      return
+    }
+    appContext.ipc
+      .send<SyncServerInfo>('sync:get-server-info')
+      .then((info) => setHostedBaseUrl(info.lanWebAppUrl ?? null))
+  }, [appContext, syncServerLanEnabled])
 
   const baseUrl =
-    process.env.NODE_ENV === 'development'
+    hostedBaseUrl ??
+    (process.env.NODE_ENV === 'development'
       ? `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
-      : 'https://tapes-monorepo-web-client.vercel.app'
+      : 'https://tapes-monorepo-web-client.vercel.app')
 
   return (
     <div className="flex flex-col gap-4">
@@ -299,21 +315,26 @@ function SyncSettings() {
             Share with other devices on this network
           </label>
           <p className="pl-2 text-xs text-zinc-500">
-            Anyone on your local network can connect to the sync server while
-            this is enabled. Devices served over HTTPS (like the hosted web
-            client) cannot connect to a local ws:// address.
+            Anyone on your local network can connect while this is enabled. Open
+            the app URL below on another device to browse, play back, and sync
+            recordings — no install needed. Recording from a guest device
+            requires a secure (HTTPS) connection and isn&apos;t available yet
+            over plain http.
           </p>
-          {syncServerLanEnabled === 'true' && serverInfo?.lanUrl && (
+          {syncServerLanEnabled === 'true' && serverInfo?.lanWebAppUrl && (
             <div className="flex items-center gap-2 pl-2">
-              <p className="truncate text-xs" title={serverInfo.lanUrl}>
-                {serverInfo.lanUrl}
+              <p
+                className="truncate text-xs"
+                title={serverInfo.lanWebAppUrl}
+              >
+                {serverInfo.lanWebAppUrl}
               </p>
               <Button
                 className="w-fit rounded-full p-2"
-                title="Copy sync server URL to clipboard"
+                title="Copy web app URL to clipboard"
                 onClick={() => {
-                  if (serverInfo.lanUrl) {
-                    navigator.clipboard.writeText(serverInfo.lanUrl)
+                  if (serverInfo.lanWebAppUrl) {
+                    navigator.clipboard.writeText(serverInfo.lanWebAppUrl)
                   }
                 }}
               >

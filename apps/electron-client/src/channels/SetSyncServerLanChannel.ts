@@ -4,6 +4,7 @@ import { startSyncServer, stopSyncServer } from '@/syncServer'
 import {
   readSyncServerConfig,
   syncStoragePath,
+  webClientPath,
   writeSyncServerConfig,
 } from '@/syncServerConfig'
 
@@ -25,6 +26,7 @@ export class SetSyncServerLanChannel implements IpcChannel {
         storagePath: syncStoragePath(),
         host: enabled ? '0.0.0.0' : '127.0.0.1',
         peerId: config.peerId,
+        webClientPath: webClientPath(),
       })
 
       event.sender.send(responseChannel, info)
