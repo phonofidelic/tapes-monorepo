@@ -37,6 +37,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
+    "@types/ws": "^8.5.13",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "@vitejs/plugin-react": "^6.0.3",
@@ -74,6 +75,10 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@automerge/automerge": "^3.0.0",
+    "@automerge/automerge-repo": "^2.0.0",
+    "@automerge/automerge-repo-network-websocket": "^2.0.0",
+    "@automerge/automerge-repo-storage-nodefs": "^2.0.0",
     "@dotenvx/dotenvx": "^2.0.0",
     "@tapes-monorepo/core": "*",
     "clsx": "^2.1.1",
@@ -81,6 +86,7 @@
     "node-stream-zip": "^1.15.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "update-electron-app": "^3.1.0"
+    "update-electron-app": "^3.1.0",
+    "ws": "^8.18.0"
   }
 }

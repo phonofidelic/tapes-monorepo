@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   MdOutlineContentCopy,
   MdOutlineFileUpload,
@@ -11,6 +11,7 @@ import { useAppContext } from '@/context/AppContext'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useAutomergeUrl } from '@/utils'
+import { SyncServerInfo } from '@/IpcService'
 
 export function Settings() {
   const appContext = useAppContext()
@@ -116,6 +117,7 @@ export function Settings() {
           </div>
         </div>
       )}
+      {appContext.type === 'electron-client' && <SyncSettings />}
       <div className="flex flex-col gap-2">
         <h2>Data</h2>
         <div className="flex flex-col gap-2 p-2">
@@ -177,6 +179,150 @@ export function Settings() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function SyncSettings() {
+  const appContext = useAppContext()
+  const [syncServerMode, setSyncServerMode] = useSetting('syncServerMode')
+  const [remoteSyncServerUrl, setRemoteSyncServerUrl] = useSetting(
+    'remoteSyncServerUrl',
+  )
+  const [syncServerLanEnabled, setSyncServerLanEnabled] = useSetting(
+    'syncServerLanEnabled',
+  )
+  const [remoteUrlDraft, setRemoteUrlDraft] = useState(
+    remoteSyncServerUrl ?? '',
+  )
+  const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
+
+  const mode = syncServerMode ?? 'embedded'
+
+  useEffect(() => {
+    if (appContext.type !== 'electron-client' || mode !== 'embedded') {
+      return
+    }
+    appContext.ipc
+      .send<SyncServerInfo>('sync:get-server-info')
+      .then(setServerInfo)
+  }, [appContext, mode])
+
+  if (appContext.type !== 'electron-client') {
+    return null
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h2>Sync</h2>
+      <label className="flex flex-col gap-2 text-sm">
+        <h3>Sync server:</h3>
+        <select
+          className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onChange={(event) => {
+            const value = event.target.value as 'embedded' | 'remote'
+            setSyncServerMode(value)
+            if (value === 'embedded' || remoteSyncServerUrl) {
+              window.location.reload()
+            }
+          }}
+          defaultValue={mode}
+        >
+          <option value="embedded">This device (built-in)</option>
+          <option value="remote">Remote server</option>
+        </select>
+      </label>
+      {mode === 'remote' && (
+        <div className="flex w-full items-center justify-between gap-5 text-sm">
+          <TextInput
+            label="Remote sync server URL"
+            type="text"
+            name="remote-sync-server-url"
+            id="remote-sync-server-url"
+            value={remoteUrlDraft}
+            onChange={(event) => setRemoteUrlDraft(event.target.value)}
+            validate={(value) => {
+              try {
+                const url = new URL(value)
+                if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+                  return 'Must be a ws:// or wss:// URL'
+                }
+                return undefined
+              } catch {
+                return 'Invalid URL'
+              }
+            }}
+          />
+          <Button
+            className="w-fit p-2"
+            title="Save sync server URL"
+            onClick={() => {
+              try {
+                const url = new URL(remoteUrlDraft)
+                if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+                  return
+                }
+              } catch {
+                return
+              }
+              setRemoteSyncServerUrl(remoteUrlDraft)
+              window.location.reload()
+            }}
+          >
+            Save
+          </Button>
+        </div>
+      )}
+      {mode === 'embedded' && (
+        <div className="flex flex-col gap-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={syncServerLanEnabled === 'true'}
+              onChange={async (event) => {
+                const enabled = event.target.checked
+                const info = (await appContext.ipc.send<
+                  SyncServerInfo | undefined
+                >('sync:set-lan-enabled', {
+                  data: { enabled },
+                })) as SyncServerInfo | undefined
+
+                if (!info) {
+                  console.error('No response from sync:set-lan-enabled')
+                  return
+                }
+
+                setSyncServerLanEnabled(enabled ? 'true' : 'false')
+                setServerInfo(info)
+              }}
+            />
+            Share with other devices on this network
+          </label>
+          <p className="pl-2 text-xs text-zinc-500">
+            Anyone on your local network can connect to the sync server while
+            this is enabled. Devices served over HTTPS (like the hosted web
+            client) cannot connect to a local ws:// address.
+          </p>
+          {syncServerLanEnabled === 'true' && serverInfo?.lanUrl && (
+            <div className="flex items-center gap-2 pl-2">
+              <p className="truncate text-xs" title={serverInfo.lanUrl}>
+                {serverInfo.lanUrl}
+              </p>
+              <Button
+                className="w-fit rounded-full p-2"
+                title="Copy sync server URL to clipboard"
+                onClick={() => {
+                  if (serverInfo.lanUrl) {
+                    navigator.clipboard.writeText(serverInfo.lanUrl)
+                  }
+                }}
+              >
+                <MdOutlineContentCopy />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
