@@ -5156,6 +5156,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/node-forge@npm:^1.3.0":
+  version: 1.3.14
+  resolution: "@types/node-forge@npm:1.3.14"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/da6158fd34fa7652aa7f8164508f97a76b558724ab292f13c257e39d54d95d4d77604e8fb14dc454a867f1aeec7af70118294889195ec4400cecbb8a5c77a212
+  languageName: node
+  linkType: hard
+
 "@types/node@npm:*, @types/node@npm:>=10.0.0":
   version: 26.1.1
   resolution: "@types/node@npm:26.1.1"
@@ -5228,6 +5237,15 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10c0/a58ba341cb9e7d74f71810a88862da7b2a6fa42e2a1fc0ce40498f6ea1d44382f0640117057da779f74c47039f7166bf48fad02dc876f94e005c7afa50f5e129
+  languageName: node
+  linkType: hard
+
+"@types/selfsigned@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "@types/selfsigned@npm:2.1.0"
+  dependencies:
+    selfsigned: "npm:*"
+  checksum: 10c0/26d394f8ebba1a6651dcb437a50158d4f098ef918ee8e3d2494030ac0c3e1641282ce67002f3e359113b6e673c74ddd0612c2f509a05d0d1b348ab521c853c79
   languageName: node
   linkType: hard
 
@@ -8180,6 +8198,7 @@ __metadata:
     "@types/node": "npm:^24.0.0"
     "@types/react": "npm:^19.0.1"
     "@types/react-dom": "npm:^19.0.1"
+    "@types/selfsigned": "npm:^2.1.0"
     "@types/ws": "npm:^8.5.13"
     "@typescript-eslint/eslint-plugin": "npm:^8.0.0"
     "@typescript-eslint/parser": "npm:^8.0.0"
@@ -8196,7 +8215,7 @@ __metadata:
     prettier-plugin-tailwindcss: "npm:^0.8.1"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
-    selfsigned: "npm:^5.5.0"
+    selfsigned: "npm:^2.4.1"
     tailwindcss: "npm:^4.3.3"
     ts-node: "npm:^10.9.2"
     typescript: "npm:~6.0.0"
@@ -12634,6 +12653,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-forge@npm:^1":
+  version: 1.4.0
+  resolution: "node-forge@npm:1.4.0"
+  checksum: 10c0/67330a5f1f95257a4c8a93b7d555abe87b5f15e350123aa396c97a21a8ca94f9c6549008eb2c73668a91e0d7e3a905785acbd8f8bd0751c29401292011f8f8e1
+  languageName: node
+  linkType: hard
+
 "node-gyp-build-optional-packages@npm:5.1.1":
   version: 5.1.1
   resolution: "node-gyp-build-optional-packages@npm:5.1.1"
@@ -14577,13 +14603,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selfsigned@npm:^5.5.0":
+"selfsigned@npm:*":
   version: 5.5.0
   resolution: "selfsigned@npm:5.5.0"
   dependencies:
     "@peculiar/x509": "npm:^1.14.2"
     pkijs: "npm:^3.3.3"
   checksum: 10c0/a31e9d928e22cd6f4e14759a099feba79d9d789c852c7cf65ff8e2f62d7f6313fe477639590e7ed06115b4516a4bebbe0dec5d072a2d01cc372a9cfd58eb893b
+  languageName: node
+  linkType: hard
+
+"selfsigned@npm:^2.4.1":
+  version: 2.4.1
+  resolution: "selfsigned@npm:2.4.1"
+  dependencies:
+    "@types/node-forge": "npm:^1.3.0"
+    node-forge: "npm:^1"
+  checksum: 10c0/521829ec36ea042f7e9963bf1da2ed040a815cf774422544b112ec53b7edc0bc50a0f8cc2ae7aa6cc19afa967c641fd96a15de0fc650c68651e41277d2e1df09
   languageName: node
   linkType: hard
 

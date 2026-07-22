@@ -21,9 +21,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
   const config = readSyncServerConfig()
   const host = config.lanEnabled ? '0.0.0.0' : '127.0.0.1'
   const lanIp = config.lanEnabled ? getLocalNetworkIp() : undefined
-  const tls = config.httpsEnabled
-    ? await ensureSyncServerCert(lanIp)
-    : undefined
+  const tls = config.httpsEnabled ? ensureSyncServerCert(lanIp) : undefined
 
   return startSyncServer({
     storagePath: syncStoragePath(),

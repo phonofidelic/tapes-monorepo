@@ -22,33 +22,25 @@ function readMeta(): CertMeta | null {
   }
 }
 
-async function generateCert(lanIp: string | undefined): Promise<TlsMaterial> {
-  // type 2 = DNS name, type 7 = IP address (see selfsigned SubjectAltName).
-  const altNames = [
-    { type: 2 as const, value: 'localhost' },
-    { type: 7 as const, ip: '127.0.0.1' },
+function generateCert(lanIp: string | undefined): TlsMaterial {
+  // type 2 = DNS name, type 7 = IP address (see node-forge altNames).
+  const altNames: Array<{ type: number; value?: string; ip?: string }> = [
+    { type: 2, value: 'localhost' },
+    { type: 7, ip: '127.0.0.1' },
   ]
   if (lanIp) {
-    altNames.push({ type: 7 as const, ip: lanIp })
+    altNames.push({ type: 7, ip: lanIp })
   }
 
-  const notBeforeDate = new Date()
-  const notAfterDate = new Date(notBeforeDate)
-  notAfterDate.setFullYear(notAfterDate.getFullYear() + 10)
-
-  const pems = await generate(
-    [{ name: 'commonName', value: lanIp ?? 'localhost' }],
-    {
-      keySize: 2048,
-      algorithm: 'sha256',
-      notBeforeDate,
-      notAfterDate,
-      extensions: [
-        { name: 'basicConstraints', cA: false },
-        { name: 'subjectAltName', altNames },
-      ],
-    },
-  )
+  const pems = generate([{ name: 'commonName', value: lanIp ?? 'localhost' }], {
+    keySize: 2048,
+    algorithm: 'sha256',
+    days: 3650,
+    extensions: [
+      { name: 'basicConstraints', cA: false },
+      { name: 'subjectAltName', altNames },
+    ],
+  })
 
   return { key: pems.private, cert: pems.cert }
 }
@@ -59,9 +51,7 @@ async function generateCert(lanIp: string | undefined): Promise<TlsMaterial> {
  * IP changes. Persisting the cert means a guest's accepted browser exception
  * survives app restarts. `key.pem`/`cert.pem` live under `userData/sync-tls`.
  */
-export async function ensureSyncServerCert(
-  lanIp: string | undefined,
-): Promise<TlsMaterial> {
+export function ensureSyncServerCert(lanIp: string | undefined): TlsMaterial {
   mkdirSync(certDir(), { recursive: true })
 
   const meta = readMeta()
@@ -72,7 +62,7 @@ export async function ensureSyncServerCert(
     }
   }
 
-  const material = await generateCert(lanIp)
+  const material = generateCert(lanIp)
   writeFileSync(keyPath(), material.key)
   writeFileSync(certPath(), material.cert)
   writeFileSync(metaPath(), JSON.stringify({ lanIp }, null, 2))
