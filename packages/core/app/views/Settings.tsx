@@ -316,10 +316,10 @@ function SyncSettings() {
           </label>
           <p className="pl-2 text-xs text-zinc-500">
             Anyone on your local network can connect while this is enabled. Open
-            the app URL below on another device to browse, play back, and sync
-            recordings — no install needed. Recording from a guest device
-            requires a secure (HTTPS) connection and isn&apos;t available yet
-            over plain http.
+            the app URL below on another device to browse the synced recording
+            library — no install needed. Playing back and recording audio on a
+            guest device both require a secure (HTTPS) connection, which
+            isn&apos;t available yet over plain http.
           </p>
           {syncServerLanEnabled === 'true' && serverInfo?.lanWebAppUrl && (
             <div className="flex items-center gap-2 pl-2">
