@@ -6,6 +6,9 @@ import { app } from 'electron'
 export type SyncServerConfig = {
   peerId: string
   lanEnabled: boolean
+  // Serve the LAN over self-signed HTTPS so guests get a secure context
+  // (required for playback and recording, not just plain browsing).
+  httpsEnabled: boolean
 }
 
 const configFilePath = () =>
@@ -35,7 +38,11 @@ export function readSyncServerConfig(): SyncServerConfig {
       readFileSync(configFilePath(), 'utf-8'),
     ) as Partial<SyncServerConfig>
     if (typeof stored.peerId === 'string') {
-      return { peerId: stored.peerId, lanEnabled: stored.lanEnabled === true }
+      return {
+        peerId: stored.peerId,
+        lanEnabled: stored.lanEnabled === true,
+        httpsEnabled: stored.httpsEnabled === true,
+      }
     }
   } catch {
     // Missing or corrupt config falls through to defaults.
@@ -44,6 +51,7 @@ export function readSyncServerConfig(): SyncServerConfig {
   const config: SyncServerConfig = {
     peerId: `tapes-embedded-${crypto.randomUUID()}`,
     lanEnabled: false,
+    httpsEnabled: false,
   }
   writeSyncServerConfig(config)
   return config

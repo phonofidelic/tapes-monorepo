@@ -9,12 +9,9 @@ import installExtension, {
 import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
 import { cacheServer } from './cacheServer'
-import { startSyncServer, stopSyncServer } from './syncServer'
-import {
-  readSyncServerConfig,
-  syncStoragePath,
-  webClientPath,
-} from './syncServerConfig'
+import { stopSyncServer } from './syncServer'
+import { startSyncServerFromConfig } from './syncServerRuntime'
+import { getSyncServerCertPem } from './certManager'
 
 updateElectronApp()
 
@@ -42,7 +39,25 @@ export class MainWindow {
     app.on('window-all-closed', this.onWindowAllClosed)
     app.on('activate', this.onActivate)
     app.on('will-quit', this.onWillQuit)
+    this.registerSyncServerCertTrust()
     this.registerIpcChannels(ipcChannels)
+  }
+
+  // When the embedded sync server runs over HTTPS, the host's own renderer
+  // connects to it at `wss://127.0.0.1` with our self-signed cert. Trust
+  // exactly that cert (by PEM match) so the loopback connection succeeds
+  // without disabling verification for anything else.
+  private registerSyncServerCertTrust() {
+    const normalize = (pem: string) => pem.replace(/\s+/g, '')
+    app.on('certificate-error', (event, _webContents, _url, _error, cert, callback) => {
+      const ourCert = getSyncServerCertPem()
+      if (ourCert && cert.data && normalize(cert.data) === normalize(ourCert)) {
+        event.preventDefault()
+        callback(true)
+        return
+      }
+      callback(false)
+    })
   }
 
   private async createWindow() {
@@ -115,13 +130,7 @@ export class MainWindow {
 
   private async startSyncServer() {
     try {
-      const config = readSyncServerConfig()
-      await startSyncServer({
-        storagePath: syncStoragePath(),
-        host: config.lanEnabled ? '0.0.0.0' : '127.0.0.1',
-        peerId: config.peerId,
-        webClientPath: webClientPath(),
-      })
+      await startSyncServerFromConfig()
     } catch (error) {
       console.error('Failed to start sync server:', error)
     }

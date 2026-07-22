@@ -4,6 +4,6 @@ import { config } from "@tapes-monorepo/eslint-config/react-internal";
 export default [
   ...config,
   {
-    ignores: [".vite/**", "downloadExecutables.js"],
+    ignores: [".vite/**", "web-client/**", "downloadExecutables.js"],
   },
 ];

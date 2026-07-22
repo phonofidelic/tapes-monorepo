@@ -208,6 +208,9 @@ function SyncSettings() {
   const [syncServerLanEnabled, setSyncServerLanEnabled] = useSetting(
     'syncServerLanEnabled',
   )
+  const [syncServerHttpsEnabled, setSyncServerHttpsEnabled] = useSetting(
+    'syncServerHttpsEnabled',
+  )
   const [remoteUrlDraft, setRemoteUrlDraft] = useState(
     remoteSyncServerUrl ?? '',
   )
@@ -317,10 +320,44 @@ function SyncSettings() {
           <p className="pl-2 text-xs text-zinc-500">
             Anyone on your local network can connect while this is enabled. Open
             the app URL below on another device to browse the synced recording
-            library — no install needed. Playing back and recording audio on a
-            guest device both require a secure (HTTPS) connection, which
-            isn&apos;t available yet over plain http.
+            library — no install needed.
           </p>
+          {syncServerLanEnabled === 'true' && (
+            <>
+              <label className="flex items-center gap-2 pl-2">
+                <input
+                  type="checkbox"
+                  checked={syncServerHttpsEnabled === 'true'}
+                  onChange={async (event) => {
+                    const enabled = event.target.checked
+                    const info = (await appContext.ipc.send<
+                      SyncServerInfo | undefined
+                    >('sync:set-https-enabled', {
+                      data: { enabled },
+                    })) as SyncServerInfo | undefined
+
+                    if (!info) {
+                      console.error('No response from sync:set-https-enabled')
+                      return
+                    }
+
+                    setSyncServerHttpsEnabled(enabled ? 'true' : 'false')
+                    setServerInfo(info)
+                    // The server's scheme (ws/wss) changed, so this device's
+                    // own connection URL is now stale — reconnect on reload.
+                    window.location.reload()
+                  }}
+                />
+                Use HTTPS (lets guests play back and record)
+              </label>
+              <p className="pl-2 text-xs text-zinc-500">
+                Guests need a secure connection to play back or record audio.
+                With HTTPS on, a guest accepts a one-time certificate warning
+                (the certificate is self-signed by this device), then gets full
+                functionality. Without it, guests can only browse the library.
+              </p>
+            </>
+          )}
           {syncServerLanEnabled === 'true' && serverInfo?.lanWebAppUrl && (
             <div className="flex items-center gap-2 pl-2">
               <p

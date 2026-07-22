@@ -5,6 +5,7 @@ import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { OpenDirectoryDialogChannel } from './channels/OpenDirectoryDialogChannel'
 import { SetDefaultAudioInputChannel } from './channels/SetDefaultAudioInputChannel'
 import { SetSyncServerLanChannel } from './channels/SetSyncServerLanChannel'
+import { SetSyncServerHttpsChannel } from './channels/SetSyncServerHttpsChannel'
 import { MainWindow } from './main'
 
 new MainWindow().init([
@@ -15,4 +16,5 @@ new MainWindow().init([
   new SetDefaultAudioInputChannel(),
   new GetSyncServerInfoChannel(),
   new SetSyncServerLanChannel(),
+  new SetSyncServerHttpsChannel(),
 ])

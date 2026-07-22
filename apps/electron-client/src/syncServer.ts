@@ -1,4 +1,5 @@
 import http from 'http'
+import https from 'https'
 import os from 'os'
 import path from 'path'
 import { readFile } from 'fs/promises'
@@ -39,6 +40,13 @@ export type SyncServerOptions = {
    * health-check and only the WebSocket sync endpoint is exposed.
    */
   webClientPath?: string
+  /**
+   * Self-signed key+cert. When provided the server runs over HTTPS (and the
+   * sync socket over `wss://`) on the same port, so a guest gets a secure
+   * context — required for both recording and OPFS-backed playback — and the
+   * `wss://` handshake reuses the accepted cert exception (same origin).
+   */
+  tls?: { key: string; cert: string }
 }
 
 type RunningSyncServer = {
@@ -181,10 +189,13 @@ export async function startSyncServer(
     await initializeBase64Wasm(automergeWasmBase64)
   }
 
-  const { storagePath, host, peerId, webClientPath } = options
+  const { storagePath, host, peerId, webClientPath, tls } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
 
-  const server = http.createServer(createRequestHandler(webClientPath))
+  const handler = createRequestHandler(webClientPath)
+  const server = tls
+    ? https.createServer({ key: tls.key, cert: tls.cert }, handler)
+    : http.createServer(handler)
 
   let port: number
   try {
@@ -214,15 +225,17 @@ export async function startSyncServer(
   })
 
   const lanIp = host === '0.0.0.0' ? getLocalNetworkIp() : undefined
+  const wsScheme = tls ? 'wss' : 'ws'
+  const httpScheme = tls ? 'https' : 'http'
 
   current = {
     info: {
       running: true,
-      url: `ws://127.0.0.1:${port}`,
-      lanUrl: lanIp ? `ws://${lanIp}:${port}` : undefined,
-      webAppUrl: webClientPath ? `http://127.0.0.1:${port}` : undefined,
+      url: `${wsScheme}://127.0.0.1:${port}`,
+      lanUrl: lanIp ? `${wsScheme}://${lanIp}:${port}` : undefined,
+      webAppUrl: webClientPath ? `${httpScheme}://127.0.0.1:${port}` : undefined,
       lanWebAppUrl:
-        webClientPath && lanIp ? `http://${lanIp}:${port}` : undefined,
+        webClientPath && lanIp ? `${httpScheme}://${lanIp}:${port}` : undefined,
       port,
       host,
     },
@@ -231,7 +244,7 @@ export async function startSyncServer(
     server,
   }
 
-  console.log(`Sync server listening on ws://${host}:${port}`)
+  console.log(`Sync server listening on ${wsScheme}://${host}:${port}`)
 
   return current.info
 }
