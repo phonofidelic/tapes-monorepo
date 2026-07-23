@@ -1,6 +1,6 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App, IpcService } from '@tapes-monorepo/core'
+import { App, IpcService, SyncServerInfo } from '@tapes-monorepo/core'
 import './index.css'
 
 const rootElement = document.getElementById('root')
@@ -8,13 +8,55 @@ if (!rootElement) {
   throw new Error('Root element not found')
 }
 
-if (!import.meta.env.VITE_SYNC_SERVER_URL) {
-  throw new Error('VITE_SYNC_SERVER_URL not set')
-}
-
 const appContextValue = {
   type: 'electron-client' as const,
   ipc: new IpcService(),
+}
+
+function getRemoteSyncServerUrl(): string | undefined {
+  // Settings are written by core's SettingsProvider under this key.
+  const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as {
+    syncServerMode?: string
+    remoteSyncServerUrl?: string
+  }
+
+  const remoteUrl =
+    settings.remoteSyncServerUrl ?? import.meta.env.VITE_SYNC_SERVER_URL
+
+  return settings.syncServerMode === 'remote' ? remoteUrl : undefined
+}
+
+function ElectronAppRoot() {
+  const [syncServerUrl, setSyncServerUrl] = useState<string | null>(
+    () => getRemoteSyncServerUrl() ?? null,
+  )
+
+  useEffect(() => {
+    if (syncServerUrl) {
+      return
+    }
+
+    appContextValue.ipc
+      .send<SyncServerInfo>('sync:get-server-info')
+      .then((info) => {
+        if (info.running) {
+          setSyncServerUrl(info.url)
+          return
+        }
+        const fallbackUrl = import.meta.env.VITE_SYNC_SERVER_URL
+        if (fallbackUrl) {
+          setSyncServerUrl(fallbackUrl)
+          return
+        }
+        console.error('Embedded sync server is not running')
+      })
+  }, [syncServerUrl])
+
+  if (!syncServerUrl) {
+    return null
+  }
+
+  return <App appContextValue={appContextValue} syncServerUrl={syncServerUrl} />
 }
 
 const root = createRoot(rootElement)
@@ -40,10 +82,7 @@ root.render(
           zIndex: 999,
         }}
       />
-      <App
-        appContextValue={appContextValue}
-        syncServerUrl={import.meta.env.VITE_SYNC_SERVER_URL}
-      />
+      <ElectronAppRoot />
     </div>
   </StrictMode>,
 )

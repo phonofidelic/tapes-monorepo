@@ -165,10 +165,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge@npm:2.2.8 - 3":
-  version: 3.3.1
-  resolution: "@automerge/automerge@npm:3.3.1"
-  checksum: 10c0/a0c113bdb1e5fd59cba06c2985a35164b4ce88a9f1f2613b9e5ef66233c746abd5952de46308aecb35461642fa011ebc0a49ed9d9e22d1e6f5b61b11cb3e5d84
+"@automerge/automerge@npm:2.2.8 - 3, @automerge/automerge@npm:^3.0.0":
+  version: 3.3.2
+  resolution: "@automerge/automerge@npm:3.3.2"
+  checksum: 10c0/4a191afa935575478d487184c8309483384d5c830f932a6f2ef4c23e5be525658eb0425fe8e08c0f0226823117bf7af719382100e222ff83aa8d44bc44d34f21
   languageName: node
   linkType: hard
 
@@ -7975,6 +7975,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "electron-client@workspace:apps/electron-client"
   dependencies:
+    "@automerge/automerge": "npm:^3.0.0"
+    "@automerge/automerge-repo": "npm:^2.0.0"
+    "@automerge/automerge-repo-network-websocket": "npm:^2.0.0"
+    "@automerge/automerge-repo-storage-nodefs": "npm:^2.0.0"
     "@dotenvx/dotenvx": "npm:^2.0.0"
     "@electron-forge/cli": "npm:^7.6.0"
     "@electron-forge/maker-deb": "npm:^7.6.0"
@@ -7997,6 +8001,7 @@ __metadata:
     "@types/node": "npm:^24.0.0"
     "@types/react": "npm:^19.0.1"
     "@types/react-dom": "npm:^19.0.1"
+    "@types/ws": "npm:^8.5.13"
     "@typescript-eslint/eslint-plugin": "npm:^8.0.0"
     "@typescript-eslint/parser": "npm:^8.0.0"
     "@vitejs/plugin-react": "npm:^6.0.3"
@@ -8020,6 +8025,7 @@ __metadata:
     vite-plugin-require: "npm:^1.2.14"
     vite-plugin-top-level-await: "npm:^1.6.0"
     vite-plugin-wasm: "npm:^3.6.0"
+    ws: "npm:^8.18.0"
   peerDependencies:
     esbuild-register: "*"
     ts-node: "*"

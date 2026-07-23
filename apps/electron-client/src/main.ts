@@ -9,6 +9,8 @@ import installExtension, {
 import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
 import { cacheServer } from './cacheServer'
+import { startSyncServer, stopSyncServer } from './syncServer'
+import { readSyncServerConfig, syncStoragePath } from './syncServerConfig'
 
 updateElectronApp()
 
@@ -29,11 +31,13 @@ export class MainWindow {
     // Some APIs can only be used after this event occurs.
     app.on('ready', () => {
       this.startCacheServer()
+      this.startSyncServer()
       this.registerCustomProtocols()
       this.createWindow()
     })
     app.on('window-all-closed', this.onWindowAllClosed)
     app.on('activate', this.onActivate)
+    app.on('will-quit', this.onWillQuit)
     this.registerIpcChannels(ipcChannels)
   }
 
@@ -101,6 +105,37 @@ export class MainWindow {
         channel.handle(event, request),
       ),
     )
+  }
+
+  private syncServerStopped = false
+
+  private async startSyncServer() {
+    try {
+      const config = readSyncServerConfig()
+      await startSyncServer({
+        storagePath: syncStoragePath(),
+        host: config.lanEnabled ? '0.0.0.0' : '127.0.0.1',
+        peerId: config.peerId,
+      })
+    } catch (error) {
+      console.error('Failed to start sync server:', error)
+    }
+  }
+
+  private onWillQuit = (event: Electron.Event) => {
+    // Flush the Automerge repo to disk before the process exits.
+    if (this.syncServerStopped) {
+      return
+    }
+    event.preventDefault()
+    this.syncServerStopped = true
+    stopSyncServer()
+      .catch((error) => {
+        console.error('Failed to stop sync server:', error)
+      })
+      .finally(() => {
+        app.exit(0)
+      })
   }
 
   private startCacheServer() {

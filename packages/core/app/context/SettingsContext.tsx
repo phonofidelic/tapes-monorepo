@@ -6,6 +6,9 @@ type Settings = {
   audioChannelCount: '1' | '2' | undefined
   storageLocation: string | undefined
   automergeUrl: string | undefined
+  syncServerMode: 'embedded' | 'remote' | undefined
+  remoteSyncServerUrl: string | undefined
+  syncServerLanEnabled: 'true' | 'false' | undefined
 }
 
 const SettingsContext = createContext<{

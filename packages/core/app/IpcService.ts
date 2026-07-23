@@ -18,6 +18,16 @@ export type ValidIpcChanel =
   | 'storage:delete-recording'
   | 'recorder:start'
   | 'recorder:stop'
+  | 'sync:get-server-info'
+  | 'sync:set-lan-enabled'
+
+export type SyncServerInfo = {
+  running: boolean
+  url: string
+  lanUrl?: string
+  port: number
+  host: string
+}
 
 type IpcRequest = {
   responseChannel?: string
@@ -83,6 +93,8 @@ type IpcSendArgs =
       },
     ]
   | ['recorder:stop', IpcRequest]
+  | ['sync:get-server-info']
+  | ['sync:set-lan-enabled', IpcRequest & { data: { enabled: boolean } }]
 export class IpcService {
   private ipcRenderer?: Window['api']
 

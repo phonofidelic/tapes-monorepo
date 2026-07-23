@@ -11,6 +11,8 @@ const validChannels: ValidIpcChanel[] = [
   'storage:delete-recording',
   'recorder:start',
   'recorder:stop',
+  'sync:get-server-info',
+  'sync:set-lan-enabled',
 ]
 
 const validResponseChannels = validChannels.map(

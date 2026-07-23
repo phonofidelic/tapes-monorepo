@@ -1,8 +1,10 @@
 import { CreateRecordingChannel } from './channels/CreateRecordingChannel'
 import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
 import { EditRecordingChannel } from './channels/EditRecordingChannel'
+import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { OpenDirectoryDialogChannel } from './channels/OpenDirectoryDialogChannel'
 import { SetDefaultAudioInputChannel } from './channels/SetDefaultAudioInputChannel'
+import { SetSyncServerLanChannel } from './channels/SetSyncServerLanChannel'
 import { MainWindow } from './main'
 
 new MainWindow().init([
@@ -11,4 +13,6 @@ new MainWindow().init([
   new EditRecordingChannel(),
   new DeleteRecordingChannel(),
   new SetDefaultAudioInputChannel(),
+  new GetSyncServerInfoChannel(),
+  new SetSyncServerLanChannel(),
 ])
