@@ -7,6 +7,7 @@
     "dev:https": "turbo run @tapes-monorepo/ui#dev @tapes-monorepo/core#dev:https electron-client#dev web-client#dev:https api#dev",
     "lint": "turbo lint",
     "check-types": "turbo check-types",
+    "test": "turbo test",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "clean": "turbo run clean"
   },

@@ -38,6 +38,12 @@ jobs:
       - name: Build
         run: yarn build
 
+      # Scoped to core: apps/api has its own (Jest) suite with a pre-existing
+      # compile failure unrelated to this gate, so run only the package whose
+      # unit tests this step is meant to guard.
+      - name: Unit Tests
+        run: yarn turbo test --filter=@tapes-monorepo/core
+
   e2e:
     name: E2E (web-client)
     runs-on: ubuntu-latest
