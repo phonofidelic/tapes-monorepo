@@ -10,5 +10,11 @@ export default defineConfig({
   resolve: {
     conditions: ['node'],
   },
+  // The Automerge WASM glue emits top-level await and destructuring; esbuild
+  // can't down-level those to Vite's default browser target, so build for the
+  // modern Electron main runtime (Node) where both are supported natively.
+  build: {
+    target: 'esnext',
+  },
   plugins: [wasm(), topLevelAwait()],
 })
