@@ -22,14 +22,23 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
   const config = readSyncServerConfig()
   const host = config.lanEnabled ? '0.0.0.0' : '127.0.0.1'
   const lanIp = config.lanEnabled ? getLocalNetworkIp() : undefined
-  const tls = config.httpsEnabled ? ensureSyncServerCert(lanIp) : undefined
+
+  // In the HMR dev flow, guests don't hit the sync socket directly: they load
+  // the web-client's Vite dev server and reach the socket through its `/sync`
+  // proxy over loopback. Both the loopback hop and the dev server (basic-ssl)
+  // are already secure contexts, so the embedded server needs no TLS of its own
+  // — and running it plain keeps that proxy's `ws://` target valid. TLS is only
+  // for the production flow, where guests connect to this origin directly.
+  const devWebAppUrl = webClientDevUrl()
+  const tls =
+    config.httpsEnabled && !devWebAppUrl ? ensureSyncServerCert(lanIp) : undefined
 
   return startSyncServer({
     storagePath: syncStoragePath(),
     host,
     peerId: config.peerId,
     webClientPath: webClientPath(),
-    webAppDevUrl: webClientDevUrl(),
+    webAppDevUrl: devWebAppUrl,
     tls,
   })
 }
