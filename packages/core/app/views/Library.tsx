@@ -140,7 +140,7 @@ function LibraryListItem({
             <Button
               title="Options"
               className={clsx(
-                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs',
+                'rounded-full bg-none p-2 pointer-fine:opacity-0 transition-opacity ease-in group-hover:opacity-100 pointer-none:opacity-100 hover:bg-none hover:shadow-xs',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
@@ -152,7 +152,7 @@ function LibraryListItem({
             <Button
               title="Play recording"
               className={clsx(
-                'rounded-full bg-none p-2 opacity-0 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs',
+                'rounded-full bg-none p-2 pointer-fine:opacity-0 transition-opacity ease-in group-hover:opacity-100 pointer-none:opacity-100 hover:bg-none hover:shadow-xs',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
