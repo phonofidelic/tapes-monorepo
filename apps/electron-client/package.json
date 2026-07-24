@@ -7,7 +7,8 @@
   "repository": "github:phonofidelic/tapes-monorepo",
   "scripts": {
     "get-bin": "tsc downloadExecutables.ts && node downloadExecutables.js",
-    "dev": "LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" dotenvx run --env-file=.env.local -- electron-forge start -- --trace-warnings",
+    "dev": "LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" WEB_CLIENT_DEV_URL=\"http://$(ipconfig getifaddr en0):3000\" dotenvx run --env-file=.env.local -- electron-forge start -- --trace-warnings",
+    "dev:https": "LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" WEB_CLIENT_DEV_URL=\"https://$(ipconfig getifaddr en0):3000\" dotenvx run --env-file=.env.local -- electron-forge start -- --trace-warnings",
     "stage-web-client": "yarn workspace web-client build && find web-client -mindepth 1 ! -name .gitkeep -delete && cp -R ../web-client/dist/. web-client/",
     "package": "yarn stage-web-client && dotenvx run --env-file=.env -- electron-forge package",
     "make": "yarn stage-web-client && dotenvx run --env-file=.env -- electron-forge make",

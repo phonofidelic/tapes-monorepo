@@ -47,6 +47,13 @@ export type SyncServerOptions = {
    * `wss://` handshake reuses the accepted cert exception (same origin).
    */
   tls?: { key: string; cert: string }
+  /**
+   * In development, the LAN URL of the web-client's Vite dev server. When set it
+   * is advertised to guests (as `webAppUrl`/`lanWebAppUrl`) instead of a URL for
+   * the statically served bundle, so guests load the HMR-enabled dev server. The
+   * sync socket still runs here; the dev server proxies `/sync` back to it.
+   */
+  webAppDevUrl?: string
 }
 
 type RunningSyncServer = {
@@ -189,7 +196,8 @@ export async function startSyncServer(
     await initializeBase64Wasm(automergeWasmBase64)
   }
 
-  const { storagePath, host, peerId, webClientPath, tls } = options
+  const { storagePath, host, peerId, webClientPath, tls, webAppDevUrl } =
+    options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
 
   const handler = createRequestHandler(webClientPath)
@@ -233,9 +241,14 @@ export async function startSyncServer(
       running: true,
       url: `${wsScheme}://127.0.0.1:${port}`,
       lanUrl: lanIp ? `${wsScheme}://${lanIp}:${port}` : undefined,
-      webAppUrl: webClientPath ? `${httpScheme}://127.0.0.1:${port}` : undefined,
+      webAppUrl:
+        webAppDevUrl ??
+        (webClientPath ? `${httpScheme}://127.0.0.1:${port}` : undefined),
       lanWebAppUrl:
-        webClientPath && lanIp ? `${httpScheme}://${lanIp}:${port}` : undefined,
+        webAppDevUrl ??
+        (webClientPath && lanIp
+          ? `${httpScheme}://${lanIp}:${port}`
+          : undefined),
       port,
       host,
     },

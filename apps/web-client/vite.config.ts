@@ -29,6 +29,21 @@ export default defineConfig({
     },
   },
   plugins,
+  server: {
+    // When a LAN guest is served the app from this dev server (for HMR), its
+    // Automerge sync socket connects to `/sync` on the same origin. Proxy that
+    // to the Electron host's embedded sync server, which runs on loopback of
+    // this same machine (DEFAULT_SYNC_SERVER_PORT = 9001). `secure: false` lets
+    // a `wss://` guest (dev:https) tunnel to the plain `ws://` loopback target.
+    proxy: {
+      '/sync': {
+        target: 'ws://127.0.0.1:9001',
+        ws: true,
+        secure: false,
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     target: 'esnext',
   },
