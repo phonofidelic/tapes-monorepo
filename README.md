@@ -145,6 +145,5 @@ Pull requests to `main` run (see [`.github/workflows/ci.yml`](./.github/workflow
 
 ## Documentation
 
-Each app and package has its own README with setup and env details. Planning docs
-live in [`docs/planning/`](./docs/planning). Contribution guidelines are in
-[`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Each app and package has its own README with setup and env details. Contribution
+guidelines are in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
