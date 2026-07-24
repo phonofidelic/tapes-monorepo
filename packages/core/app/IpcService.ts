@@ -16,6 +16,7 @@ export type ValidIpcChanel =
   | 'storage:open-directory-dialog'
   | 'storage:edit-recording'
   | 'storage:delete-recording'
+  | 'storage:read-file'
   | 'recorder:start'
   | 'recorder:stop'
   | 'sync:get-server-info'
@@ -76,6 +77,18 @@ export type EditRecordingResponse =
       error: never
     }
 
+export type ReadFileResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { bytes: Uint8Array; mimeType: string }
+      error: never
+    }
+
 type IpcSendArgs =
   | [
       'settings:set-default-audio-input-device',
@@ -87,6 +100,7 @@ type IpcSendArgs =
       IpcRequest & { data: { filename: string; filepath: string } },
     ]
   | ['storage:delete-recording', IpcRequest & { data: { filepath: string } }]
+  | ['storage:read-file', IpcRequest & { data: { filepath: string } }]
   | [
       'recorder:start',
       IpcRequest & {
