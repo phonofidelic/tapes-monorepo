@@ -9,6 +9,7 @@ const validChannels: ValidIpcChanel[] = [
   'storage:open-directory-dialog',
   'storage:edit-recording',
   'storage:delete-recording',
+  'storage:read-file',
   'recorder:start',
   'recorder:stop',
   'sync:get-server-info',
