@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AutomergeUrl } from '@automerge/automerge-repo'
+import { useDocument } from '@automerge/automerge-repo-react-hooks'
+import { RecordingData } from '@/types'
 import { useAppContext } from './AppContext'
 
 type AudioPlayerContextValue = {
@@ -33,6 +35,10 @@ export const AudioPlayerProvider = ({
   const [currentUrl, setCurrentUrl] = useState<AutomergeUrl | undefined>(
     undefined,
   )
+  // The recording doc for whatever is loaded in the player. When it carries
+  // embedded `audio` bytes (synced from another device) we play those directly,
+  // so a guest can play a recording it never made.
+  const [recordingDoc] = useDocument<RecordingData>(currentUrl)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   // Mirrors `duration` so `onEnded` can read the latest value without the
@@ -44,6 +50,27 @@ export const AudioPlayerProvider = ({
   useEffect(() => {
     if (!currentSource) {
       return
+    }
+
+    // Prefer bytes embedded in the synced doc. This path is platform-independent
+    // and is the only one that works for a device that did not record the audio
+    // (its OPFS is empty / it has no `tapes://` handler). The bytes may arrive
+    // asynchronously as the doc syncs in, so this effect re-runs when they do.
+    const embeddedAudio = recordingDoc?.audio
+    if (embeddedAudio) {
+      const objectUrl = URL.createObjectURL(
+        // Automerge types the bytes as Uint8Array<ArrayBufferLike>, but BlobPart
+        // wants Uint8Array<ArrayBuffer>; they are identical at runtime.
+        new Blob([embeddedAudio as BlobPart], {
+          type: recordingDoc?.mimeType ?? 'audio/mp4',
+        }),
+      )
+      if (audioRef.current) {
+        audioRef.current.src = objectUrl
+      }
+      return () => {
+        URL.revokeObjectURL(objectUrl)
+      }
     }
 
     const onMessage = async (event: MessageEvent) => {
@@ -83,7 +110,7 @@ export const AudioPlayerProvider = ({
         appContext.worker.removeEventListener('message', onMessage)
       }
     }
-  }, [currentSource, appContext])
+  }, [currentSource, appContext, recordingDoc?.audio, recordingDoc?.mimeType])
 
   useEffect(() => {
     const audio = audioRef.current

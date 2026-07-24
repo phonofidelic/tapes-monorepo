@@ -13,9 +13,18 @@ import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecorder } from '@/context/RecordingContext'
-import { IpcResponse, StopRecordingResponse } from '@/IpcService'
+import {
+  IpcResponse,
+  ReadFileResponse,
+  StopRecordingResponse,
+} from '@/IpcService'
 
 const NEW_RECORDING_DEFAULT_NAME = 'New recording'
+
+// Recordings larger than this are not embedded in the synced doc (they would
+// bloat the sync payload and every peer's memory). The recording still plays on
+// the device that made it via the local OPFS/`tapes://` fallback.
+const MAX_EMBEDDED_AUDIO_BYTES = 50 * 1024 * 1024
 
 export function Recorder() {
   const appContext = useAppContext()
@@ -34,6 +43,9 @@ export function Recorder() {
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const { time, isRecording, handleFilename, setIsRecording } = useRecorder()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
+  // Guards against a second create while the first is still awaiting the byte
+  // read (the doc is now created after async I/O).
+  const isSavingRef = useRef(false)
 
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
     'frequency',
@@ -44,10 +56,60 @@ export function Recorder() {
   const [editedName, setEditedName] = useState(NEW_RECORDING_DEFAULT_NAME)
   const [hasErrors, setHasErrors] = useState(false)
 
-  const createRecordingDocument = () => {
+  // Reads the just-recorded bytes so they can be embedded in the doc. On web the
+  // bytes live in OPFS (fetched via the worker); on electron they live on disk
+  // (fetched via the `storage:read-file` IPC channel). `recordingFilepath` is the
+  // OPFS filename on web and an absolute path on electron.
+  const readRecordedBytes = async (
+    recordingFilepath: string,
+  ): Promise<{ bytes: Uint8Array; mimeType: string } | null> => {
+    if (appContext.type === 'web-client') {
+      const { worker } = appContext
+      return new Promise((resolve) => {
+        const onMessage = (event: MessageEvent) => {
+          if (event.data?.type !== 'storage:read-bytes:response') {
+            return
+          }
+          worker.removeEventListener('message', onMessage)
+          if (!event.data.success) {
+            console.error('Failed to read recorded bytes:', event.data.error)
+            resolve(null)
+            return
+          }
+          const { bytes } = event.data.payload as { bytes: ArrayBuffer }
+          // Web recordings are captured as audio/mp4 (see RecordingContext).
+          resolve({ bytes: new Uint8Array(bytes), mimeType: 'audio/mp4' })
+        }
+        worker.addEventListener('message', onMessage)
+        worker.postMessage({
+          type: 'storage:read-bytes',
+          payload: { filename: recordingFilepath },
+        })
+      })
+    }
+
+    const response = await appContext.ipc.send<ReadFileResponse>(
+      'storage:read-file',
+      { data: { filepath: recordingFilepath } },
+    )
+    if (!response.success) {
+      console.error('Failed to read recorded bytes:', response.error)
+      return null
+    }
+    return {
+      bytes: new Uint8Array(response.data.bytes),
+      mimeType: response.data.mimeType,
+    }
+  }
+
+  const createRecordingDocument = async () => {
     if (hasErrors) {
       // TODO: add error feedback
       console.log('Validation errors')
+      return
+    }
+
+    if (isSavingRef.current) {
       return
     }
 
@@ -55,25 +117,50 @@ export function Recorder() {
       setEditedName(NEW_RECORDING_DEFAULT_NAME)
     }
 
-    const handle = repo.create<RecordingData>()
-    const url = handle.url
-    handle.change((doc) => {
-      doc.url = url
-      // Extract the filename from the filepath, and remove the extension
-      doc.filename = filepath.split('.')[0].replace(/(^.+\/)/, '')
-      doc.filepath = filepath
-      doc.name = editedName
-      doc.duration = time
-      doc.id = crypto.randomUUID()
-    })
+    // Capture everything the doc needs before the first `await` — the Save/Enter
+    // handlers reset this state synchronously right after invoking this.
+    const recordingFilepath = filepath
+    const recordingName = editedName || NEW_RECORDING_DEFAULT_NAME
+    const recordingDuration = time
 
-    changeDocState((repoState) => {
-      if (Array.isArray(repoState.recordings)) {
-        repoState.recordings.push(url)
-        return
-      }
-      repoState.recordings = [url]
-    })
+    if (!recordingFilepath) {
+      return
+    }
+
+    isSavingRef.current = true
+    try {
+      const recorded = await readRecordedBytes(recordingFilepath)
+
+      const handle = repo.create<RecordingData>()
+      const url = handle.url
+      handle.change((doc) => {
+        doc.url = url
+        // Extract the filename from the filepath, and remove the extension
+        doc.filename = recordingFilepath.split('.')[0].replace(/(^.+\/)/, '')
+        doc.filepath = recordingFilepath
+        doc.name = recordingName
+        doc.duration = recordingDuration
+        doc.id = crypto.randomUUID()
+        if (recorded && recorded.bytes.byteLength <= MAX_EMBEDDED_AUDIO_BYTES) {
+          doc.audio = recorded.bytes
+          doc.mimeType = recorded.mimeType
+        } else if (recorded) {
+          console.warn(
+            `Recording (${recorded.bytes.byteLength} bytes) exceeds the embed limit; audio will not sync to other devices`,
+          )
+        }
+      })
+
+      changeDocState((repoState) => {
+        if (Array.isArray(repoState.recordings)) {
+          repoState.recordings.push(url)
+          return
+        }
+        repoState.recordings = [url]
+      })
+    } finally {
+      isSavingRef.current = false
+    }
   }
 
   return (
@@ -156,7 +243,7 @@ export function Recorder() {
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
-                    createRecordingDocument()
+                    void createRecordingDocument()
                     setIsEditing(false)
                     setIsEditorOpen(false)
                     setEditedName(NEW_RECORDING_DEFAULT_NAME)
@@ -198,7 +285,7 @@ export function Recorder() {
                 title="Save recording"
                 className="rounded-full p-4 hover:text-green-500"
                 onClick={() => {
-                  createRecordingDocument()
+                  void createRecordingDocument()
                   setIsEditing(false)
                   setIsEditorOpen(false)
                   setEditedName(NEW_RECORDING_DEFAULT_NAME)

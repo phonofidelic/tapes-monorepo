@@ -31,6 +31,12 @@ type EventData =
         filename: string
       }
     }
+  | {
+      type: 'storage:read-bytes'
+      payload: {
+        filename: string
+      }
+    }
 
 // `self` is typed as the base WorkerGlobalScope; assert to the augmented
 // DedicatedWorkerGlobalScope (with fileHandle/accessHandle) declared above.
@@ -131,6 +137,46 @@ onmessage = async (event) => {
           error,
           payload: {
             message: 'error retrieving file',
+          },
+        })
+      }
+      break
+    }
+    case 'storage:read-bytes': {
+      // Reads the raw OPFS bytes so the recorder can embed them in the
+      // Automerge doc at save time (see AudioPlayerContext for the playback
+      // side that reuses the embedded bytes).
+      const { filename } = payload
+      const root = await navigator.storage.getDirectory()
+      try {
+        const handle = await root.getFileHandle(filename)
+        const accessHandle = await handle.createSyncAccessHandle()
+        const fileSize = accessHandle.getSize()
+        const buffer = new ArrayBuffer(fileSize)
+        accessHandle.read(new DataView(buffer), { at: 0 })
+        accessHandle.close()
+        ctx.postMessage(
+          {
+            type: 'storage:read-bytes:response',
+            success: true,
+            payload: {
+              message: 'bytes retrieved',
+              filename,
+              bytes: buffer,
+            },
+          },
+          // Transfer ownership of the buffer to avoid a copy.
+          [buffer],
+        )
+      } catch (error) {
+        console.error('error reading bytes:', error)
+        ctx.postMessage({
+          type: 'storage:read-bytes:response',
+          success: false,
+          error,
+          payload: {
+            message: 'error reading bytes',
+            filename,
           },
         })
       }
