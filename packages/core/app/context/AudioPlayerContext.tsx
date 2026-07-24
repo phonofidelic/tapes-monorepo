@@ -52,11 +52,19 @@ export const AudioPlayerProvider = ({
       return
     }
 
+    // Wait for the recording doc to resolve before choosing a source. Until it
+    // loads we can't tell whether it has embedded bytes, and falling back to
+    // storage:get here throws NotFoundError for a recording synced from another
+    // device (its bytes are in the doc, not this device's OPFS).
+    if (!recordingDoc) {
+      return
+    }
+
     // Prefer bytes embedded in the synced doc. This path is platform-independent
     // and is the only one that works for a device that did not record the audio
     // (its OPFS is empty / it has no `tapes://` handler). The bytes may arrive
     // asynchronously as the doc syncs in, so this effect re-runs when they do.
-    const embeddedAudio = recordingDoc?.audio
+    const embeddedAudio = recordingDoc.audio
     if (embeddedAudio) {
       const objectUrl = URL.createObjectURL(
         // Automerge types the bytes as Uint8Array<ArrayBufferLike>, but BlobPart
