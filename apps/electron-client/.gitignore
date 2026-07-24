@@ -97,6 +97,9 @@ bin/*
 cache/*
 !cache/.gitkeep
 
+web-client/*
+!web-client/.gitkeep
+
 downloadExecutables.js
 .vercel
 .env*.local

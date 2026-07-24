@@ -8,9 +8,10 @@
   "scripts": {
     "get-bin": "tsc downloadExecutables.ts && node downloadExecutables.js",
     "dev": "LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" dotenvx run --env-file=.env.local -- electron-forge start -- --trace-warnings",
-    "package": "dotenvx run --env-file=.env -- electron-forge package",
-    "make": "dotenvx run --env-file=.env -- electron-forge make",
-    "publish": "dotenvx run --env-file=.env -- electron-forge publish",
+    "stage-web-client": "yarn workspace web-client build && find web-client -mindepth 1 ! -name .gitkeep -delete && cp -R ../web-client/dist/. web-client/",
+    "package": "yarn stage-web-client && dotenvx run --env-file=.env -- electron-forge package",
+    "make": "yarn stage-web-client && dotenvx run --env-file=.env -- electron-forge make",
+    "publish": "yarn stage-web-client && dotenvx run --env-file=.env -- electron-forge publish",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "clean": "rm -rf .vite",
@@ -37,6 +38,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
+    "@types/selfsigned": "^2.1.0",
     "@types/ws": "^8.5.13",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
@@ -86,6 +88,7 @@
     "node-stream-zip": "^1.15.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "selfsigned": "^2.4.1",
     "update-electron-app": "^3.1.0",
     "ws": "^8.18.0"
   }

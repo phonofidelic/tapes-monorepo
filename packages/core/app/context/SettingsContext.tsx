@@ -9,6 +9,7 @@ type Settings = {
   syncServerMode: 'embedded' | 'remote' | undefined
   remoteSyncServerUrl: string | undefined
   syncServerLanEnabled: 'true' | 'false' | undefined
+  syncServerHttpsEnabled: 'true' | 'false' | undefined
 }
 
 const SettingsContext = createContext<{

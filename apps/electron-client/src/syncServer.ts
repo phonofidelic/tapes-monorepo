@@ -1,5 +1,8 @@
 import http from 'http'
+import https from 'https'
 import os from 'os'
+import path from 'path'
+import { readFile } from 'fs/promises'
 import { WebSocketServer } from 'ws'
 // The slim entrypoints + base64 WASM keep the Automerge core inside the
 // bundled JS, so nothing has to resolve .wasm files from inside the asar.
@@ -18,6 +21,10 @@ export type SyncServerInfo = {
   running: boolean
   url: string
   lanUrl?: string
+  /** URL of the hosted web-client bundle, when one is being served. */
+  webAppUrl?: string
+  /** LAN-reachable URL of the hosted web-client bundle. */
+  lanWebAppUrl?: string
   port: number
   host: string
 }
@@ -27,6 +34,19 @@ export type SyncServerOptions = {
   host: '127.0.0.1' | '0.0.0.0'
   port?: number
   peerId: string
+  /**
+   * Directory of the built web-client bundle to serve statically over the
+   * same origin as the sync socket. When omitted, the HTTP surface is just a
+   * health-check and only the WebSocket sync endpoint is exposed.
+   */
+  webClientPath?: string
+  /**
+   * Self-signed key+cert. When provided the server runs over HTTPS (and the
+   * sync socket over `wss://`) on the same port, so a guest gets a secure
+   * context — required for both recording and OPFS-backed playback — and the
+   * `wss://` handshake reuses the accepted cert exception (same origin).
+   */
+  tls?: { key: string; cert: string }
 }
 
 type RunningSyncServer = {
@@ -61,6 +81,82 @@ export function getLocalNetworkIp(): string | undefined {
   return undefined
 }
 
+const STATIC_MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
+}
+
+/**
+ * Builds the HTTP request handler. When `webClientPath` is set it serves the
+ * built web-client bundle (with an SPA fallback to index.html so deep links
+ * like `/?am=<url>` work); otherwise it responds with a plain health check.
+ */
+function createRequestHandler(webClientPath?: string) {
+  return async (
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ) => {
+    if (!webClientPath) {
+      response.writeHead(200, { 'Content-Type': 'text/plain' })
+      response.end('tapes-sync-server')
+      return
+    }
+
+    const root = path.resolve(webClientPath)
+    const indexPath = path.join(root, 'index.html')
+
+    const requestUrl = new URL(request.url ?? '/', 'http://localhost')
+    const requestedPath = path.normalize(
+      decodeURIComponent(requestUrl.pathname),
+    )
+    const candidate = path.join(root, requestedPath)
+
+    // Guard against path traversal outside the served directory.
+    const filePath =
+      candidate === root || candidate.startsWith(root + path.sep)
+        ? candidate
+        : indexPath
+
+    const serve = async (target: string) => {
+      const data = await readFile(target)
+      const ext = path.extname(target).toLowerCase()
+      response.writeHead(200, {
+        'Content-Type': STATIC_MIME_TYPES[ext] ?? 'application/octet-stream',
+      })
+      response.end(data)
+    }
+
+    try {
+      await serve(filePath)
+    } catch {
+      // Missing file, directory, or SPA route -> fall back to index.html.
+      try {
+        await serve(indexPath)
+      } catch {
+        response.writeHead(404, { 'Content-Type': 'text/plain' })
+        response.end('Not found')
+      }
+    }
+  }
+}
+
 function listen(server: http.Server, host: string, port: number) {
   return new Promise<number>((resolve, reject) => {
     const onError = (error: NodeJS.ErrnoException) => {
@@ -93,13 +189,13 @@ export async function startSyncServer(
     await initializeBase64Wasm(automergeWasmBase64)
   }
 
-  const { storagePath, host, peerId } = options
+  const { storagePath, host, peerId, webClientPath, tls } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
 
-  const server = http.createServer((_request, response) => {
-    response.writeHead(200, { 'Content-Type': 'text/plain' })
-    response.end('tapes-sync-server')
-  })
+  const handler = createRequestHandler(webClientPath)
+  const server = tls
+    ? https.createServer({ key: tls.key, cert: tls.cert }, handler)
+    : http.createServer(handler)
 
   let port: number
   try {
@@ -129,12 +225,17 @@ export async function startSyncServer(
   })
 
   const lanIp = host === '0.0.0.0' ? getLocalNetworkIp() : undefined
+  const wsScheme = tls ? 'wss' : 'ws'
+  const httpScheme = tls ? 'https' : 'http'
 
   current = {
     info: {
       running: true,
-      url: `ws://127.0.0.1:${port}`,
-      lanUrl: lanIp ? `ws://${lanIp}:${port}` : undefined,
+      url: `${wsScheme}://127.0.0.1:${port}`,
+      lanUrl: lanIp ? `${wsScheme}://${lanIp}:${port}` : undefined,
+      webAppUrl: webClientPath ? `${httpScheme}://127.0.0.1:${port}` : undefined,
+      lanWebAppUrl:
+        webClientPath && lanIp ? `${httpScheme}://${lanIp}:${port}` : undefined,
       port,
       host,
     },
@@ -143,7 +244,7 @@ export async function startSyncServer(
     server,
   }
 
-  console.log(`Sync server listening on ws://${host}:${port}`)
+  console.log(`Sync server listening on ${wsScheme}://${host}:${port}`)
 
   return current.info
 }

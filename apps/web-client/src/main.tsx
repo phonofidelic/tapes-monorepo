@@ -4,9 +4,12 @@ import { App } from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
 
-if (!import.meta.env.VITE_SYNC_SERVER_URL) {
-  throw new Error('VITE_SYNC_SERVER_URL not set')
-}
+// When the bundle is served from the Electron host, the sync server lives on
+// the same origin, so derive the URL from window.location. A build-time
+// VITE_SYNC_SERVER_URL (the Vercel deploy path) still takes precedence.
+const syncServerUrl =
+  import.meta.env.VITE_SYNC_SERVER_URL ??
+  `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
 
 if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -33,7 +36,7 @@ if (!window.Worker) {
       <div className="flex sm:hidden">
         <App
           appContextValue={{ type: 'web-client', worker }}
-          syncServerUrl={import.meta.env.VITE_SYNC_SERVER_URL}
+          syncServerUrl={syncServerUrl}
         />
       </div>
       <div className="mx-auto hidden h-screen w-screen max-w-screen-sm flex-col items-center justify-center gap-16 sm:flex">

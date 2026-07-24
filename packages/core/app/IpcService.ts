@@ -20,11 +20,16 @@ export type ValidIpcChanel =
   | 'recorder:stop'
   | 'sync:get-server-info'
   | 'sync:set-lan-enabled'
+  | 'sync:set-https-enabled'
 
 export type SyncServerInfo = {
   running: boolean
   url: string
   lanUrl?: string
+  /** URL of the hosted web-client bundle, when one is being served. */
+  webAppUrl?: string
+  /** LAN-reachable URL of the hosted web-client bundle. */
+  lanWebAppUrl?: string
   port: number
   host: string
 }
@@ -95,6 +100,7 @@ type IpcSendArgs =
   | ['recorder:stop', IpcRequest]
   | ['sync:get-server-info']
   | ['sync:set-lan-enabled', IpcRequest & { data: { enabled: boolean } }]
+  | ['sync:set-https-enabled', IpcRequest & { data: { enabled: boolean } }]
 export class IpcService {
   private ipcRenderer?: Window['api']
 

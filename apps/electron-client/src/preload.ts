@@ -13,6 +13,7 @@ const validChannels: ValidIpcChanel[] = [
   'recorder:stop',
   'sync:get-server-info',
   'sync:set-lan-enabled',
+  'sync:set-https-enabled',
 ]
 
 const validResponseChannels = validChannels.map(
