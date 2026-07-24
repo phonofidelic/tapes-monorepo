@@ -102,9 +102,8 @@ desktop host generates its own self-signed cert (via the `selfsigned` package,
 with the LAN IP in the certificate SAN) for its embedded sync server.
 
 > **Note (`apps/api` dev HTTPS):** in development the API serves over HTTPS and
-> expects `localhost-key.pem` and `localhost.pem` in `apps/api/`. The
-> `yarn workspace api cert` helper currently writes `localhost-cert.pem`, so you
-> must rename it to `localhost.pem` (or the API will fail to boot).
+> expects `localhost-key.pem` and `localhost-cert.pem` in `apps/api/`. Generate
+> them with `yarn workspace api cert`.
 
 ## Scripts
 

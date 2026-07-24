@@ -30,8 +30,9 @@ documenting:
 - **Local HTTPS** is required for mic capture on LAN guests, and the setup differs
   per surface (api uses hand-generated `localhost*.pem`; electron uses the
   `selfsigned` package; web-client uses `@vitejs/plugin-basic-ssl`).
-- The `api` `cert` script writes `localhost-cert.pem` but `main.ts` reads
-  `localhost.pem` — a real footgun that must be called out.
+- The `api` dev-HTTPS certs (`localhost-key.pem` + `localhost-cert.pem`) are
+  hand-generated with `yarn workspace api cert`. (A prior `main.ts` vs. `cert`
+  filename mismatch was fixed in #260.)
 - Env files are git-ignored and pulled from Vercel (`vercel env pull`); there is
   no committed example.
 
@@ -101,9 +102,9 @@ not a built-out `apps/docs` site (tracked as a follow-up).
    `apps/docs`, `apps/web-client`, and add `apps/electron-client/README.md`. Each:
    purpose, how it fits the architecture, dev command + port, required env vars,
    app-specific gotchas. Specifically document:
-   - `apps/api`: Automerge sync server, port `3031`, the dev-HTTPS cert step **and
-     the `localhost-cert.pem` vs `localhost.pem` filename mismatch**, that the
-     auth module is currently disabled, and that CI excludes its Jest suite.
+   - `apps/api`: Automerge sync server, port `3031`, the dev-HTTPS cert step
+     (`localhost-key.pem` + `localhost-cert.pem` via `yarn workspace api cert`),
+     that the auth module is currently disabled, and that CI excludes its Jest suite.
    - `apps/electron-client`: host role, embedded sync server on `9001`, dotenvx
      `.env.local`/`.env`, `stage-web-client`, `get-bin`, packaging/notarization env
      (`APPLE_*`, `REPO_OWNER`/`REPO_NAME`).
@@ -126,8 +127,9 @@ not a built-out `apps/docs` site (tracked as a follow-up).
 
 - Building out the `apps/docs` Next.js site into a real documentation site.
 - Adding a `LICENSE` (needs an owner decision on license choice).
-- Fixing the `api` cert filename mismatch in code (docs will call it out; the code
-  fix is a separate bug ticket).
+- Fixing the `api` cert filename mismatch in code — done separately in
+  [#260](https://github.com/phonofidelic/tapes-monorepo/pull/260), which aligns
+  `main.ts` on `localhost-cert.pem`. The docs describe the corrected behavior.
 - API endpoint / IPC channel reference documentation (larger, can follow once the
   auth module is re-enabled).
 
@@ -143,8 +145,8 @@ not a built-out `apps/docs` site (tracked as a follow-up).
 - [ ] `.env.example` exists for `api`, `web-client`, and `electron-client` with every
       required variable documented.
 - [ ] `CLAUDE.md` exists at the repo root.
-- [ ] The macOS-only assumptions, the local-HTTPS requirement, and the `api` cert
-      filename mismatch are explicitly documented.
+- [ ] The macOS-only assumptions and the local-HTTPS requirement (including the
+      `api` dev-HTTPS cert step) are explicitly documented.
 - [ ] `yarn format` passes (docs are Prettier-clean) and no code behavior changes.
 
 ## Implementation notes

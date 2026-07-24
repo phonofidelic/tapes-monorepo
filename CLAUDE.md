@@ -32,8 +32,8 @@ the LAN. See [`README.md`](./README.md) for architecture.
 - **macOS is assumed** for the recording flow: `ipconfig getifaddr en0`, SoX,
   `switchaudio-osx`.
 - **Local HTTPS** is required for mic capture on LAN guests (`yarn dev:https`).
-- `apps/api` dev HTTPS reads `localhost.pem`, but the `cert` script writes
-  `localhost-cert.pem` — rename it or the API won't boot.
+- `apps/api` dev HTTPS needs `localhost-key.pem` + `localhost-cert.pem` in
+  `apps/api/` — generate them with `yarn workspace api cert`.
 - Env files are git-ignored and pulled from Vercel (`yarn ... pull`); committed
   `.env.example` files document the vars.
 - CI runs unit tests only for `@tapes-monorepo/core`; the `apps/api` Jest suite is

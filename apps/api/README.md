@@ -22,18 +22,12 @@ The server listens on `PORT` (default `3031`).
 ### Dev HTTPS certificate
 
 In development (`NODE_ENV=development`) the API serves over HTTPS and reads
-`localhost-key.pem` and `localhost.pem` from this directory. Generate them with:
+`localhost-key.pem` and `localhost-cert.pem` from this directory. Generate them
+with:
 
 ```sh
 yarn workspace api cert
 ```
-
-> **Gotcha:** the `cert` script writes `localhost-cert.pem`, but `main.ts` reads
-> `localhost.pem`. Rename the cert file (or the app will fail to boot):
->
-> ```sh
-> mv apps/api/localhost-cert.pem apps/api/localhost.pem
-> ```
 
 ## Environment variables
 
