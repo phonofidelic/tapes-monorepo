@@ -32,6 +32,18 @@ export const webClientPath = (): string | undefined => {
   return existsSync(path.join(candidate, 'index.html')) ? candidate : undefined
 }
 
+/**
+ * In development the web-client is served by its own Vite dev server (for HMR),
+ * not the statically staged bundle. The dev scripts pass its LAN URL via
+ * `WEB_CLIENT_DEV_URL`; when present we advertise it to guests (see the QR/copy
+ * flow in core's Settings) so they load the HMR-enabled app instead of a stale
+ * static build. Returns `undefined` outside development.
+ */
+export const webClientDevUrl = (): string | undefined =>
+  process.env.NODE_ENV === 'development'
+    ? process.env.WEB_CLIENT_DEV_URL
+    : undefined
+
 export function readSyncServerConfig(): SyncServerConfig {
   try {
     const stored = JSON.parse(

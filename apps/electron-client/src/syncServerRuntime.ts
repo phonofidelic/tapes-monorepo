@@ -7,6 +7,7 @@ import {
 import {
   readSyncServerConfig,
   syncStoragePath,
+  webClientDevUrl,
   webClientPath,
 } from './syncServerConfig'
 import { ensureSyncServerCert } from './certManager'
@@ -28,6 +29,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     host,
     peerId: config.peerId,
     webClientPath: webClientPath(),
+    webAppDevUrl: webClientDevUrl(),
     tls,
   })
 }
