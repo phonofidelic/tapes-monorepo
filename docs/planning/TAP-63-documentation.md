@@ -8,15 +8,15 @@
 Every README in the monorepo is still framework boilerplate that describes the
 _starter template_, not the Tapes product:
 
-| File | Current state |
-| --- | --- |
-| `README.md` (root) | Stock `create-turbo` starter ("Turborepo starter", mentions pnpm/`@repo/ui` — neither is true) |
-| `apps/api/README.md` | Stock NestJS starter |
-| `apps/web/README.md`, `apps/docs/README.md` | Stock `create-next-app` |
-| `apps/web-client/README.md` | `# web-client` (one line) |
-| `packages/core/README.md` | `# core` (one line) |
-| `apps/electron-client` | No README at all |
-| `packages/ui`, `packages/tailwind-config`, `packages/typescript-config` | No README |
+| File                                                                    | Current state                                                                                  |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `README.md` (root)                                                      | Stock `create-turbo` starter ("Turborepo starter", mentions pnpm/`@repo/ui` — neither is true) |
+| `apps/api/README.md`                                                    | Stock NestJS starter                                                                           |
+| `apps/web/README.md`, `apps/docs/README.md`                             | Stock `create-next-app`                                                                        |
+| `apps/web-client/README.md`                                             | `# web-client` (one line)                                                                      |
+| `packages/core/README.md`                                               | `# core` (one line)                                                                            |
+| `apps/electron-client`                                                  | No README at all                                                                               |
+| `packages/ui`, `packages/tailwind-config`, `packages/typescript-config` | No README                                                                                      |
 
 There is also **no `CONTRIBUTING.md`, no `LICENSE`, no `CLAUDE.md`, and no
 `.env.example`** anywhere. A new contributor (or an AI agent) has no accurate
