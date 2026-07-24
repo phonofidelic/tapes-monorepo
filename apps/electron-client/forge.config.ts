@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import type { ForgeConfig } from '@electron-forge/shared-types'
 import { MakerSquirrel } from '@electron-forge/maker-squirrel'
 import { MakerZIP } from '@electron-forge/maker-zip'
@@ -14,6 +15,30 @@ const notarizeOptions = {
   teamId: process.env.APPLE_TEAM_ID ?? '',
 } as const
 
+// Notarization requires a real "Developer ID Application" certificate: Apple
+// rejects the ad-hoc signature that `osxSign: {}` falls back to when no cert is
+// installed. Detect a usable identity so local `yarn package` runs produce an
+// ad-hoc-signed build and skip notarization, while CI/release machines that
+// have imported a Developer ID cert (and set the APPLE_* creds) still notarize.
+function hasDeveloperIdCertificate(): boolean {
+  try {
+    const identities = execSync('security find-identity -v -p codesigning', {
+      encoding: 'utf8',
+    })
+    return identities.includes('Developer ID Application')
+  } catch {
+    return false
+  }
+}
+
+const canNotarize =
+  hasDeveloperIdCertificate() &&
+  Boolean(
+    process.env.APPLE_ID &&
+      process.env.APPLE_PASSWORD &&
+      process.env.APPLE_TEAM_ID,
+  )
+
 const repositoryOptions = {
   owner: process.env.REPO_OWNER ?? '',
   name: process.env.REPO_NAME ?? '',
@@ -23,7 +48,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     osxSign: {},
-    osxNotarize: notarizeOptions,
+    ...(canNotarize ? { osxNotarize: notarizeOptions } : {}),
     extraResource: [
       'bin/sox-14.4.2-macOS',
       'bin/SwitchAudioSource-1.2.2-macOS',
