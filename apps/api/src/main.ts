@@ -9,7 +9,7 @@ const createOptions =
     ? {
         httpsOptions: {
           key: readFileSync('./localhost-key.pem'),
-          cert: readFileSync('./localhost.pem'),
+          cert: readFileSync('./localhost-cert.pem'),
         },
       }
     : {}
