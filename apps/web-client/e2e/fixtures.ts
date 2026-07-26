@@ -91,8 +91,24 @@ export const openApp = async (page: Page) => {
   await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
 }
 
-/** Device ids offered by AudioInputSelector, minus its placeholder option. */
-export const deviceOptionValues = async (page: Page) => {
+/** One entry per non-placeholder option in AudioInputSelector. */
+export type DeviceOption = {
+  /** What the app persists and later passes as a getUserMedia constraint. */
+  deviceId: string
+  /** The option's visible text, and what the electron client sends over IPC. */
+  label: string
+  /** The raw option value: a stringified MediaDeviceInfo. */
+  value: string
+}
+
+/**
+ * Audio input devices offered by AudioInputSelector, minus its placeholder.
+ *
+ * Option values are whole stringified MediaDeviceInfo objects, not bare device
+ * ids — the two clients need different fields off the same option, so the
+ * selector serializes the lot and each reads what it needs.
+ */
+export const deviceOptions = async (page: Page): Promise<DeviceOption[]> => {
   const select = page.getByRole('combobox').first()
 
   // AudioInputSelector renders an "Allow access" button until its permission
@@ -109,25 +125,45 @@ export const deviceOptionValues = async (page: Page) => {
     await select.waitFor({ state: 'visible', timeout: 10_000 })
   }
 
-  return select
+  const values = await select
     .locator('option')
     .evaluateAll((options) =>
       options
         .map((option) => (option as HTMLOptionElement).value)
         .filter((value) => value !== ''),
     )
+
+  return values.map((value) => {
+    const parsed = JSON.parse(value) as MediaDeviceInfo
+    return { deviceId: parsed.deviceId, label: parsed.label, value }
+  })
 }
 
-export const selectDevice = async (page: Page, deviceId: string) => {
+export const selectDevice = async (page: Page, device: DeviceOption) => {
   // Target the select that actually offers this device rather than a
   // positional one. The Settings view has three comboboxes (input device,
   // recording format, channels) and the device selector populates last —
   // it waits on a permissions query and enumerateDevices — so `.first()`
   // races it and lands on the format select on a slow machine.
-  const select = page.locator(`select:has(option[value="${deviceId}"])`)
+  //
+  // Matched by option *text*, not by an `option[value="..."]` CSS selector:
+  // the value is now JSON, whose quotes and braces would have to be escaped
+  // into the selector. `hasText` takes a plain string.
+  const select = page
+    .locator('select')
+    .filter({ has: page.locator('option', { hasText: device.label }) })
   await expect(select).toBeVisible()
-  await select.selectOption(deviceId)
+  await select.selectOption({ label: device.label })
 }
+
+/** The audioInputDeviceId the app has persisted, if any. */
+export const storedAudioInputDeviceId = (page: Page) =>
+  page.evaluate(() => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as {
+      audioInputDeviceId?: string
+    }
+    return settings.audioInputDeviceId
+  })
 
 /**
  * Records for `durationMs`. Four seconds by default: at one second Chromium
