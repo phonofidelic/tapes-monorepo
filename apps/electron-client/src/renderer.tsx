@@ -52,10 +52,6 @@ function ElectronAppRoot() {
       })
   }, [syncServerUrl])
 
-  if (!syncServerUrl) {
-    return null
-  }
-
   return <App appContextValue={appContextValue} syncServerUrl={syncServerUrl} />
 }
 
