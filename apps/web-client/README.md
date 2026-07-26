@@ -9,10 +9,11 @@ This same bundle runs in two places:
 - **Standalone** in a browser (e.g. the Vercel-hosted PWA).
 - **Embedded** in the desktop host (`electron-client`) and served to LAN guests.
 
-The sync-server URL is resolved at runtime in `src/main.tsx`: when served by the
-Electron host it's the same origin; in dev it reaches the host's embedded sync
-server through the `/sync` proxy (see `vite.config.ts`); a build-time
-`VITE_SYNC_SERVER_URL` (the Vercel deploy path) takes precedence.
+The sync-server URL is resolved at runtime in `src/main.tsx`: it is always
+`/sync` on the origin serving the bundle. The Electron host accepts the socket
+upgrade on any path, and in dev the Vite dev server proxies `/sync` back to that
+host (see `vite.config.ts`). A build-time `VITE_SYNC_SERVER_URL` (the Vercel
+deploy path) takes precedence.
 
 ## Develop
 

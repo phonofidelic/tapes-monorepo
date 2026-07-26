@@ -4,20 +4,16 @@ import { App } from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
 
-// When the bundle is served from the Electron host, the sync server lives on
-// the same origin, so derive the URL from window.location. In development the
-// bundle is instead served by this package's own Vite dev server (for HMR), and
-// the sync socket reaches the host's embedded sync server through the `/sync`
-// proxy (see vite.config.ts). A build-time VITE_SYNC_SERVER_URL (the Vercel
-// deploy path) still takes precedence.
+// The sync socket always lives at `/sync` on the same origin as this bundle.
+// When the Electron host serves the bundle it accepts the upgrade on any path
+// (its WebSocketServer is attached to the whole http server, not a route), and
+// in development the bundle is served by this package's own Vite dev server
+// (for HMR), which proxies `/sync` back to that host (see vite.config.ts). A
+// build-time VITE_SYNC_SERVER_URL (the Vercel deploy path) takes precedence.
 const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-// `import.meta.env.DEV` is a Vite build-time boolean (dev server vs. static
-// build), not a process env var; the disable is for turbo's env-var lint rule.
-// eslint-disable-next-line turbo/no-undeclared-env-vars
-const servedByDevServer = import.meta.env.DEV
 const syncServerUrl =
   import.meta.env.VITE_SYNC_SERVER_URL ??
-  `${scheme}://${window.location.host}${servedByDevServer ? '/sync' : ''}`
+  `${scheme}://${window.location.host}/sync`
 
 if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(

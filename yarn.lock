@@ -8501,6 +8501,7 @@ __metadata:
     vite-plugin-require: "npm:^1.2.14"
     vite-plugin-top-level-await: "npm:^1.6.0"
     vite-plugin-wasm: "npm:^3.6.0"
+    vitest: "npm:^3.0.0"
     ws: "npm:^8.18.0"
   peerDependencies:
     esbuild-register: "*"
