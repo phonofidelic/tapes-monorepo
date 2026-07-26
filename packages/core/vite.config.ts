@@ -19,6 +19,10 @@ export default defineConfig({
   ],
   build: {
     emptyOutDir: false,
+    // Emit .js.map files alongside the bundle so consumers (the electron
+    // renderer, web-client) show core's original .tsx sources in devtools
+    // instead of the built output.
+    sourcemap: true,
     // esnext so esbuild doesn't try to downlevel the top-level-await /
     // destructuring output; the consuming apps set their own build target.
     target: 'esnext',
