@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
-// import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
+import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
-import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
+import { DocHandle, isValidAutomergeUrl, NetworkAdapterInterface, Repo } from '@automerge/automerge-repo'
 import { Button } from '@tapes-monorepo/ui'
 import {
   useView,
@@ -23,7 +23,7 @@ export function App({
   syncServerUrl,
 }: {
   appContextValue: AppContextValue
-  syncServerUrl: string
+  syncServerUrl?: string | null
 }) {
   const { automergeUrl } = useAutomergeUrl()
   const [repo, setRepo] = useState<Repo | null>(null)
@@ -32,10 +32,6 @@ export function App({
   const didInitRef = useRef(false)
 
   useEffect(() => {
-    // const onEphemeralMessage = (message: any) => {
-    //   console.log('got an ephemeral message: ', message)
-    // }
-
     const initialize = async () => {
       // Guard against re-init (StrictMode double-invoke, dep changes). A `repo`
       // state check can't do this: initialize() is async and setRepo lands only
@@ -45,19 +41,18 @@ export function App({
       }
       didInitRef.current = true
 
-      // const broadcast = new BroadcastChannelNetworkAdapter()
-      // TODO: Set up sync server
-      const websocket = new BrowserWebSocketClientAdapter(
-        // process.env.NODE_ENV === 'development'
-        //   ? `ws://${import.meta.env.VITE_LOCAL_NETWORK_IP}:433`
-        //   : 'wss://sync.automerge.org',
-        syncServerUrl,
-      )
+      // Set up network adapters. 
+      const broadcast = new BroadcastChannelNetworkAdapter()
+      const network: NetworkAdapterInterface[] = [broadcast]
+      if (syncServerUrl) {
+        network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
+      }
+  
       const indexedDB = new IndexedDBStorageAdapter()
 
       const _repo = new Repo({
         storage: indexedDB,
-        network: [websocket],
+        network
       })
 
       if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
@@ -67,18 +62,10 @@ export function App({
         setAutomergeUrl(handleRef.current.url)
       }
 
-      // handleRef.current.on('ephemeral-message', onEphemeralMessage)
-      // handleRef.current.broadcast({ message: 'Connected to repo' })
-
       setRepo(_repo)
     }
     initialize()
 
-    // return () => {
-    //   if (handleRef.current) {
-    //     handleRef.current.off('ephemeral-message', onEphemeralMessage)
-    //   }
-    // }
   }, [automergeUrl, syncServerUrl])
 
   if (!repo) {
@@ -92,8 +79,8 @@ export function App({
         repoContext: repo,
       }}
     >
-      <Navigation mainRef={mainRef} />
       <Main mainRef={mainRef} />
+      <Navigation mainRef={mainRef} />
       <AudioPlayer />
     </Providers>
   )
@@ -139,7 +126,6 @@ function Main({
 }) {
   const { currentView } = useView()
   const { currentUrl } = useAudioPlayer()
-  // const mainRef = useRef<HTMLDivElement>(null)
 
   return (
     <main
