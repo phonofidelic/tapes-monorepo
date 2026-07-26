@@ -2,7 +2,7 @@ import {
   test,
   expect,
   openApp,
-  deviceOptionValues,
+  deviceOptions,
   selectDevice,
   recordFor,
   expectRecordedBytes,
@@ -28,7 +28,7 @@ test.describe('StrictMode', () => {
       'expected the dev server, where StrictMode double-invokes effects',
     ).toBe(true)
 
-    const devices = await deviceOptionValues(page)
+    const devices = await deviceOptions(page)
     expect(devices.length).toBeGreaterThan(0)
     await selectDevice(page, devices[0])
 
