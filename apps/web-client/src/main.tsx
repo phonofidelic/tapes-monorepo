@@ -3,17 +3,28 @@ import ReactDOM from 'react-dom/client'
 import { App } from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
+import { resolveSyncServerUrl } from './syncServerUrl'
 
-// The sync socket always lives at `/sync` on the same origin as this bundle.
-// When the Electron host serves the bundle it accepts the upgrade on any path
-// (its WebSocketServer is attached to the whole http server, not a route), and
-// in development the bundle is served by this package's own Vite dev server
-// (for HMR), which proxies `/sync` back to that host (see vite.config.ts). A
-// build-time VITE_SYNC_SERVER_URL (the Vercel deploy path) takes precedence.
-const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-const syncServerUrl =
-  import.meta.env.VITE_SYNC_SERVER_URL ??
-  `${scheme}://${window.location.host}/sync`
+// Where this bundle syncs, in precedence order:
+//
+//   1. VITE_SYNC_SERVER_URL — build-time, the Vercel deploy path.
+//   2. `remoteSyncServerUrl` in localStorage — a remote server the user opted
+//      into from Settings.
+//   3. The Vite dev server (import.meta.env.DEV) — same-origin `/sync`, which
+//      the dev server proxies to the Electron host's embedded sync server so a
+//      LAN guest gets HMR and sync at once (see vite.config.ts).
+//   4. VITE_SERVED_BY_HOST — set when electron-client stages this bundle into
+//      its own resources, so the host is serving it and the sync server is on
+//      the same origin. That flag is what distinguishes a host-served bundle
+//      from a standalone static deploy; both are plain builds otherwise.
+//   5. Nothing matched — a standalone deploy with no server to reach. Resolve
+//      to undefined and let core run local-only (IndexedDB plus cross-tab
+//      BroadcastChannel) instead of retrying an origin nothing listens on.
+const syncServerUrl = resolveSyncServerUrl({
+  env: import.meta.env,
+  location: window.location,
+  storage: window.localStorage,
+})
 
 if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
