@@ -15,6 +15,8 @@
     "publish": "yarn stage-web-client && dotenvx run --env-file=.env -- electron-forge publish",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "rm -rf .vite",
     "pull": "vercel env pull .env.local"
   },
@@ -57,7 +59,8 @@
     "vite": "^8.1.5",
     "vite-plugin-require": "^1.2.14",
     "vite-plugin-top-level-await": "^1.6.0",
-    "vite-plugin-wasm": "^3.6.0"
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^3.0.0"
   },
   "peerDependencies": {
     "esbuild-register": "*",
