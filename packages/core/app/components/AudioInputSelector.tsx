@@ -80,8 +80,14 @@ export function AudioInputSelector({ className }: { className?: string }) {
           return
         }
 
-        // TODO: validate parsedMediaDeviceInfo
-        const parsedMediaDeviceInfo = JSON.parse(event.target.value) as MediaDeviceInfo
+        let parsedMediaDeviceInfo: unknown
+        try {
+          parsedMediaDeviceInfo = JSON.parse(event.target.value)
+        } catch {
+          console.error('Unparseable audio input option value')
+          return
+        }
+        if (!isValidMediaDeviceInfo(parsedMediaDeviceInfo)) return
 
         if (appContext.type === 'electron-client') {
           try {
@@ -118,3 +124,12 @@ export function AudioInputSelector({ className }: { className?: string }) {
     </select>
   )
 }
+
+const isValidMediaDeviceInfo = (parsed: unknown): parsed is MediaDeviceInfo =>
+  typeof parsed === 'object' 
+  && parsed !== null 
+  && 'deviceId' in parsed
+  && typeof parsed.deviceId === 'string'
+  && parsed.deviceId.length > 0
+  && 'label' in parsed
+  && typeof parsed.label === 'string'
