@@ -29,7 +29,12 @@ const plugins = [
     // Registration happens explicitly in PwaUpdatePrompt, not via an injected
     // script, so it stays on one code path with the update UI.
     injectRegister: null,
-    includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'icon.svg'],
+    includeAssets: [
+      'favicon-16.png',
+      'favicon-32.png',
+      'apple-touch-icon-180x180.png',
+      'icon.svg',
+    ],
     manifest: {
       name: 'Tapes',
       short_name: 'Tapes',
@@ -43,6 +48,11 @@ const plugins = [
       background_color: '#ffffff',
       theme_color: '#18181b',
       icons: [
+        {
+          src: 'pwa-64x64.png',
+          sizes: '64x64',
+          type: 'image/png',
+        },
         {
           src: 'pwa-192x192.png',
           sizes: '192x192',

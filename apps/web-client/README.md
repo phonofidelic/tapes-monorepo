@@ -53,13 +53,32 @@ Updates are **prompted, never silent** (`src/PwaUpdatePrompt.tsx`): a new deploy
 installs in the background and waits, rather than swapping the bundle out from
 under a recording in progress.
 
-Icons are generated from `public/icon.svg` — the single source of truth — and
-the PNGs are committed so `sharp` never runs on the CI path. After editing the
-SVG:
+### Icons
 
-```sh
-yarn workspace web-client generate-pwa-assets
-```
+Everything in `public/` is exported from the **Tapes App Icons** Figma document
+([file `GiDQCS5RTxysuqxluAV9Xs`](https://www.figma.com/design/GiDQCS5RTxysuqxluAV9Xs/Tapes-App-Icons)),
+one frame per file:
+
+| File                            | Figma frame                |
+| ------------------------------- | -------------------------- |
+| `icon.svg`                      | `pwa-512x512` (as vector)  |
+| `pwa-512x512.png`               | `pwa-512x512`              |
+| `maskable-icon-512x512.png`     | `maskable-icon-512x512`    |
+| `pwa-192x192.png`               | `pwa-192x192`              |
+| `pwa-64x64.png`                 | `pwa-64x64`                |
+| `apple-touch-icon-180x180.png`  | `apple-touch-icon-180x180` |
+| `favicon-32.png`                | `favicon-32`               |
+| `favicon-16.png`                | `favicon-16`               |
+
+Re-export from Figma when the artwork changes — **don't** regenerate the PNGs
+from `icon.svg`. The sizes are tuned individually in the design file, and the
+maskable variant especially is not just a rescale: it carries much more padding
+so the mark survives Android's circular crop. Any generate-from-one-source
+pipeline flattens that distinction.
+
+There is deliberately no `favicon.ico`; the SVG plus the two favicon PNGs are
+declared explicitly in `index.html`, so no browser falls back to probing
+`/favicon.ico`.
 
 ## Environment variables
 
