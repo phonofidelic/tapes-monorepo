@@ -79,14 +79,19 @@ export function AudioInputSelector({ className }: { className?: string }) {
           setAudioInputDeviceId('')
           return
         }
+
+        // TODO: validate parsedMediaDeviceInfo
+        const parsedMediaDeviceInfo = JSON.parse(event.target.value) as MediaDeviceInfo
+
         if (appContext.type === 'electron-client') {
           try {
+
             const setAudioInputDeviceResponse =
               await appContext.ipc.send<IpcResponse>(
                 'settings:set-default-audio-input-device',
                 {
                   data: {
-                    deviceName: event.target.value,
+                    deviceName: parsedMediaDeviceInfo.label
                   },
                 },
               )
@@ -97,19 +102,15 @@ export function AudioInputSelector({ className }: { className?: string }) {
             console.error('Error setting default audio input device:', error)
           }
         }
-        setAudioInputDeviceId(event.target.value)
+        setAudioInputDeviceId(parsedMediaDeviceInfo.deviceId)
       }}
-      defaultValue={audioInputDeviceId ?? ''}
+      defaultValue={JSON.stringify(audioInputDevices.find(device => device.deviceId === audioInputDeviceId)) ?? ''}
     >
       <option value="">Select an audio input device</option>
       {audioInputDevices.map((device) => (
         <option
           key={device.deviceId}
-          value={
-            appContext.type === 'electron-client'
-              ? device.label
-              : device.deviceId
-          }
+          value={JSON.stringify(device)}
         >
           {device.label}
         </option>
