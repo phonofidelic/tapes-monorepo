@@ -79,14 +79,25 @@ export function AudioInputSelector({ className }: { className?: string }) {
           setAudioInputDeviceId('')
           return
         }
+
+        let parsedMediaDeviceInfo: unknown
+        try {
+          parsedMediaDeviceInfo = JSON.parse(event.target.value)
+        } catch {
+          console.error('Unparseable audio input option value')
+          return
+        }
+        if (!isValidMediaDeviceInfo(parsedMediaDeviceInfo)) return
+
         if (appContext.type === 'electron-client') {
           try {
+
             const setAudioInputDeviceResponse =
               await appContext.ipc.send<IpcResponse>(
                 'settings:set-default-audio-input-device',
                 {
                   data: {
-                    deviceName: event.target.value,
+                    deviceName: parsedMediaDeviceInfo.label
                   },
                 },
               )
@@ -97,19 +108,15 @@ export function AudioInputSelector({ className }: { className?: string }) {
             console.error('Error setting default audio input device:', error)
           }
         }
-        setAudioInputDeviceId(event.target.value)
+        setAudioInputDeviceId(parsedMediaDeviceInfo.deviceId)
       }}
-      defaultValue={audioInputDeviceId ?? ''}
+      defaultValue={JSON.stringify(audioInputDevices.find(device => device.deviceId === audioInputDeviceId)) ?? ''}
     >
       <option value="">Select an audio input device</option>
       {audioInputDevices.map((device) => (
         <option
           key={device.deviceId}
-          value={
-            appContext.type === 'electron-client'
-              ? device.label
-              : device.deviceId
-          }
+          value={JSON.stringify(device)}
         >
           {device.label}
         </option>
@@ -117,3 +124,13 @@ export function AudioInputSelector({ className }: { className?: string }) {
     </select>
   )
 }
+
+const isValidMediaDeviceInfo = (parsed: unknown): parsed is MediaDeviceInfo =>
+  typeof parsed === 'object' 
+  && parsed !== null 
+  && 'deviceId' in parsed
+  && typeof parsed.deviceId === 'string'
+  && parsed.deviceId.length > 0
+  && 'label' in parsed
+  && typeof parsed.label === 'string'
+  
