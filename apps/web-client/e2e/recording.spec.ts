@@ -2,7 +2,7 @@ import {
   test,
   expect,
   openApp,
-  deviceOptionValues,
+  deviceOptions,
   selectDevice,
   recordFor,
   saveRecording,
@@ -16,7 +16,7 @@ test.describe('recording', () => {
   }) => {
     await openApp(page)
 
-    const devices = await deviceOptionValues(page)
+    const devices = await deviceOptions(page)
     expect(devices.length).toBeGreaterThan(0)
     await selectDevice(page, devices[0])
 
