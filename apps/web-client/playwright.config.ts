@@ -5,6 +5,15 @@ const PORT = 4173
 // webServer health check fails against the bare loopback address.
 const BASE_URL = `http://localhost:${PORT}`
 
+// The service worker is disabled in dev (see vite.config.ts), so the PWA specs
+// need a real built bundle. `localhost` is a secure context even over plain
+// http, so the worker registers here without TLS.
+// Not 4174, Vite's own `preview` default — that one collides with any stray
+// `vite preview` a sibling checkout left running, and --strictPort turns the
+// collision into a failed run.
+const PREVIEW_PORT = 4175
+const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`
+
 export default defineConfig({
   testDir: './e2e',
   // CI provides a single pair of PulseAudio virtual sources, so parallel
@@ -35,6 +44,8 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      // The PWA specs need the preview server, not this one.
+      testIgnore: /pwa\.spec\.ts/,
       use: {
         browserName: 'chromium',
         launchOptions: {
@@ -50,20 +61,45 @@ export default defineConfig({
         },
       },
     },
+    {
+      name: 'pwa',
+      testMatch: /pwa\.spec\.ts/,
+      use: {
+        browserName: 'chromium',
+        baseURL: PREVIEW_URL,
+      },
+    },
   ],
-  webServer: {
-    // The dev server, deliberately, not `vite preview`: React StrictMode does
-    // not double-invoke in a production build, so the "exactly one
-    // MediaRecorder" test would be a tautology against a built bundle.
-    command: `yarn vite --port ${PORT} --strictPort`,
-    url: BASE_URL,
-    // main.tsx throws without this. The app never contacts it: a fresh browser
-    // profile has no stored automergeUrl, so App takes repo.create() rather
-    // than repo.find(), which is what would need a reachable server.
-    env: { VITE_SYNC_SERVER_URL: 'ws://127.0.0.1:9999' },
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      // The dev server, deliberately, not `vite preview`: React StrictMode does
+      // not double-invoke in a production build, so the "exactly one
+      // MediaRecorder" test would be a tautology against a built bundle.
+      command: `yarn vite --port ${PORT} --strictPort`,
+      url: BASE_URL,
+      // main.tsx throws without this. The app never contacts it: a fresh browser
+      // profile has no stored automergeUrl, so App takes repo.create() rather
+      // than repo.find(), which is what would need a reachable server.
+      env: { VITE_SYNC_SERVER_URL: 'ws://127.0.0.1:9999' },
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      // Builds first: `preview` serves dist/, and the turbo `e2e` task only
+      // depends on *upstream* builds, so this workspace's own dist may be
+      // absent or stale.
+      command: `yarn build && yarn vite preview --port ${PREVIEW_PORT} --strictPort`,
+      url: PREVIEW_URL,
+      // Blank, not a dummy address: it makes the build resolve to local-only,
+      // which is the standalone-PWA case the offline spec is about. Left unset
+      // it would inherit a developer's .env.local and stop being deterministic.
+      env: { VITE_SYNC_SERVER_URL: '' },
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
 })
