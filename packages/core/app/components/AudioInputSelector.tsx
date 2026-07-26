@@ -133,3 +133,4 @@ const isValidMediaDeviceInfo = (parsed: unknown): parsed is MediaDeviceInfo =>
   && parsed.deviceId.length > 0
   && 'label' in parsed
   && typeof parsed.label === 'string'
+  
