@@ -42,7 +42,7 @@ jobs:
       # compile failure unrelated to this gate, so run only the workspaces whose
       # unit tests this step is meant to guard.
       - name: Unit Tests
-        run: yarn turbo test --filter=@tapes-monorepo/core --filter=electron-client
+        run: yarn turbo test --filter=@tapes-monorepo/core --filter=electron-client --filter=web-client
 
   e2e:
     name: E2E (web-client)
