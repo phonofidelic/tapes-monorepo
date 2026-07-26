@@ -1,0 +1,38 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  width="512"
+  height="512"
+  role="img"
+  aria-label="Tapes"
+>
+  <!--
+    The Tapes mark, exported from the "Tapes App Icons" Figma document
+    (file GiDQCS5RTxysuqxluAV9Xs), frame `pwa-512x512` — the same geometry as
+    pwa-512x512.png so the scalable and raster favicons agree.
+
+    The PNGs beside this file are exported from that document too, one frame per
+    size, rather than generated from this SVG: the sizes are individually tuned
+    there (the maskable variant in particular carries much more padding so it
+    survives a circular crop). Re-export from Figma rather than tracing them
+    back to this file. See the README.
+  -->
+  <rect width="512" height="512" fill="#ffffff" />
+  <path
+    d="M225 402C305.634 402 371 336.634 371 256C371 175.366 305.634 110 225 110C144.366 110 79 175.366 79 256C79 336.634 144.366 402 225 402Z"
+    fill="none"
+    stroke="#18181B"
+    stroke-width="34"
+  />
+  <path
+    d="M225 320C260.346 320 289 291.346 289 256C289 220.654 260.346 192 225 192C189.654 192 161 220.654 161 256C161 291.346 189.654 320 225 320Z"
+    fill="#F43F5E"
+  />
+  <path
+    d="M231 402H433"
+    fill="none"
+    stroke="#18181B"
+    stroke-width="34"
+    stroke-linecap="round"
+  />
+</svg>

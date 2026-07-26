@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { App } from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
+import PwaUpdatePrompt from './PwaUpdatePrompt'
 import { resolveSyncServerUrl } from './syncServerUrl'
 
 // Where this bundle syncs, in precedence order:
@@ -25,6 +26,25 @@ const syncServerUrl = resolveSyncServerUrl({
   location: window.location,
   storage: window.localStorage,
 })
+
+// A bundle the Electron host serves to LAN guests gets no service worker; the
+// plugin is disabled for that build (see vite.config.ts for why). Tear down any
+// worker a guest registered from this origin before that was true, so it can't
+// keep serving a cached bundle from a host it may no longer be able to reach.
+const servedByHost = import.meta.env.VITE_SERVED_BY_HOST === 'true'
+
+if (servedByHost && 'serviceWorker' in navigator) {
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) =>
+      Promise.all(
+        registrations.map((registration) => registration.unregister()),
+      ),
+    )
+    .catch((error) => {
+      console.error('Failed to unregister service workers', error)
+    })
+}
 
 if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -57,6 +77,7 @@ if (!window.Worker) {
       <div className="mx-auto hidden h-screen w-screen max-w-screen-sm flex-col items-center justify-center gap-16 sm:flex">
         <DownloadPrompt />
       </div>
+      {!servedByHost && <PwaUpdatePrompt />}
     </React.StrictMode>,
   )
 }
