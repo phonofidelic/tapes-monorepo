@@ -46,6 +46,8 @@ const repositoryOptions = {
 
 const config: ForgeConfig = {
   packagerConfig: {
+    name: "Tapes",
+    icon: 'assets/tapes-app',
     asar: true,
     osxSign: {},
     ...(canNotarize ? { osxNotarize: notarizeOptions } : {}),
