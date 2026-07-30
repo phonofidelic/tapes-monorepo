@@ -1,11 +1,8 @@
 import { AutomergeUrl } from '@automerge/automerge-repo'
 
 /**
- * Where a recording's audio lives once it is out of the Automerge doc: the
- * sha-256 of the bytes, which is also its address in the host's blob store.
- *
- * Not yet written to `RecordingData` — the recorder starts producing these
- * when playback can resolve them.
+ * Where a recording's audio lives: the sha-256 of the bytes, which is also its
+ * address in the host's blob store.
  */
 export type BlobDescriptor = {
   hash: string
@@ -23,11 +20,21 @@ export type RecordingData = {
   description?: string
   duration: number
   id: string
-  // Raw recorded bytes, embedded so the recording syncs peer-to-peer and can be
-  // played on a device that did not record it. Written once at creation.
+  /**
+   * Where the audio lives. The bytes themselves are held by the sync host and
+   * fetched on demand, so this doc stays O(metadata) however long the
+   * recording is. Absent when the bytes have not reached a host yet — a
+   * local-only client has nowhere to put them.
+   */
+  blob?: BlobDescriptor
+  /**
+   * @deprecated Raw recorded bytes, embedded so the recording could sync
+   * peer-to-peer. Read-only: nothing writes this any more. Automerge history
+   * is append-only, so docs created before the move to out-of-band audio keep
+   * their bytes forever and playback must go on honouring them.
+   */
   audio?: Uint8Array
-  // MIME type for the embedded bytes (e.g. 'audio/mp4' on web, 'audio/wav' on
-  // electron), so playback can build a correctly-typed Blob instead of guessing.
+  /** @deprecated MIME type for the legacy embedded `audio` bytes. */
   mimeType?: string
 }
 

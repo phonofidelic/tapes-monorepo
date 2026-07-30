@@ -22,6 +22,9 @@ export type ValidIpcChanel =
   | 'sync:get-server-info'
   | 'sync:set-lan-enabled'
   | 'sync:set-https-enabled'
+  | 'blob:put-file'
+  | 'blob:has'
+  | 'blob:cache-put'
 
 export type SyncServerInfo = {
   running: boolean
@@ -95,6 +98,31 @@ export type ReadFileResponse =
       error: never
     }
 
+/** Descriptor for a recording ingested into the host's blob store. */
+export type PutBlobResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { hash: string; size: number; mimeType: string; ext: string }
+      error: never
+    }
+
+export type HasBlobResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { present: boolean; size?: number; mimeType?: string }
+      error: never
+    }
+
 type IpcSendArgs =
   | [
       'settings:set-default-audio-input-device',
@@ -105,7 +133,15 @@ type IpcSendArgs =
       'storage:edit-recording',
       IpcRequest & { data: { filename: string; filepath: string } },
     ]
-  | ['storage:delete-recording', IpcRequest & { data: { filepath: string } }]
+  | [
+      'storage:delete-recording',
+      // `filepath` is absent for a recording this device never made, `hash`
+      // for a legacy doc that predates the blob store; deleting has to cope
+      // with either being missing.
+      IpcRequest & {
+        data: { filepath?: string; hash?: string; docUrl?: string }
+      },
+    ]
   | ['storage:read-file', IpcRequest & { data: { filepath: string } }]
   | [
       'recorder:start',
@@ -121,6 +157,22 @@ type IpcSendArgs =
   | ['sync:get-server-info']
   | ['sync:set-lan-enabled', IpcRequest & { data: { enabled: boolean } }]
   | ['sync:set-https-enabled', IpcRequest & { data: { enabled: boolean } }]
+  | [
+      'blob:put-file',
+      IpcRequest & { data: { filepath: string; docUrl: string } },
+    ]
+  | ['blob:has', IpcRequest & { data: { hash: string } }]
+  | [
+      'blob:cache-put',
+      IpcRequest & {
+        data: {
+          hash: string
+          mimeType: string
+          docUrl: string
+          bytes: Uint8Array
+        }
+      },
+    ]
 export class IpcService {
   private ipcRenderer?: Window['api']
 

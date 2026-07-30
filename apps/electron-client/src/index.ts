@@ -1,7 +1,10 @@
+import { CacheBlobChannel } from './channels/CacheBlobChannel'
 import { CreateRecordingChannel } from './channels/CreateRecordingChannel'
 import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
 import { EditRecordingChannel } from './channels/EditRecordingChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
+import { HasBlobChannel } from './channels/HasBlobChannel'
+import { PutBlobChannel } from './channels/PutBlobChannel'
 import { OpenDirectoryDialogChannel } from './channels/OpenDirectoryDialogChannel'
 import { ReadFileChannel } from './channels/ReadFileChannel'
 import { SetDefaultAudioInputChannel } from './channels/SetDefaultAudioInputChannel'
@@ -19,4 +22,7 @@ new MainWindow().init([
   new GetSyncServerInfoChannel(),
   new SetSyncServerLanChannel(),
   new SetSyncServerHttpsChannel(),
+  new PutBlobChannel(),
+  new HasBlobChannel(),
+  new CacheBlobChannel(),
 ])

@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { copyFile } from 'fs/promises'
+import { Readable } from 'stream'
 import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import path from 'path'
 import started from 'electron-squirrel-startup'
@@ -9,7 +10,7 @@ import installExtension, {
 import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
 import { cacheServer } from './cacheServer'
-import { stopSyncServer } from './syncServer'
+import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { getSyncServerCertPem } from './certManager'
 
@@ -49,15 +50,22 @@ export class MainWindow {
   // without disabling verification for anything else.
   private registerSyncServerCertTrust() {
     const normalize = (pem: string) => pem.replace(/\s+/g, '')
-    app.on('certificate-error', (event, _webContents, _url, _error, cert, callback) => {
-      const ourCert = getSyncServerCertPem()
-      if (ourCert && cert.data && normalize(cert.data) === normalize(ourCert)) {
-        event.preventDefault()
-        callback(true)
-        return
-      }
-      callback(false)
-    })
+    app.on(
+      'certificate-error',
+      (event, _webContents, _url, _error, cert, callback) => {
+        const ourCert = getSyncServerCertPem()
+        if (
+          ourCert &&
+          cert.data &&
+          normalize(cert.data) === normalize(ourCert)
+        ) {
+          event.preventDefault()
+          callback(true)
+          return
+        }
+        callback(false)
+      },
+    )
   }
 
   private async createWindow() {
@@ -180,6 +188,33 @@ export class MainWindow {
       await copyFile(filepath, path.join(cachePath, filename + extension))
 
       return Response.redirect(`http://localhost:9000/${filename + extension}`)
+    })
+
+    // Content-addressed audio, served straight out of the blob store. Unlike
+    // `tapes://` above there is no copy into a cache directory and no hop
+    // through the port-9000 server: the store already holds the bytes under
+    // this exact name, and the name is a hash, so it can never be stale.
+    protocol.handle('tapes-blob', async (request) => {
+      const hash = decodeURI(request.url).replace('tapes-blob://', '')
+      const store = getBlobStore()
+      if (!store) {
+        return new Response('Blob store unavailable', { status: 503 })
+      }
+
+      const meta = await store.stat(hash)
+      if (!meta) {
+        return new Response('Unknown blob', { status: 404 })
+      }
+
+      return new Response(
+        Readable.toWeb(store.read(hash)) as ReadableStream<Uint8Array>,
+        {
+          headers: {
+            'Content-Type': meta.mimeType,
+            'Content-Length': String(meta.size),
+          },
+        },
+      )
     })
   }
 }

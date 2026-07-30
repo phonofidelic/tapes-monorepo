@@ -4,7 +4,9 @@ import {
   App,
   IpcService,
   SyncServerInfo,
+  resolveBlobEndpoint,
   useAutomergeUrl,
+  type BlobEndpoint,
 } from '@tapes-monorepo/core'
 import './index.css'
 import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
@@ -32,6 +34,7 @@ function ElectronAppRoot() {
   const [syncServerUrls, setSyncServerUrls] = useState<SyncServerUrls | null>(
     null,
   )
+  const [blobEndpoint, setBlobEndpoint] = useState<BlobEndpoint | undefined>()
   const [repo, setRepo] = useState<Repo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const handleRef = useRef<DocHandle<unknown> | null>(null)
@@ -56,6 +59,9 @@ function ElectronAppRoot() {
           )
         }
         setSyncServerUrls(urls)
+        // Recorded audio goes to the embedded server's own HTTP surface, which
+        // it advertises alongside the sync socket.
+        setBlobEndpoint(resolveBlobEndpoint({ syncServerInfo: info }))
       })
       .catch((ipcError) => {
         console.error('Failed to reach the embedded sync server', ipcError)
@@ -110,7 +116,13 @@ function ElectronAppRoot() {
     return <div>Loading...</div>
   }
 
-  return <App appContextValue={appContextValue} repoContextValue={repo} />
+  return (
+    <App
+      appContextValue={appContextValue}
+      repoContextValue={repo}
+      blobEndpoint={blobEndpoint}
+    />
+  )
 }
 
 const root = createRoot(rootElement)

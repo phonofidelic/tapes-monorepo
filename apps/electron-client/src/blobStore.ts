@@ -13,6 +13,7 @@ import {
   writeFile,
 } from 'fs/promises'
 import { pipeline } from 'stream/promises'
+import { once } from 'events'
 import type { Readable } from 'stream'
 
 /**
@@ -305,6 +306,14 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
         sink,
       )
     } catch (error) {
+      // `createWriteStream` opens its file descriptor asynchronously. An
+      // upload rejected on its first chunk can reach this handler before that
+      // open completes, and removing the path first would then leave the file
+      // behind once it did. Wait for the stream to actually close.
+      if (!sink.closed) {
+        sink.destroy()
+        await once(sink, 'close').catch(() => {})
+      }
       await rm(scratch, { force: true })
       throw tooLarge ? new BlobTooLargeError(options.maxBytes ?? 0) : error
     }

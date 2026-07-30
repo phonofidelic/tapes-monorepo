@@ -15,6 +15,7 @@ export function AudioPlayer() {
     setIsPlaying,
     duration,
     currentTime,
+    playbackState,
   } = useAudioPlayer()
   const [recording] = useDocument<RecordingData>(currentUrl)
 
@@ -31,7 +32,7 @@ export function AudioPlayer() {
       )}
     >
       <div className="relative">
-        <div className="absolute left-0 top-0 w-full">
+        <div className="absolute top-0 left-0 w-full">
           <div
             key={currentTime}
             className="h-1 bg-rose-500"
@@ -44,6 +45,14 @@ export function AudioPlayer() {
       <div className="flex h-20 w-full items-center justify-between">
         <div className="w-full p-4">
           <p>{recording?.name}</p>
+          {/* Fetching a recording from the host is the one moment playback is
+              not instant, and a failure used to clear the player silently. */}
+          {playbackState === 'loading' && (
+            <p className="text-xs text-zinc-400">Downloading…</p>
+          )}
+          {playbackState === 'error' && (
+            <p className="text-xs text-rose-500">Not available offline</p>
+          )}
           <div className="flex w-full justify-between gap-2">
             <p className="text-sm">
               <FormattedTime time={currentTime * 1000} />

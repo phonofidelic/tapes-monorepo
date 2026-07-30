@@ -23,6 +23,7 @@ export function Settings() {
   const [importUrl, setImportUrl] = useState('')
   const [syncServerLanEnabled] = useSetting('syncServerLanEnabled')
   const [hostedBaseUrl, setHostedBaseUrl] = useState<string | null>(null)
+  const [blobToken, setBlobToken] = useState<string | null>(null)
 
   // On the desktop app, guests should load the web-client from this host
   // (same origin as the sync server) rather than the deployed Vercel build,
@@ -32,9 +33,12 @@ export function Settings() {
     if (appContext.type !== 'electron-client') {
       return
     }
-    appContext.ipc
-      .send<SyncServerInfo>('sync:get-server-info')
-      .then((info) => setHostedBaseUrl(info.lanWebAppUrl ?? null))
+    appContext.ipc.send<SyncServerInfo>('sync:get-server-info').then((info) => {
+      setHostedBaseUrl(info.lanWebAppUrl ?? null)
+      // The guest needs this to read and write audio on the host; pairing is
+      // the only moment we get to hand it over.
+      setBlobToken(info.blobToken ?? null)
+    })
   }, [appContext, syncServerLanEnabled])
 
   const baseUrl =
@@ -42,6 +46,12 @@ export function Settings() {
     (process.env.NODE_ENV === 'development'
       ? `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
       : 'https://tapes-monorepo-web-client.vercel.app')
+
+  // Anyone with this link can read and write the host's recordings, which was
+  // already true of the library it replicates.
+  const pairingUrl = `${baseUrl}/?am=${automergeUrl}${
+    blobToken ? `&bt=${encodeURIComponent(blobToken)}` : ''
+  }`
 
   return (
     <div className="flex flex-col gap-4">
@@ -139,13 +149,13 @@ export function Settings() {
         <div className="flex flex-col gap-2 p-2">
           <p className="text-sm">Replicate your data to another device:</p>
           <div className="flex items-center justify-around">
-            <QRCodeSVG value={`${baseUrl}/?am=${automergeUrl}`} />
+            <QRCodeSVG value={pairingUrl} />
             <p>or</p>
             <Button
               className="p-2"
               title="Copy URL to clipboard"
               onClick={() => {
-                navigator.clipboard.writeText(`${baseUrl}/?am=${automergeUrl}`)
+                navigator.clipboard.writeText(pairingUrl)
               }}
             >
               Copy URL <MdOutlineContentCopy />
@@ -360,10 +370,7 @@ function SyncSettings() {
           )}
           {syncServerLanEnabled === 'true' && serverInfo?.lanWebAppUrl && (
             <div className="flex items-center gap-2 pl-2">
-              <p
-                className="truncate text-xs"
-                title={serverInfo.lanWebAppUrl}
-              >
+              <p className="truncate text-xs" title={serverInfo.lanWebAppUrl}>
                 {serverInfo.lanWebAppUrl}
               </p>
               <Button

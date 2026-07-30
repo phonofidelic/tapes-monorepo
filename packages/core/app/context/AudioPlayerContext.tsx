@@ -2,7 +2,18 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData } from '@/types'
+import { fetchBlob } from '@/blobClient'
+import { cacheBlob, cachedBlobSource, recordCacheHit } from '@/blobCache'
 import { useAppContext } from './AppContext'
+import { useBlobEndpoint } from './BlobContext'
+
+/**
+ * `loading` covers fetching a recording's audio from the host on first play,
+ * which can take a moment for a long tape; `error` means it could not be
+ * resolved at all, which previously just cleared the player with no
+ * explanation.
+ */
+export type PlaybackState = 'idle' | 'loading' | 'ready' | 'error'
 
 type AudioPlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement>
@@ -16,6 +27,7 @@ type AudioPlayerContextValue = {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>
   clickedTime: number
   setClickedTime: React.Dispatch<React.SetStateAction<number>>
+  playbackState: PlaybackState
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue | undefined>(
@@ -28,7 +40,9 @@ export const AudioPlayerProvider = ({
   children: React.ReactNode
 }) => {
   const appContext = useAppContext()
+  const blobEndpoint = useBlobEndpoint()
   const audioRef = useRef<HTMLAudioElement>(new Audio())
+  const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
   const [currentSource, setCurrentSource] = useState<string | undefined>(
     undefined,
   )
@@ -53,72 +67,149 @@ export const AudioPlayerProvider = ({
     }
 
     // Wait for the recording doc to resolve before choosing a source. Until it
-    // loads we can't tell whether it has embedded bytes, and falling back to
-    // storage:get here throws NotFoundError for a recording synced from another
-    // device (its bytes are in the doc, not this device's OPFS).
+    // loads we can't tell where the audio is, and falling back to storage:get
+    // here throws NotFoundError for a recording synced from another device
+    // (whose bytes were never in this device's OPFS).
     if (!recordingDoc) {
       return
     }
 
-    // Prefer bytes embedded in the synced doc. This path is platform-independent
-    // and is the only one that works for a device that did not record the audio
-    // (its OPFS is empty / it has no `tapes://` handler). The bytes may arrive
-    // asynchronously as the doc syncs in, so this effect re-runs when they do.
-    const embeddedAudio = recordingDoc.audio
-    if (embeddedAudio) {
-      const objectUrl = URL.createObjectURL(
-        // Automerge types the bytes as Uint8Array<ArrayBufferLike>, but BlobPart
-        // wants Uint8Array<ArrayBuffer>; they are identical at runtime.
-        new Blob([embeddedAudio as BlobPart], {
-          type: recordingDoc?.mimeType ?? 'audio/mp4',
-        }),
-      )
+    let cancelled = false
+    let objectUrl: string | undefined
+
+    const play = (src: string, revoke = false) => {
+      if (cancelled) {
+        if (revoke) {
+          URL.revokeObjectURL(src)
+        }
+        return
+      }
+      if (revoke) {
+        objectUrl = src
+      }
       if (audioRef.current) {
-        audioRef.current.src = objectUrl
+        audioRef.current.src = src
       }
-      return () => {
-        URL.revokeObjectURL(objectUrl)
-      }
+      setPlaybackState('ready')
     }
 
-    const onMessage = async (event: MessageEvent) => {
-      if (!audioRef.current) {
+    const resolve = async () => {
+      setPlaybackState('loading')
+
+      // 1. Legacy embedded bytes. Automerge history is append-only, so docs
+      //    written before audio moved out of band still carry their audio and
+      //    always will. They have no hash, so this never competes with the
+      //    paths below.
+      const embeddedAudio = recordingDoc.audio
+      if (embeddedAudio) {
+        play(
+          URL.createObjectURL(
+            // Automerge types the bytes as Uint8Array<ArrayBufferLike>, but
+            // BlobPart wants Uint8Array<ArrayBuffer>; identical at runtime.
+            new Blob([embeddedAudio as BlobPart], {
+              type: recordingDoc.mimeType ?? 'audio/mp4',
+            }),
+          ),
+          true,
+        )
         return
       }
 
-      if (event.data.type === 'storage:get:response') {
-        if (!event.data.success) {
-          console.error('Play error:', event.data.error)
-          setCurrentUrl(undefined)
+      const descriptor = recordingDoc.blob
+
+      // 2. Already cached locally, from an earlier play or an explicit pin.
+      //    This is the path that works with the host switched off.
+      if (descriptor) {
+        const cached = await cachedBlobSource(appContext, descriptor)
+        if (cached) {
+          play(cached.src, cached.revoke)
           return
         }
+      }
 
-        const { url } = event.data.payload as {
-          url: string
+      // 3. This device's own copy of a recording it made itself. Also covers
+      //    a recording whose upload has not landed yet.
+      const local = await localSource()
+      if (local) {
+        play(local.src, local.revoke)
+        return
+      }
+
+      // 4. Fetch from the host and keep what comes back, so a guest's storage
+      //    grows with what it has played rather than with the whole library.
+      if (descriptor && blobEndpoint) {
+        try {
+          const blob = await fetchBlob(blobEndpoint, descriptor.hash)
+          if (cancelled) {
+            return
+          }
+          play(URL.createObjectURL(blob), true)
+          await cacheBlob(appContext, descriptor, blob, recordingDoc.url)
+          recordCacheHit(descriptor.hash, descriptor.size, localStorage)
+          return
+        } catch (error) {
+          console.error('Could not fetch recording audio:', error)
         }
+      }
 
-        audioRef.current.src = url
+      if (!cancelled) {
+        setPlaybackState('error')
       }
     }
 
-    if (appContext.type === 'web-client') {
-      appContext.worker.addEventListener('message', onMessage)
-      appContext.worker.postMessage({
-        type: 'storage:get',
-        payload: {
-          filename: currentSource,
-        },
+    /**
+     * The bytes as this device stored them at record time: an OPFS file on
+     * web, the user's own audio file on electron.
+     */
+    const localSource = async (): Promise<{
+      src: string
+      revoke: boolean
+    } | null> => {
+      if (appContext.type === 'electron-client') {
+        // The protocol handler resolves a path this device knows about; a
+        // recording made elsewhere has a filepath that means nothing here.
+        return recordingDoc.filepath
+          ? { src: `tapes://${currentSource}`, revoke: false }
+          : null
+      }
+      return new Promise((resolveSource) => {
+        const worker = appContext.worker
+        const onMessage = (event: MessageEvent) => {
+          if (event.data?.type !== 'storage:get:response') {
+            return
+          }
+          worker.removeEventListener('message', onMessage)
+          if (!event.data.success) {
+            resolveSource(null)
+            return
+          }
+          const { url } = event.data.payload as { url: string }
+          resolveSource({ src: url, revoke: false })
+        }
+        worker.addEventListener('message', onMessage)
+        worker.postMessage({
+          type: 'storage:get',
+          payload: { filename: currentSource },
+        })
       })
-    } else {
-      audioRef.current.src = `tapes://${currentSource}`
     }
+
+    void resolve()
 
     return () => {
-      if (appContext.type === 'web-client') {
-        appContext.worker.removeEventListener('message', onMessage)
+      cancelled = true
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
       }
     }
-  }, [currentSource, appContext, recordingDoc?.audio, recordingDoc?.mimeType])
+  }, [
+    currentSource,
+    appContext,
+    blobEndpoint,
+    recordingDoc,
+    recordingDoc?.audio,
+    recordingDoc?.blob,
+  ])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -179,6 +270,7 @@ export const AudioPlayerProvider = ({
         setIsPlaying,
         clickedTime,
         setClickedTime,
+        playbackState,
       }}
     >
       {children}

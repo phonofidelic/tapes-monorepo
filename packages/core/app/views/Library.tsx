@@ -8,12 +8,17 @@ import {
   MdOutlineRemoveCircleOutline,
   MdCheck,
   MdPlayArrow,
+  MdDownloadForOffline,
+  MdOutlineDownloadForOffline,
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { useAppContext } from '@/context/AppContext'
 import { EditRecordingResponse, IpcResponse } from '@/IpcService'
 import { useAudioPlayer } from '@/context/AudioPlayerContext'
+import { useBlobEndpoint } from '@/context/BlobContext'
+import { usePins } from '@/context/PinContext'
+import { deleteBlob } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
 import { useAutomergeUrl } from '@/utils'
 
@@ -87,6 +92,9 @@ function LibraryListItem({
   const appContext = useAppContext()
   const [recording] = useDocument<RecordingData>(automergeUrl)
   const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
+  const blobEndpoint = useBlobEndpoint()
+  const { pinState: readPinState, pin, unpin } = usePins()
+  const pinState = readPinState(automergeUrl)
 
   const initialized = useRef(false)
   const previousRecordingName = useRef(recording?.name)
@@ -140,7 +148,7 @@ function LibraryListItem({
             <Button
               title="Options"
               className={clsx(
-                'rounded-full bg-none p-2 pointer-fine:opacity-0 transition-opacity ease-in group-hover:opacity-100 pointer-none:opacity-100 hover:bg-none hover:shadow-xs',
+                'rounded-full bg-none p-2 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs pointer-none:opacity-100 pointer-fine:opacity-0',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
@@ -152,7 +160,7 @@ function LibraryListItem({
             <Button
               title="Play recording"
               className={clsx(
-                'rounded-full bg-none p-2 pointer-fine:opacity-0 transition-opacity ease-in group-hover:opacity-100 pointer-none:opacity-100 hover:bg-none hover:shadow-xs',
+                'rounded-full bg-none p-2 transition-opacity ease-in group-hover:opacity-100 hover:bg-none hover:shadow-xs pointer-none:opacity-100 pointer-fine:opacity-0',
                 {
                   'opacity-100': isOptionsMenuOpen,
                 },
@@ -191,29 +199,86 @@ function LibraryListItem({
                     <MdEdit /> Edit
                   </Button>
                 </li>
-                {appContext.type === 'electron-client' && (
+                {recording.blob && blobEndpoint && (
+                  <li>
+                    <Button
+                      className="flex size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      title={
+                        pinState === 'pinned'
+                          ? 'Stop keeping this recording on this device'
+                          : 'Keep this recording playable with the host offline'
+                      }
+                      disabled={pinState === 'pinning'}
+                      onClick={async () => {
+                        setIsOptionsMenuOpen(false)
+                        if (pinState === 'pinned') {
+                          await unpin(automergeUrl)
+                          return
+                        }
+                        if (recording.blob) {
+                          await pin(automergeUrl, recording.blob)
+                        }
+                      }}
+                    >
+                      {pinState === 'pinned' ? (
+                        <>
+                          <MdDownloadForOffline /> Kept offline
+                        </>
+                      ) : (
+                        <>
+                          <MdOutlineDownloadForOffline />{' '}
+                          {pinState === 'pinning'
+                            ? 'Downloading…'
+                            : 'Keep offline'}
+                        </>
+                      )}
+                    </Button>
+                  </li>
+                )}
+                {(appContext.type === 'electron-client' || blobEndpoint) && (
                   <li>
                     <Button
                       className="flex size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800"
                       onClick={async () => {
-                        const deleteRecordingResponse =
-                          await appContext.ipc.send<IpcResponse>(
-                            'storage:delete-recording',
-                            {
-                              data: { filepath: recording.filepath },
-                            },
-                          )
-                        if (!deleteRecordingResponse.success) {
-                          console.error(deleteRecordingResponse.error)
-                          if (
-                            !deleteRecordingResponse.error.message.includes(
-                              'ENOENT',
+                        if (appContext.type === 'electron-client') {
+                          const deleteRecordingResponse =
+                            await appContext.ipc.send<IpcResponse>(
+                              'storage:delete-recording',
+                              {
+                                data: {
+                                  filepath: recording.filepath,
+                                  hash: recording.blob?.hash,
+                                  docUrl: recording.url,
+                                },
+                              },
                             )
-                          ) {
-                            setIsOptionsMenuOpen(false)
-                            return
+                          if (!deleteRecordingResponse.success) {
+                            console.error(deleteRecordingResponse.error)
+                            if (
+                              !deleteRecordingResponse.error.message.includes(
+                                'ENOENT',
+                              )
+                            ) {
+                              setIsOptionsMenuOpen(false)
+                              return
+                            }
+                            // If the file doesn't exist, remove it from the list
                           }
-                          // If the file doesn't exist, remove it from the list
+                        } else if (recording.blob && blobEndpoint) {
+                          // A guest releases its claim on the host's copy but
+                          // deliberately cannot delete the host user's own
+                          // audio file; the host unlinks the bytes once no
+                          // document references them.
+                          try {
+                            await deleteBlob(
+                              blobEndpoint,
+                              recording.blob.hash,
+                              recording.url,
+                            )
+                          } catch (error) {
+                            console.error(error)
+                          }
+                          await unpin(automergeUrl)
                         }
                         onDelete(automergeUrl)
                         setIsOptionsMenuOpen(false)
