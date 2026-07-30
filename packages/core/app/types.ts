@@ -1,5 +1,20 @@
 import { AutomergeUrl } from '@automerge/automerge-repo'
 
+/**
+ * Where a recording's audio lives once it is out of the Automerge doc: the
+ * sha-256 of the bytes, which is also its address in the host's blob store.
+ *
+ * Not yet written to `RecordingData` — the recorder starts producing these
+ * when playback can resolve them.
+ */
+export type BlobDescriptor = {
+  hash: string
+  size: number
+  mimeType: string
+  /** Leading-dot extension, e.g. '.wav'. */
+  ext: string
+}
+
 export type RecordingData = {
   url: AutomergeUrl
   filename: string

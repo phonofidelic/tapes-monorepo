@@ -1,4 +1,6 @@
 export * from './app/App'
 export * from './app/IpcService'
 export * from './app/types'
+export * from './app/blobClient'
+export * from './app/workerClient'
 export { useAutomergeUrl } from './app/utils'

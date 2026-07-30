@@ -31,6 +31,12 @@ export type SyncServerInfo = {
   webAppUrl?: string
   /** LAN-reachable URL of the hosted web-client bundle. */
   lanWebAppUrl?: string
+  /** Origin serving `/blobs`, when the host has a blob store configured. */
+  blobBaseUrl?: string
+  /** LAN-reachable origin serving `/blobs`. */
+  lanBlobBaseUrl?: string
+  /** Bearer token for `/blobs`. Never log this object wholesale. */
+  blobToken?: string
   port: number
   host: string
 }
@@ -153,9 +159,12 @@ export class IpcService {
 
     // This method returns a promise which will be resolved when the response has arrived.
     return new Promise((resolve) => {
-      ipcRenderer.receive(request.responseChannel ?? '', (...args: unknown[]) => {
-        resolve(args[0] as T)
-      })
+      ipcRenderer.receive(
+        request.responseChannel ?? '',
+        (...args: unknown[]) => {
+          resolve(args[0] as T)
+        },
+      )
     })
   }
 }

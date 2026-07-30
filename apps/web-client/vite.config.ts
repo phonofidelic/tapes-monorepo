@@ -85,7 +85,11 @@ const plugins = [
       // Belt and braces. The Automerge socket connects to `/sync` on this
       // origin; WebSocket upgrades are not `fetch` events so a worker never
       // sees them, but this guarantees the shell is never served in its place.
-      navigateFallbackDenylist: [/^\/sync/],
+      // `/blobs` is here for the same reason: those are `fetch` requests
+      // rather than navigations, so the fallback should not apply anyway, but
+      // serving the app shell in place of audio bytes fails as an opaque
+      // decode error and is worth ruling out explicitly.
+      navigateFallbackDenylist: [/^\/sync/, /^\/blobs/],
       cleanupOutdatedCaches: true,
     },
     // Deliberately off. A worker on the dev server would fight the LAN-guest
@@ -127,6 +131,14 @@ export default defineConfig({
       '/sync': {
         target: 'ws://127.0.0.1:9001',
         ws: true,
+        secure: false,
+        changeOrigin: true,
+      },
+      // Recorded audio is fetched and uploaded over the same origin as the
+      // sync socket, so it needs the same hop in development. Blobs are always
+      // served by the embedded host itself, never by this dev server.
+      '/blobs': {
+        target: 'http://127.0.0.1:9001',
         secure: false,
         changeOrigin: true,
       },
