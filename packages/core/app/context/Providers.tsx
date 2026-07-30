@@ -6,6 +6,9 @@ import { AppContextProvider, AppContextValue } from './AppContext'
 import { Repo } from '@automerge/automerge-repo'
 import { RepoContext } from '@automerge/automerge-repo-react-hooks'
 import { RecordingStateProvider } from './RecordingContext'
+import { BlobProvider } from './BlobContext'
+import { PinProvider } from './PinContext'
+import type { BlobEndpoint } from '@/blobClient'
 
 export default function Providers({
   values,
@@ -14,6 +17,7 @@ export default function Providers({
   values: {
     appContext: AppContextValue
     repoContext: Repo
+    blobEndpoint?: BlobEndpoint
   }
   children: React.ReactNode
 }) {
@@ -23,7 +27,13 @@ export default function Providers({
         <RepoContext.Provider value={values.repoContext}>
           <RecordingStateProvider>
             <ViewProvider>
-              <AudioPlayerProvider>{children}</AudioPlayerProvider>
+              {/* Pins need the endpoint to prefetch; the player needs pins to
+                  know what it must not evict. */}
+              <BlobProvider endpoint={values.blobEndpoint}>
+                <PinProvider>
+                  <AudioPlayerProvider>{children}</AudioPlayerProvider>
+                </PinProvider>
+              </BlobProvider>
             </ViewProvider>
           </RecordingStateProvider>
         </RepoContext.Provider>

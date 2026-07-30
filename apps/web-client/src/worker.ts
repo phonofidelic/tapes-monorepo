@@ -37,10 +37,61 @@ type EventData =
         filename: string
       }
     }
+  | {
+      type: 'storage:get-file'
+      payload: {
+        filename: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'blob:put'
+      payload: {
+        hash: string
+        bytes: ArrayBuffer
+        requestId: string
+      }
+    }
+  | {
+      type: 'blob:get'
+      payload: {
+        hash: string
+        mimeType: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'blob:has'
+      payload: {
+        hash: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'blob:delete'
+      payload: {
+        hash: string
+        requestId: string
+      }
+    }
+
+/**
+ * Blobs fetched from the sync host are cached here, keyed by content hash, so
+ * a guest can replay what it has already played with the host unreachable.
+ * Kept in a subdirectory so it never collides with recording files, which live
+ * flat in the OPFS root under their own uuid names.
+ */
+const BLOB_CACHE_DIR = 'blobs'
+
+const blobCacheDirectory = () =>
+  navigator.storage
+    .getDirectory()
+    .then((root) => root.getDirectoryHandle(BLOB_CACHE_DIR, { create: true }))
 
 // `self` is typed as the base WorkerGlobalScope; assert to the augmented
 // DedicatedWorkerGlobalScope (with fileHandle/accessHandle) declared above.
-const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope
+const ctx: DedicatedWorkerGlobalScope =
+  self as unknown as DedicatedWorkerGlobalScope
 ctx.fileHandle = null
 ctx.accessHandle = null
 
@@ -143,9 +194,9 @@ onmessage = async (event) => {
       break
     }
     case 'storage:read-bytes': {
-      // Reads the raw OPFS bytes so the recorder can embed them in the
-      // Automerge doc at save time (see AudioPlayerContext for the playback
-      // side that reuses the embedded bytes).
+      // Was how the recorder got bytes to embed in the Automerge doc. Nothing
+      // in core calls it now that audio is uploaded out of band via
+      // `storage:get-file`; kept until the legacy read path is retired.
       const { filename } = payload
       const root = await navigator.storage.getDirectory()
       try {
@@ -182,8 +233,101 @@ onmessage = async (event) => {
       }
       break
     }
+    case 'storage:get-file': {
+      // Hands back the OPFS `File` itself rather than its bytes. `fetch` can
+      // stream a File off disk, so uploading a long recording never has to
+      // materialize it in memory — which matters on a phone.
+      const { filename, requestId } = payload
+      try {
+        const root = await navigator.storage.getDirectory()
+        const handle = await root.getFileHandle(filename)
+        const file = await handle.getFile()
+        respond('storage:get-file', requestId, true, { file })
+      } catch (error) {
+        respond('storage:get-file', requestId, false, undefined, error)
+      }
+      break
+    }
+    case 'blob:put': {
+      const { hash, bytes, requestId } = payload
+      try {
+        const directory = await blobCacheDirectory()
+        const handle = await directory.getFileHandle(hash, { create: true })
+        const accessHandle = await handle.createSyncAccessHandle()
+        accessHandle.truncate(0)
+        accessHandle.write(new DataView(bytes), { at: 0 })
+        accessHandle.flush()
+        accessHandle.close()
+        respond('blob:put', requestId, true, { hash })
+      } catch (error) {
+        respond('blob:put', requestId, false, undefined, error)
+      }
+      break
+    }
+    case 'blob:get': {
+      const { hash, mimeType, requestId } = payload
+      try {
+        const directory = await blobCacheDirectory()
+        const handle = await directory.getFileHandle(hash)
+        const file = await handle.getFile()
+        respond('blob:get', requestId, true, {
+          blob: new Blob([file], { type: mimeType }),
+        })
+      } catch (error) {
+        respond('blob:get', requestId, false, undefined, error)
+      }
+      break
+    }
+    case 'blob:has': {
+      const { hash, requestId } = payload
+      try {
+        const directory = await blobCacheDirectory()
+        await directory.getFileHandle(hash)
+        respond('blob:has', requestId, true, { present: true })
+      } catch {
+        respond('blob:has', requestId, true, { present: false })
+      }
+      break
+    }
+    case 'blob:delete': {
+      const { hash, requestId } = payload
+      try {
+        const directory = await blobCacheDirectory()
+        await directory.removeEntry(hash)
+      } catch {
+        // Already gone; the caller only cares that it is not there now.
+      }
+      respond('blob:delete', requestId, true, { hash })
+      break
+    }
     default:
       console.error('unknown message', event.data)
       break
   }
+}
+
+/**
+ * Replies in the shape core's `callWorker` expects: the request id is echoed
+ * so overlapping requests can be told apart. Errors are stringified because a
+ * DOMException does not survive structured cloning intact.
+ */
+function respond(
+  type: string,
+  requestId: string,
+  success: boolean,
+  payload?: Record<string, unknown>,
+  error?: unknown,
+) {
+  ctx.postMessage({
+    type: `${type}:response`,
+    requestId,
+    success,
+    payload,
+    error:
+      error instanceof Error
+        ? error.message
+        : error
+          ? String(error)
+          : undefined,
+  })
 }

@@ -12,6 +12,7 @@ import { AudioPlayer } from './components/AudioPlayer'
 import { useAudioPlayer } from './context/AudioPlayerContext'
 import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
+import type { BlobEndpoint } from './blobClient'
 
 /**
  * The shared app tree. Each shell builds its own `Repo` and passes it in: the
@@ -19,13 +20,19 @@ import { AppContextValue } from './context/AppContext'
  * client persists to IndexedDB, the electron renderer delegates persistence to
  * the embedded sync server's filesystem store), and only the shell knows where
  * its sync server lives. `null` means the shell is still bootstrapping.
+ *
+ * `blobEndpoint` is where recorded audio is sent and fetched from, resolved by
+ * the shell for the same reason. Leaving it undefined is a supported mode: a
+ * standalone web client has no host, so its recordings stay on the device.
  */
 export function App({
   appContextValue,
   repoContextValue,
+  blobEndpoint,
 }: {
   appContextValue: AppContextValue
   repoContextValue: Repo | null
+  blobEndpoint?: BlobEndpoint
 }) {
   const mainRef = useRef<HTMLDivElement | null>(null)
 
@@ -38,6 +45,7 @@ export function App({
       values={{
         appContext: appContextValue,
         repoContext: repoContextValue,
+        blobEndpoint,
       }}
     >
       <Main mainRef={mainRef} />
@@ -92,7 +100,7 @@ function Main({
     <main
       ref={mainRef}
       className={clsx(
-        'fixed bottom-0 left-0 right-0 box-content flex flex-col overflow-y-auto p-5',
+        'fixed right-0 bottom-0 left-0 box-content flex flex-col overflow-y-auto p-5',
         {
           'pb-20': currentUrl !== undefined,
         },

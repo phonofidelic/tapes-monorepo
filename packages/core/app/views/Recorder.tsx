@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { AiFillAudio, AiOutlineAudioMuted } from 'react-icons/ai'
 import { MdOutlineCancel, MdEdit, MdCheck } from 'react-icons/md'
 import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
-import { isValidAutomergeUrl } from '@automerge/automerge-repo'
+import {
+  isValidAutomergeUrl,
+  type AutomergeUrl,
+} from '@automerge/automerge-repo'
 import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
@@ -13,18 +16,16 @@ import { AudioVisualizer } from '@/components/AudioVisualizer'
 import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecorder } from '@/context/RecordingContext'
+import { IpcResponse, StopRecordingResponse } from '@/IpcService'
+import { useBlobEndpoint } from '@/context/BlobContext'
 import {
-  IpcResponse,
-  ReadFileResponse,
-  StopRecordingResponse,
-} from '@/IpcService'
+  addPendingUpload,
+  readPendingUploads,
+  removePendingUpload,
+  uploadRecordingBlob,
+} from '@/blobUpload'
 
 const NEW_RECORDING_DEFAULT_NAME = 'New recording'
-
-// Recordings larger than this are not embedded in the synced doc (they would
-// bloat the sync payload and every peer's memory). The recording still plays on
-// the device that made it via the local OPFS/`tapes://` fallback.
-const MAX_EMBEDDED_AUDIO_BYTES = 50 * 1024 * 1024
 
 export function Recorder() {
   const appContext = useAppContext()
@@ -36,6 +37,7 @@ export function Recorder() {
 
   const { automergeUrl } = useAutomergeUrl()
   const repo = useRepo()
+  const blobEndpoint = useBlobEndpoint()
   const [, changeDocState] = useDocument<RecordingRepoState>(
     isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
   )
@@ -43,8 +45,7 @@ export function Recorder() {
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const { time, isRecording, handleFilename, setIsRecording } = useRecorder()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
-  // Guards against a second create while the first is still awaiting the byte
-  // read (the doc is now created after async I/O).
+  // Guards against a double-submit creating two docs for one recording.
   const isSavingRef = useRef(false)
 
   const [feature, setFeature] = useState<'frequency' | 'time-domain'>(
@@ -56,51 +57,50 @@ export function Recorder() {
   const [editedName, setEditedName] = useState(NEW_RECORDING_DEFAULT_NAME)
   const [hasErrors, setHasErrors] = useState(false)
 
-  // Reads the just-recorded bytes so they can be embedded in the doc. On web the
-  // bytes live in OPFS (fetched via the worker); on electron they live on disk
-  // (fetched via the `storage:read-file` IPC channel). `recordingFilepath` is the
-  // OPFS filename on web and an absolute path on electron.
-  const readRecordedBytes = async (
-    recordingFilepath: string,
-  ): Promise<{ bytes: Uint8Array; mimeType: string } | null> => {
-    if (appContext.type === 'web-client') {
-      const { worker } = appContext
-      return new Promise((resolve) => {
-        const onMessage = (event: MessageEvent) => {
-          if (event.data?.type !== 'storage:read-bytes:response') {
-            return
-          }
-          worker.removeEventListener('message', onMessage)
-          if (!event.data.success) {
-            console.error('Failed to read recorded bytes:', event.data.error)
-            resolve(null)
-            return
-          }
-          const { bytes } = event.data.payload as { bytes: ArrayBuffer }
-          // Web recordings are captured as audio/mp4 (see RecordingContext).
-          resolve({ bytes: new Uint8Array(bytes), mimeType: 'audio/mp4' })
-        }
-        worker.addEventListener('message', onMessage)
-        worker.postMessage({
-          type: 'storage:read-bytes',
-          payload: { filename: recordingFilepath },
+  /**
+   * Hands the audio to the sync host and records where it landed. On failure —
+   * or with no host at all, which is the ordinary state of a standalone web
+   * client — the recording stays playable from this device's own copy and the
+   * upload is queued for the next time an endpoint is available.
+   */
+  const storeRecordingAudio = useCallback(
+    async (docUrl: AutomergeUrl, recordingFilepath: string) => {
+      if (!blobEndpoint) {
+        addPendingUpload(localStorage, { docUrl, filepath: recordingFilepath })
+        return
+      }
+      try {
+        const descriptor = await uploadRecordingBlob({
+          appContext,
+          endpoint: blobEndpoint,
+          docUrl,
+          filepath: recordingFilepath,
+          mimeType: audioFormat ? `audio/${audioFormat}` : 'audio/mp4',
         })
-      })
-    }
+        const handle = await repo.find<RecordingData>(docUrl)
+        handle.change((doc) => {
+          doc.blob = descriptor
+        })
+        removePendingUpload(localStorage, docUrl)
+      } catch (error) {
+        console.error('Failed to store recording audio on the host:', error)
+        addPendingUpload(localStorage, { docUrl, filepath: recordingFilepath })
+      }
+    },
+    [appContext, audioFormat, blobEndpoint, repo],
+  )
 
-    const response = await appContext.ipc.send<ReadFileResponse>(
-      'storage:read-file',
-      { data: { filepath: recordingFilepath } },
-    )
-    if (!response.success) {
-      console.error('Failed to read recorded bytes:', response.error)
-      return null
+  // Recordings saved while offline (or before this device was paired with a
+  // host) carry no blob descriptor. Retry them once an endpoint exists, so a
+  // guest that recorded on the train still syncs its audio when it gets home.
+  useEffect(() => {
+    if (!blobEndpoint) {
+      return
     }
-    return {
-      bytes: new Uint8Array(response.data.bytes),
-      mimeType: response.data.mimeType,
+    for (const pending of readPendingUploads(localStorage)) {
+      void storeRecordingAudio(pending.docUrl as AutomergeUrl, pending.filepath)
     }
-  }
+  }, [blobEndpoint, storeRecordingAudio])
 
   const createRecordingDocument = async () => {
     if (hasErrors) {
@@ -129,8 +129,10 @@ export function Recorder() {
 
     isSavingRef.current = true
     try {
-      const recorded = await readRecordedBytes(recordingFilepath)
-
+      // The doc is metadata only, and is written before the audio moves
+      // anywhere: it is created synchronously so the recording appears in the
+      // library at once, however long the upload takes. There is no size limit
+      // any more — the bytes never enter the document.
       const handle = repo.create<RecordingData>()
       const url = handle.url
       handle.change((doc) => {
@@ -141,14 +143,6 @@ export function Recorder() {
         doc.name = recordingName
         doc.duration = recordingDuration
         doc.id = crypto.randomUUID()
-        if (recorded && recorded.bytes.byteLength <= MAX_EMBEDDED_AUDIO_BYTES) {
-          doc.audio = recorded.bytes
-          doc.mimeType = recorded.mimeType
-        } else if (recorded) {
-          console.warn(
-            `Recording (${recorded.bytes.byteLength} bytes) exceeds the embed limit; audio will not sync to other devices`,
-          )
-        }
       })
 
       changeDocState((repoState) => {
@@ -158,6 +152,10 @@ export function Recorder() {
         }
         repoState.recordings = [url]
       })
+
+      // Off the critical path. The descriptor lands as a second change once
+      // the host has the bytes, which the player's effect already re-runs on.
+      void storeRecordingAudio(url, recordingFilepath)
     } finally {
       isSavingRef.current = false
     }

@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { App, RecordingRepoState, useAutomergeUrl } from '@tapes-monorepo/core'
+import {
+  App,
+  RecordingRepoState,
+  resolveBlobEndpoint,
+  useAutomergeUrl,
+} from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
 import PwaUpdatePrompt from './PwaUpdatePrompt'
@@ -41,6 +46,37 @@ const syncServerUrl = resolveSyncServerUrl({
 // worker a guest registered from this origin before that was true, so it can't
 // keep serving a cached bundle from a host it may no longer be able to reach.
 const servedByHost = import.meta.env.VITE_SERVED_BY_HOST === 'true'
+
+// The QR/copy link a host shows for pairing carries its blob token as `bt`.
+// Stash it in the settings blob (next to `remoteSyncServerUrl`) and strip it
+// from the address bar, so it is not left sitting in history or a shared link.
+function captureBlobToken(): string | undefined {
+  const settings = JSON.parse(window.localStorage.getItem('settings') ?? '{}')
+  const fromQuery = new URLSearchParams(window.location.search).get('bt')
+  if (fromQuery) {
+    window.localStorage.setItem(
+      'settings',
+      JSON.stringify({ ...settings, blobToken: fromQuery }),
+    )
+    const url = new URL(window.location.href)
+    url.searchParams.delete('bt')
+    window.history.replaceState({}, '', url)
+    return fromQuery
+  }
+  return typeof settings.blobToken === 'string' ? settings.blobToken : undefined
+}
+
+// Where this bundle sends and fetches recorded audio. Same shape as the sync
+// URL chain above: the host's own origin when it is serving us, an explicit
+// remote otherwise, and nothing at all for a standalone deploy — in which case
+// recordings simply stay in this device's OPFS.
+const blobEndpoint = resolveBlobEndpoint({
+  origin: window.location.origin,
+  servedByHost,
+  isDev: import.meta.env.DEV,
+  remoteSyncServerUrl: syncServerUrl,
+  token: captureBlobToken(),
+})
 
 if (servedByHost && 'serviceWorker' in navigator) {
   navigator.serviceWorker
@@ -124,6 +160,7 @@ if (!window.Worker) {
       <App
         appContextValue={{ type: 'web-client', worker }}
         repoContextValue={repo}
+        blobEndpoint={blobEndpoint}
       />
     )
   }
