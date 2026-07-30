@@ -5,6 +5,7 @@ import {
   type SyncServerInfo,
 } from './syncServer'
 import {
+  blobStoragePath,
   readSyncServerConfig,
   syncStoragePath,
   webClientDevUrl,
@@ -31,7 +32,9 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
   // for the production flow, where guests connect to this origin directly.
   const devWebAppUrl = webClientDevUrl()
   const tls =
-    config.httpsEnabled && !devWebAppUrl ? ensureSyncServerCert(lanIp) : undefined
+    config.httpsEnabled && !devWebAppUrl
+      ? ensureSyncServerCert(lanIp)
+      : undefined
 
   return startSyncServer({
     storagePath: syncStoragePath(),
@@ -40,6 +43,8 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     webClientPath: webClientPath(),
     webAppDevUrl: devWebAppUrl,
     tls,
+    blobStorePath: blobStoragePath(),
+    blobToken: config.blobToken,
   })
 }
 
