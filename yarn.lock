@@ -5896,10 +5896,7 @@ __metadata:
   resolution: "@tapes-monorepo/core@workspace:packages/core"
   dependencies:
     "@automerge/automerge-repo": "npm:^2.0.0"
-    "@automerge/automerge-repo-network-broadcastchannel": "npm:^2.0.0"
-    "@automerge/automerge-repo-network-websocket": "npm:^2.0.0"
     "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
-    "@automerge/automerge-repo-storage-indexeddb": "npm:^2.0.0"
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@tapes-monorepo/eslint-config": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
@@ -9735,6 +9732,7 @@ __metadata:
     "@automerge/automerge": "npm:^3.0.0"
     "@automerge/automerge-repo": "npm:^2.0.0"
     "@automerge/automerge-repo-network-websocket": "npm:^2.0.0"
+    "@automerge/automerge-repo-storage-indexeddb": "npm:^2.0.0"
     "@automerge/automerge-repo-storage-nodefs": "npm:^2.0.0"
     "@dotenvx/dotenvx": "npm:^2.0.0"
     "@electron-forge/cli": "npm:^7.6.0"
@@ -19209,6 +19207,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "web-client@workspace:apps/web-client"
   dependencies:
+    "@automerge/automerge-repo": "npm:^2.0.0"
+    "@automerge/automerge-repo-network-broadcastchannel": "npm:^2.0.0"
+    "@automerge/automerge-repo-network-websocket": "npm:^2.0.0"
+    "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
+    "@automerge/automerge-repo-storage-indexeddb": "npm:^2.0.0"
     "@playwright/test": "npm:^1.61.1"
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@tapes-monorepo/core": "npm:*"

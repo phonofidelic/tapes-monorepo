@@ -1,7 +1,20 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App, IpcService, SyncServerInfo } from '@tapes-monorepo/core'
+import {
+  App,
+  IpcService,
+  SyncServerInfo,
+  useAutomergeUrl,
+} from '@tapes-monorepo/core'
 import './index.css'
+import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
+import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
+import {
+  bootstrapRendererRepo,
+  readSyncSettings,
+  resolveSyncServerUrls,
+  type SyncServerUrls,
+} from './rendererRepo'
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
@@ -13,46 +26,91 @@ const appContextValue = {
   ipc: new IpcService(),
 }
 
-function getRemoteSyncServerUrl(): string | undefined {
-  // Settings are written by core's SettingsProvider under this key.
-  const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as {
-    syncServerMode?: string
-    remoteSyncServerUrl?: string
-  }
-
-  const remoteUrl =
-    settings.remoteSyncServerUrl ?? import.meta.env.VITE_SYNC_SERVER_URL
-
-  return settings.syncServerMode === 'remote' ? remoteUrl : undefined
-}
-
 function ElectronAppRoot() {
-  const [syncServerUrl, setSyncServerUrl] = useState<string | null>(
-    () => getRemoteSyncServerUrl() ?? null,
+  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
+
+  const [syncServerUrls, setSyncServerUrls] = useState<SyncServerUrls | null>(
+    null,
   )
+  const [repo, setRepo] = useState<Repo | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const handleRef = useRef<DocHandle<unknown> | null>(null)
+  const didInitRef = useRef(false)
 
+  // The embedded server's url only arrives over IPC, and the repo must be built
+  // with its adapters already in place: `Repo.find` waits for the network to be
+  // ready and then requests the doc, so a repo built before the url resolves
+  // would have no peer to ask and report the library as unavailable.
   useEffect(() => {
-    if (syncServerUrl) {
-      return
-    }
-
     appContextValue.ipc
       .send<SyncServerInfo>('sync:get-server-info')
       .then((info) => {
-        if (info.running) {
-          setSyncServerUrl(info.url)
-          return
+        const urls = resolveSyncServerUrls({
+          settings: readSyncSettings(localStorage),
+          serverInfo: info,
+          envSyncServerUrl: import.meta.env.VITE_SYNC_SERVER_URL,
+        })
+        if (!urls.localUrl) {
+          console.error(
+            'Embedded sync server is not running: recordings made in this session will not be stored on disk',
+          )
         }
-        const fallbackUrl = import.meta.env.VITE_SYNC_SERVER_URL
-        if (fallbackUrl) {
-          setSyncServerUrl(fallbackUrl)
-          return
-        }
-        console.error('Embedded sync server is not running')
+        setSyncServerUrls(urls)
       })
-  }, [syncServerUrl])
+      .catch((ipcError) => {
+        console.error('Failed to reach the embedded sync server', ipcError)
+        setError('Could not reach the local sync server.')
+      })
+  }, [])
 
-  return <App appContextValue={appContextValue} syncServerUrl={syncServerUrl} />
+  useEffect(() => {
+    if (!syncServerUrls) {
+      return
+    }
+
+    const initialize = async () => {
+      // Guard against re-init (StrictMode double-invoke, dep changes). A `repo`
+      // state check can't do this: initialize() is async and setRepo lands only
+      // at the end, so concurrent runs would each build a Repo and websocket.
+      if (didInitRef.current) {
+        return
+      }
+      didInitRef.current = true
+
+      const result = await bootstrapRendererRepo({
+        storedUrl:
+          automergeUrl && isValidAutomergeUrl(automergeUrl)
+            ? automergeUrl
+            : null,
+        urls: syncServerUrls,
+        createStorage: () => new IndexedDBStorageAdapter(),
+      })
+
+      if (result.status === 'unavailable') {
+        // Creating a fresh doc here would be indistinguishable from silently
+        // losing the library.
+        setError('Your library could not be loaded from this device.')
+        return
+      }
+
+      handleRef.current = result.handle
+      if (result.createdUrl) {
+        setAutomergeUrl(result.createdUrl)
+      }
+      setRepo(result.repo)
+    }
+    initialize()
+  }, [automergeUrl, setAutomergeUrl, syncServerUrls])
+
+  if (error) {
+    return <div>{error}</div>
+  }
+
+  if (!repo) {
+    return <div>Loading...</div>
+  }
+
+  return <App appContextValue={appContextValue} repoContextValue={repo} />
 }
 
 const root = createRoot(rootElement)

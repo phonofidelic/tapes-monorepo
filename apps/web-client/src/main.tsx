@@ -1,10 +1,19 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { App } from '@tapes-monorepo/core'
+import { App, RecordingRepoState, useAutomergeUrl } from '@tapes-monorepo/core'
 import './index.css'
 import DownloadPrompt from './DownloadPrompt'
 import PwaUpdatePrompt from './PwaUpdatePrompt'
 import { resolveSyncServerUrl } from './syncServerUrl'
+import {
+  DocHandle,
+  isValidAutomergeUrl,
+  NetworkAdapterInterface,
+  Repo,
+} from '@automerge/automerge-repo'
+import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
+import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
+import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 
 // Where this bundle syncs, in precedence order:
 //
@@ -66,13 +75,63 @@ if (!window.Worker) {
     console.log('worker.onerror', event)
   }
 
+  // Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
+  // BroadcastChannel always, and a websocket to whichever sync server resolved
+  // above (if any).
+  function WebClientRoot() {
+    const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
+    const [repo, setRepo] = useState<Repo | null>(null)
+    const handleRef = useRef<DocHandle<unknown> | null>(null)
+    const didInitRef = useRef(false)
+
+    useEffect(() => {
+      const initialize = async () => {
+        // Guard against re-init (StrictMode double-invoke, dep changes). A `repo`
+        // state check can't do this: initialize() is async and setRepo lands only
+        // at the end, so concurrent runs would each build a Repo and websocket.
+        if (didInitRef.current) {
+          return
+        }
+        didInitRef.current = true
+
+        const network: NetworkAdapterInterface[] = [
+          new BroadcastChannelNetworkAdapter(),
+        ]
+        if (syncServerUrl) {
+          network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
+        }
+
+        const _repo = new Repo({
+          storage: new IndexedDBStorageAdapter(),
+          network,
+        })
+
+        if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
+          handleRef.current = await _repo.find(automergeUrl)
+        } else {
+          handleRef.current = _repo.create<RecordingRepoState>({
+            recordings: [],
+          })
+          setAutomergeUrl(handleRef.current.url)
+        }
+
+        setRepo(_repo)
+      }
+      initialize()
+    }, [automergeUrl, setAutomergeUrl])
+
+    return (
+      <App
+        appContextValue={{ type: 'web-client', worker }}
+        repoContextValue={repo}
+      />
+    )
+  }
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <div className="flex sm:hidden">
-        <App
-          appContextValue={{ type: 'web-client', worker }}
-          syncServerUrl={syncServerUrl}
-        />
+        <WebClientRoot />
       </div>
       <div className="mx-auto hidden h-screen w-screen max-w-screen-sm flex-col items-center justify-center gap-16 sm:flex">
         <DownloadPrompt />
