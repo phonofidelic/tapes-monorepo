@@ -18,6 +18,11 @@
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@automerge/automerge-repo": "^2.0.0",
+    "@automerge/automerge-repo-network-broadcastchannel": "^2.0.0",
+    "@automerge/automerge-repo-network-websocket": "^2.0.0",
+    "@automerge/automerge-repo-react-hooks": "^2.0.0",
+    "@automerge/automerge-repo-storage-indexeddb": "^2.0.0",
     "@tapes-monorepo/core": "*",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

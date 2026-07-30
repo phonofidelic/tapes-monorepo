@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
-import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
-import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
-import { DocHandle, isValidAutomergeUrl, NetworkAdapterInterface, Repo } from '@automerge/automerge-repo'
+import { Repo } from '@automerge/automerge-repo'
 import { Button } from '@tapes-monorepo/ui'
 import {
   useView,
@@ -11,64 +8,28 @@ import {
   viewComponentMap,
 } from '@/context/ViewContext'
 import './index.css'
-import { RecordingRepoState } from '@/types'
 import { AudioPlayer } from './components/AudioPlayer'
 import { useAudioPlayer } from './context/AudioPlayerContext'
 import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
-import { setAutomergeUrl, useAutomergeUrl } from './utils'
 
+/**
+ * The shared app tree. Each shell builds its own `Repo` and passes it in: the
+ * storage and network adapters a repo needs are platform-specific (the web
+ * client persists to IndexedDB, the electron renderer delegates persistence to
+ * the embedded sync server's filesystem store), and only the shell knows where
+ * its sync server lives. `null` means the shell is still bootstrapping.
+ */
 export function App({
   appContextValue,
-  syncServerUrl,
+  repoContextValue,
 }: {
   appContextValue: AppContextValue
-  syncServerUrl?: string | null
+  repoContextValue: Repo | null
 }) {
-  const { automergeUrl } = useAutomergeUrl()
-  const [repo, setRepo] = useState<Repo | null>(null)
   const mainRef = useRef<HTMLDivElement | null>(null)
-  const handleRef = useRef<DocHandle<unknown> | null>(null)
-  const didInitRef = useRef(false)
 
-  useEffect(() => {
-    const initialize = async () => {
-      // Guard against re-init (StrictMode double-invoke, dep changes). A `repo`
-      // state check can't do this: initialize() is async and setRepo lands only
-      // at the end, so concurrent runs would each build a Repo and websocket.
-      if (didInitRef.current) {
-        return
-      }
-      didInitRef.current = true
-
-      // Set up network adapters. 
-      const broadcast = new BroadcastChannelNetworkAdapter()
-      const network: NetworkAdapterInterface[] = [broadcast]
-      if (syncServerUrl) {
-        network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
-      }
-  
-      const indexedDB = new IndexedDBStorageAdapter()
-
-      const _repo = new Repo({
-        storage: indexedDB,
-        network
-      })
-
-      if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
-        handleRef.current = await _repo.find(automergeUrl)
-      } else {
-        handleRef.current = _repo.create<RecordingRepoState>({ recordings: [] })
-        setAutomergeUrl(handleRef.current.url)
-      }
-
-      setRepo(_repo)
-    }
-    initialize()
-
-  }, [automergeUrl, syncServerUrl])
-
-  if (!repo) {
+  if (!repoContextValue) {
     return <div>Loading...</div>
   }
 
@@ -76,7 +37,7 @@ export function App({
     <Providers
       values={{
         appContext: appContextValue,
-        repoContext: repo,
+        repoContext: repoContextValue,
       }}
     >
       <Main mainRef={mainRef} />
