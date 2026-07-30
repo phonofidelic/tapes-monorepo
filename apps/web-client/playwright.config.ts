@@ -30,9 +30,11 @@ export default defineConfig({
     : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: BASE_URL,
-    // main.tsx renders <App> inside `div.flex sm:hidden`; at >= 640px only the
-    // DownloadPrompt is visible. A plain narrow viewport rather than a device
-    // preset, so touch emulation doesn't change click behaviour.
+    // The app renders at every width since TAP-67, so this is no longer a
+    // requirement — it is the default the recording specs were written against
+    // and the layout most of them care about. Specs that need desktop widths
+    // call setViewportSize themselves. A plain narrow viewport rather than a
+    // device preset, so touch emulation doesn't change click behaviour.
     viewport: { width: 390, height: 844 },
     // AudioInputSelector reads navigator.permissions.query once on mount and
     // never re-checks, so the grant has to be in place before the first load.

@@ -31,7 +31,9 @@ export function AudioPlayer() {
         },
       )}
     >
-      <div className="relative">
+      {/* The bar is full-bleed so its background and border span the window;
+          the progress track and the controls below follow `main`'s column. */}
+      <div className="relative mx-auto max-w-3xl">
         <div className="absolute top-0 left-0 w-full">
           <div
             key={currentTime}
@@ -42,7 +44,7 @@ export function AudioPlayer() {
           />
         </div>
       </div>
-      <div className="flex h-20 w-full items-center justify-between">
+      <div className="mx-auto flex h-20 w-full max-w-3xl items-center justify-between">
         <div className="w-full p-4">
           <p>{recording?.name}</p>
           {/* Fetching a recording from the host is the one moment playback is

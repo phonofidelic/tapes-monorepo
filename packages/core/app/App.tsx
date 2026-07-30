@@ -68,7 +68,10 @@ function Navigation({
         'border-b dark:border-b-zinc-800': isScrolled,
       })}
     >
-      <ul className="flex w-full justify-between gap-1 p-1">
+      {/* The bar stays full-bleed so its background and border still span the
+          window; only the tabs are held to the content column. Below `max-w-3xl`
+          this is a no-op, so the mobile layout is unchanged. */}
+      <ul className="mx-auto flex w-full max-w-3xl justify-between gap-1 p-1">
         {navigationConfig.map(({ label, view }) => (
           <li key={view} className="w-full">
             <Button
@@ -97,10 +100,14 @@ function Main({
   const { currentUrl } = useAudioPlayer()
 
   return (
+    // `max-w-3xl` centers `main` itself rather than an inner wrapper, because
+    // the Recorder view positions its visualizer and transport `absolute`
+    // against this element — a wrapper would leave them full-bleed. Below
+    // `3xl` the constraint never binds, so the mobile layout is unchanged.
     <main
       ref={mainRef}
       className={clsx(
-        'fixed right-0 bottom-0 left-0 box-content flex flex-col overflow-y-auto p-5',
+        'fixed right-0 bottom-0 left-0 mx-auto box-content flex max-w-3xl flex-col overflow-y-auto p-5',
         {
           'pb-20': currentUrl !== undefined,
         },
