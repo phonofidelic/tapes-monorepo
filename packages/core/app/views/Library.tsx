@@ -8,8 +8,8 @@ import {
   MdOutlineRemoveCircleOutline,
   MdCheck,
   MdPlayArrow,
-  MdDownloadForOffline,
-  MdOutlineDownloadForOffline,
+  MdDownload,
+  MdFileDownloadOff
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
@@ -199,10 +199,10 @@ function LibraryListItem({
                     <MdEdit /> Edit
                   </Button>
                 </li>
-                {recording.blob && blobEndpoint && (
+                {recording.blob && blobEndpoint && appContext.type !== 'electron-client' && (
                   <li>
                     <Button
-                      className="flex size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      className="flex whitespace-nowrap size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                       title={
                         pinState === 'pinned'
                           ? 'Stop keeping this recording on this device'
@@ -222,11 +222,11 @@ function LibraryListItem({
                     >
                       {pinState === 'pinned' ? (
                         <>
-                          <MdDownloadForOffline /> Kept offline
+                          <MdFileDownloadOff /> Clear from cache
                         </>
                       ) : (
                         <>
-                          <MdOutlineDownloadForOffline />{' '}
+                          <MdDownload />{' '}
                           {pinState === 'pinning'
                             ? 'Downloading…'
                             : 'Keep offline'}
