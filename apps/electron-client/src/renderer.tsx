@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import {
   App,
   IpcService,
-  RecordingRepoState,
   SyncServerInfo,
   useAutomergeUrl,
 } from '@tapes-monorepo/core'
@@ -11,7 +10,7 @@ import './index.css'
 import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 import {
-  buildRendererNetwork,
+  bootstrapRendererRepo,
   readSyncSettings,
   resolveSyncServerUrls,
   type SyncServerUrls,
@@ -26,9 +25,6 @@ const appContextValue = {
   type: 'electron-client' as const,
   ipc: new IpcService(),
 }
-
-/** How long to wait for a peer to answer with the stored library. */
-const FIND_TIMEOUT_MS = 10_000
 
 function ElectronAppRoot() {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
@@ -81,79 +77,27 @@ function ElectronAppRoot() {
       }
       didInitRef.current = true
 
-      const storedUrl =
-        automergeUrl && isValidAutomergeUrl(automergeUrl) ? automergeUrl : null
-
-      // Finds the stored library in `candidate`, or creates a fresh one when
-      // there is nothing stored yet. Reports whether the library was found, so
-      // the caller can try a different repo rather than inventing a new doc.
-      const bootstrap = async (candidate: Repo) => {
-        if (!storedUrl) {
-          handleRef.current = candidate.create<RecordingRepoState>({
-            recordings: [],
-          })
-          setAutomergeUrl(handleRef.current.url)
-          setRepo(candidate)
-          return true
-        }
-
-        try {
-          // A peer that never answers would otherwise leave `find` pending
-          // forever: the websocket adapter reports itself ready a second after
-          // construction whether or not it ever connected.
-          handleRef.current = await candidate.find(storedUrl, {
-            signal: AbortSignal.timeout(FIND_TIMEOUT_MS),
-          })
-          setRepo(candidate)
-          return true
-        } catch (findError) {
-          console.info('Library not found in this repo', findError)
-          return false
-        }
-      }
-
-      // Without a running embedded server there is nothing to persist to on
-      // disk, so keep the legacy IndexedDB store rather than running the session
-      // with no persistence at all.
-      if (!syncServerUrls.localUrl) {
-        const offlineRepo = new Repo({
-          storage: new IndexedDBStorageAdapter(),
-          network: buildRendererNetwork(syncServerUrls),
-        })
-        if (!(await bootstrap(offlineRepo))) {
-          setError('Your library could not be loaded from this device.')
-        }
-        return
-      }
-
-      // No storage adapter: the embedded sync server persists these documents
-      // to the filesystem for us (see syncServer.ts), which keeps the desktop
-      // library off the renderer's origin quota. It responds to requests even
-      // though its share policy never announces, so `find` works.
-      const _repo = new Repo({
-        network: buildRendererNetwork(syncServerUrls),
+      const result = await bootstrapRendererRepo({
+        storedUrl:
+          automergeUrl && isValidAutomergeUrl(automergeUrl)
+            ? automergeUrl
+            : null,
+        urls: syncServerUrls,
+        createStorage: () => new IndexedDBStorageAdapter(),
       })
 
-      if (await bootstrap(_repo)) {
-        return
-      }
-
-      // The server doesn't have the library. That's a pre-TAP-69 install, whose
-      // only copy is in this renderer's IndexedDB: run this session on the
-      // legacy IndexedDB-backed repo, which announces the library to the server
-      // in the background so the next launch finds it on disk. Once this has
-      // shipped for a release, the fallback and the IndexedDB dependency can go.
-      await _repo.shutdown()
-      const legacyRepo = new Repo({
-        storage: new IndexedDBStorageAdapter(),
-        network: buildRendererNetwork(syncServerUrls),
-      })
-
-      if (!(await bootstrap(legacyRepo))) {
-        // Neither the server nor IndexedDB has it. Creating a fresh doc here
-        // would be indistinguishable from silently losing the library.
+      if (result.status === 'unavailable') {
+        // Creating a fresh doc here would be indistinguishable from silently
+        // losing the library.
         setError('Your library could not be loaded from this device.')
+        return
       }
+
+      handleRef.current = result.handle
+      if (result.createdUrl) {
+        setAutomergeUrl(result.createdUrl)
+      }
+      setRepo(result.repo)
     }
     initialize()
   }, [automergeUrl, setAutomergeUrl, syncServerUrls])
