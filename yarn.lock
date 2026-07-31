@@ -19227,7 +19227,6 @@ __metadata:
     eslint-plugin-import: "npm:^2.31.0"
     globals: "npm:^17.0.0"
     postcss: "npm:^8.4.49"
-    qrcode.react: "npm:^4.2.0"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     tailwindcss: "npm:^4.3.3"
