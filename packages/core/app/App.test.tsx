@@ -60,3 +60,47 @@ describe('App repo seam', () => {
     expect(screen.queryByText('Loading...')).toBeNull()
   })
 })
+
+// TAP-67 removed the web client's mobile-only gate, so this layout is rendered
+// at desktop widths for the first time. `main` carries the column itself rather
+// than an inner wrapper because the Recorder view positions its visualizer and
+// transport `absolute` against it — a wrapper would leave those full-bleed.
+describe('App desktop layout', () => {
+  it('holds main to a centred max-width column', () => {
+    const { container } = render(
+      <App
+        appContextValue={appContextValue}
+        repoContextValue={{} as unknown as Repo}
+      />,
+    )
+
+    const main = container.querySelector('main')
+    expect(main).not.toBeNull()
+    expect(main).toHaveClass('max-w-3xl')
+    expect(main).toHaveClass('mx-auto')
+    // Still pinned to the viewport edges, so the constraint is a no-op below
+    // the breakpoint and the mobile layout is unchanged.
+    expect(main).toHaveClass('right-0')
+    expect(main).toHaveClass('left-0')
+  })
+
+  it('keeps the nav bar full-bleed while centring its tabs', () => {
+    const { container } = render(
+      <App
+        appContextValue={appContextValue}
+        repoContextValue={{} as unknown as Repo}
+      />,
+    )
+
+    // The bar keeps its background and border spanning the window...
+    const nav = container.querySelector('nav')
+    expect(nav).not.toBeNull()
+    expect(nav).not.toHaveClass('max-w-3xl')
+
+    // ...while the tabs inside follow main's column.
+    const list = container.querySelector('nav ul')
+    expect(list).not.toBeNull()
+    expect(list).toHaveClass('max-w-3xl')
+    expect(list).toHaveClass('mx-auto')
+  })
+})

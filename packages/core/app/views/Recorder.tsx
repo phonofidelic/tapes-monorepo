@@ -210,7 +210,10 @@ export function Recorder() {
       </div>
       <div
         className={clsx(
-          'fixed bottom-19.75 left-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          // `absolute`, not `fixed w-screen`: `main` is itself fixed to the
+          // bottom of the viewport, so this resolves to the same place while
+          // following the content column at desktop widths.
+          'absolute bottom-19.75 left-0 w-full rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
             'translate-y-0 px-4 drop-shadow-2xl': isEditorOpen,
             'translate-y-full': !isEditorOpen,

@@ -11,15 +11,35 @@ test.describe('app shell', () => {
     await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
   })
 
-  test('renders the app rather than the download prompt at mobile width', async ({
+  test('renders the app at desktop width as well as mobile (TAP-67)', async ({
     page,
   }) => {
     await page.goto('/')
     await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
 
-    // Above the `sm` breakpoint main.tsx swaps the app for DownloadPrompt.
-    // Guards the viewport requirement that every other test depends on.
-    await page.setViewportSize({ width: 1024, height: 800 })
-    await expect(page.getByRole('button', { name: 'Recorder' })).toBeHidden()
+    // main.tsx used to render <App> inside `div.flex sm:hidden`, so the whole
+    // app was display:none from 640px up. Guards against that gate returning.
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Library' })).toBeVisible()
+  })
+
+  test('holds the content column to max-w-3xl on a wide viewport', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
+
+    // `main` is the column (the Recorder view positions against it), so its
+    // box is the 48rem max-width plus its own box-content padding.
+    const main = page.locator('main')
+    const box = await main.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.width).toBeLessThanOrEqual(768 + 40 + 1)
+    // Centred: equal gutters either side.
+    expect(Math.abs(box!.x - (1440 - box!.width - box!.x))).toBeLessThanOrEqual(
+      1,
+    )
   })
 })

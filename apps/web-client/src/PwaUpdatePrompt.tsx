@@ -1,32 +1,22 @@
-import { useRegisterSW } from 'virtual:pwa-register/react'
-
 /**
- * Registers the service worker and surfaces an "update available" prompt.
+ * The "update available" toast.
  *
  * The worker is built with `registerType: 'prompt'` (see vite.config.ts), so a
  * new deploy installs in the background and waits rather than activating under
- * a running app — taking it mid-recording would be hostile. This renders the
- * only affordance for accepting it; without one, a returning visitor would sit
- * on the old bundle indefinitely.
+ * a running app — taking it mid-recording would be hostile. This is the only
+ * affordance for accepting it; without one, a returning visitor would sit on
+ * the old bundle indefinitely.
  *
- * Mounted only when the bundle is not host-served — vite-plugin-pwa is disabled
- * in that build and this module resolves to a no-op stub, but the toast would
- * still be dead weight in a LAN guest that can never see an update.
+ * Presentational only: registration and the decision to show this rather than
+ * the install prompt both live in `ShellPrompts`.
  */
-export default function PwaUpdatePrompt() {
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegisterError(error) {
-      console.error('Service worker registration failed', error)
-    },
-  })
-
-  if (!needRefresh) {
-    return null
-  }
-
+export default function PwaUpdatePrompt({
+  onLater,
+  onReload,
+}: {
+  onLater: () => void
+  onReload: () => void
+}) {
   return (
     <div
       role="status"
@@ -36,14 +26,13 @@ export default function PwaUpdatePrompt() {
       <div className="flex shrink-0 items-center gap-2">
         <button
           className="rounded-md px-3 py-1.5 text-zinc-400 hover:text-zinc-50"
-          onClick={() => setNeedRefresh(false)}
+          onClick={onLater}
         >
           Later
         </button>
         <button
           className="rounded-md bg-zinc-50 px-3 py-1.5 font-medium text-zinc-900 hover:bg-zinc-200"
-          // `true` activates the waiting worker and reloads the page.
-          onClick={() => updateServiceWorker(true)}
+          onClick={onReload}
         >
           Reload
         </button>
