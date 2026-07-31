@@ -34,16 +34,15 @@ const plugins = [
       'favicon-32.png',
       'apple-touch-icon-180x180.png',
       'icon.svg',
+      'tapes-mobile-ui.webp',
     ],
     manifest: {
       name: 'Tapes',
       short_name: 'Tapes',
-      description: 'Record, keep and sync audio notes. Works offline.',
+      description: 'Local-first audio recording',
       start_url: '/',
       scope: '/',
       display: 'standalone',
-      // Not 'portrait': the mobile-only viewport gate comes off in TAP-67 and
-      // an installed desktop window should be free to be any shape.
       orientation: 'any',
       background_color: '#ffffff',
       theme_color: '#18181b',
@@ -70,6 +69,13 @@ const plugins = [
           purpose: 'maskable',
         },
       ],
+      screenshots: [
+        {
+            src: 'tapes-mobile-ui.webp',
+            sizes: '1002x1772',
+            type: 'image/webp'
+        }
+    ]
     },
     workbox: {
       // Both of these are load-bearing for offline boot. Automerge's wasm is a
