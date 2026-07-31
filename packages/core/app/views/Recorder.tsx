@@ -166,7 +166,7 @@ export function Recorder() {
       <div className="flex flex-col">
         <div
           ref={visualizerContainerRef}
-          className="absolute top-0 right-0 bottom-[80px] left-0"
+          className="absolute top-0 right-0 bottom-20 left-0"
         >
           {audioInputDeviceId && isMonitoring && (
             <>
@@ -210,14 +210,14 @@ export function Recorder() {
       </div>
       <div
         className={clsx(
-          'fixed bottom-[79px] left-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          'fixed bottom-19.75 left-0 w-screen rounded-t-lg border border-zinc-100 bg-white text-zinc-400 transition-transform dark:border-zinc-800 dark:bg-zinc-900',
           {
             'translate-y-0 px-4 drop-shadow-2xl': isEditorOpen,
             'translate-y-full': !isEditorOpen,
           },
         )}
       >
-        <div className="group flex size-full h-[82px] items-center justify-between">
+        <div className="group flex size-full h-20.5 items-center justify-between">
           {isEditing ? (
             <div className="w-full justify-center p-4">
               <TextInput

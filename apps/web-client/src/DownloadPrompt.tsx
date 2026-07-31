@@ -19,7 +19,7 @@ export default function DownloadPrompt() {
       {url ? (
         <QRCodeSVG value={url} fgColor="#18181b" />
       ) : (
-        <div className="size-[128px]" />
+        <div className="size-32" />
       )}
     </>
   )

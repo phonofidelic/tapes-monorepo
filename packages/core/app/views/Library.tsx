@@ -395,7 +395,7 @@ function Editor({
             })
           }
         >
-          <p className="size-full h-[5rem] overflow-y-auto p-1 whitespace-pre-line">
+          <p className="size-full h-20 overflow-y-auto p-1 whitespace-pre-line">
             {(recording.description &&
               recording.description?.length > 0 &&
               recording.description) ||
@@ -480,7 +480,7 @@ function EditableText({
               error === undefined && label !== undefined,
             'h-0 translate-y-full opacity-0':
               error === undefined && label === undefined,
-            'h-[1rem] translate-y-0 text-rose-500 opacity-100 peer-focus:text-rose-500':
+            'h-4 translate-y-0 text-rose-500 opacity-100 peer-focus:text-rose-500':
               error !== undefined,
           },
         )}
@@ -516,7 +516,7 @@ function EditableText({
       ) : (
         <textarea
           ref={textAreaRef}
-          className="size-full h-[5rem] p-1 text-zinc-800 outline-hidden dark:bg-zinc-900 dark:text-white"
+          className="size-full h-20 p-1 text-zinc-800 outline-hidden dark:bg-zinc-900 dark:text-white"
           autoFocus={true}
           id="description"
           name="description"
