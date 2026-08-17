@@ -33,7 +33,6 @@ export function AudioInputSelector({ className }: { className?: string }) {
       const audioInputs = foundDevices
         .filter((device) => device.kind === 'audioinput')
         .filter((device) => device.deviceId !== 'default')
-        .filter((device) => !device.label.match(/\(Virtual\)/))
 
       setAudioInputDevices(audioInputs)
     }

@@ -12,9 +12,9 @@ import { SettingsProvider } from '@/context/SettingsContext'
 import type { IpcService } from '@/IpcService'
 import { AudioInputSelector } from './AudioInputSelector'
 
-// The device list the component renders. `default` and `(Virtual)` entries are
-// filtered out by the component, so they double as a guard that the filters
-// survive the option-value change.
+// The device list the component renders. The `default` alias and the
+// audiooutput entry are filtered out by the component; the `(Virtual)` device
+// is not, and guards against the label filter coming back.
 const builtInMic = {
   deviceId: 'built-in-id',
   kind: 'audioinput',
@@ -29,16 +29,18 @@ const usbMic = {
   groupId: 'group-usb',
 } as MediaDeviceInfo
 
+const virtualMic = {
+  deviceId: 'virtual-id',
+  kind: 'audioinput',
+  label: 'BlackHole (Virtual)',
+  groupId: 'group-virtual',
+} as MediaDeviceInfo
+
 const devices = [
   { ...builtInMic, deviceId: 'default', label: 'Default' } as MediaDeviceInfo,
   builtInMic,
   usbMic,
-  {
-    deviceId: 'virtual-id',
-    kind: 'audioinput',
-    label: 'BlackHole (Virtual)',
-    groupId: 'group-virtual',
-  } as MediaDeviceInfo,
+  virtualMic,
   {
     deviceId: 'speaker-id',
     kind: 'audiooutput',
@@ -129,12 +131,17 @@ describe('AudioInputSelector option values', () => {
     expect(placeholder.value).toBe('')
   })
 
-  it('lists only non-default, non-virtual audio inputs', async () => {
+  it('lists every non-default audio input, including virtual ones', async () => {
     await renderSelector(webContext)
 
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['Select an audio input device', builtInMic.label, usbMic.label])
+    ).toEqual([
+      'Select an audio input device',
+      builtInMic.label,
+      usbMic.label,
+      virtualMic.label,
+    ])
   })
 })
 
@@ -247,7 +254,7 @@ describe('AudioInputSelector initial selection', () => {
   it('falls back to the placeholder when no device is stored', async () => {
     const select = (await renderSelector(webContext)) as HTMLSelectElement
 
-    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3))
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(4))
     expect(select.value).toBe('')
   })
 })
