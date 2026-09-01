@@ -37,6 +37,96 @@ export class BlobRequestError extends Error {
   }
 }
 
+/** What one host did when it was asked for a blob. */
+export type BlobAttempt =
+  { kind: 'status'; status: number } | { kind: 'network' }
+
+/**
+ * Why a blob could not be fetched.
+ *
+ * A fetch used to surface whichever error happened to come last, which left a
+ * host that is reachable but no longer paired indistinguishable from one that
+ * is switched off — both reached the player as the same "not available
+ * offline". The reason is decided across every attempt rather than by the
+ * final one.
+ */
+export type BlobFailureReason =
+  /** No host is configured at all: this device is paired with nothing. */
+  | 'unpaired'
+  /** Reachable, but our token is missing or no longer accepted. */
+  | 'unauthorized'
+  /** Every host that answered said it does not hold these bytes. */
+  | 'missing'
+  /** Nobody could be asked: connection refused, DNS, timeout, 5xx. */
+  | 'unreachable'
+
+export class BlobFetchError extends Error {
+  constructor(
+    readonly reason: BlobFailureReason,
+    readonly attempts: readonly BlobAttempt[],
+    options?: { cause?: unknown },
+  ) {
+    super(`Could not fetch blob from any host (${reason})`, options)
+    this.name = 'BlobFetchError'
+  }
+}
+
+/**
+ * Precedence when hosts disagree: a 401 is the one failure the user can act on
+ * — re-pair — so it must never be masked by another host answering 404. An
+ * unreachable host outranks a 404 in turn, because "nobody could be asked" is
+ * a weaker claim than "every host that answered said no".
+ *
+ * Anything else, 5xx included, is reported as unreachable: from the player's
+ * side a host that is broken is not meaningfully different from one that is
+ * away.
+ */
+export function classifyBlobFailure(
+  attempts: readonly BlobAttempt[],
+): BlobFailureReason {
+  const sawStatus = (code: number) =>
+    attempts.some(
+      (attempt) => attempt.kind === 'status' && attempt.status === code,
+    )
+  if (sawStatus(401) || sawStatus(403)) {
+    return 'unauthorized'
+  }
+  if (attempts.some((attempt) => attempt.kind === 'network')) {
+    return 'unreachable'
+  }
+  if (sawStatus(404)) {
+    return 'missing'
+  }
+  return 'unreachable'
+}
+
+/**
+ * How long a host has to start answering. This bounds reaching the host and
+ * getting response headers back, never the transfer: a ten-minute tape over a
+ * slow LAN is a slow response, not an absent host.
+ */
+export const BLOB_RESPONSE_TIMEOUT_MS = 15_000
+
+/**
+ * `AbortSignal.any` would express this, but it is still missing from enough of
+ * the browsers and test environments this runs in to be worth the few lines.
+ */
+function linkAbort(
+  controller: AbortController,
+  signal: AbortSignal | undefined,
+): () => void {
+  if (!signal) {
+    return () => {}
+  }
+  if (signal.aborted) {
+    controller.abort(signal.reason)
+    return () => {}
+  }
+  const onAbort = () => controller.abort(signal.reason)
+  signal.addEventListener('abort', onAbort)
+  return () => signal.removeEventListener('abort', onAbort)
+}
+
 export type ResolveBlobEndpointInput = {
   /** Electron only: the embedded host's own advertised surface. */
   syncServerInfo?: Pick<SyncServerInfo, 'blobBaseUrl' | 'pairingToken'>
@@ -191,16 +281,43 @@ export async function uploadBlob(
 export async function fetchBlob(
   endpoint: BlobEndpoint,
   hash: string,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<Blob> {
-  const response = await fetch(blobUrl(endpoint, hash), {
-    headers: authHeaders(endpoint),
-    signal: options.signal,
-  })
-  if (!response.ok) {
-    throw await failure(response)
+  // Without a deadline, a host that accepts the connection and then says
+  // nothing leaves playback spinning forever instead of failing over to the
+  // next host. The timer is cleared the moment the headers land, so only
+  // reaching the host is on the clock and a long download is left alone.
+  const controller = new AbortController()
+  const unlink = linkAbort(controller, options.signal)
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, options.timeoutMs ?? BLOB_RESPONSE_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(blobUrl(endpoint, hash), {
+      headers: authHeaders(endpoint),
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    if (!response.ok) {
+      throw await failure(response)
+    }
+    // Awaited inside the `try` so the body is read before `finally` unlinks
+    // the caller's signal, which is what still cancels a download in flight.
+    return await response.blob()
+  } catch (error) {
+    // A timeout is this host failing to answer; the caller withdrawing the
+    // question is not, and has to keep propagating as an abort.
+    if (timedOut && !options.signal?.aborted) {
+      throw new BlobRequestError(408, `${endpoint.baseUrl} did not respond`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+    unlink()
   }
-  return response.blob()
 }
 
 /** Presence check without transferring the body. Null when the host has no such blob. */
@@ -261,20 +378,22 @@ export type BlobFetchResult = {
  * Fetches a blob from the first host that has it.
  *
  * A 404 means "not this host, ask the next". Other failures are also worth
- * moving past — one host can be asleep while another answers — but the last
- * error is what surfaces once every endpoint has failed, so a caller reporting
- * to the user says something more useful than "not found".
+ * moving past — one host can be asleep while another answers. Every outcome is
+ * kept rather than just the last one, because what the player needs to tell
+ * the user is decided across all of them: one host answering 404 says nothing
+ * about another that rejected our token.
  */
 export async function fetchBlobFromAny(
   endpoints: readonly BlobEndpoint[],
   hash: string,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<BlobFetchResult> {
   if (endpoints.length === 0) {
-    throw new BlobRequestError(404, 'No blob host is configured')
+    throw new BlobFetchError('unpaired', [])
   }
 
   const missingFrom: BlobEndpoint[] = []
+  const attempts: BlobAttempt[] = []
   let lastError: unknown
 
   for (const endpoint of endpoints) {
@@ -287,14 +406,22 @@ export async function fetchBlobFromAny(
       if (options.signal?.aborted) {
         throw error
       }
-      if (error instanceof BlobRequestError && error.status === 404) {
-        missingFrom.push(endpoint)
+      if (error instanceof BlobRequestError) {
+        attempts.push({ kind: 'status', status: error.status })
+        if (error.status === 404) {
+          missingFrom.push(endpoint)
+        }
+      } else {
+        // A rejected `fetch` with no status: refused, DNS, CORS, offline.
+        attempts.push({ kind: 'network' })
       }
       lastError = error
     }
   }
 
-  throw lastError
+  throw new BlobFetchError(classifyBlobFailure(attempts), attempts, {
+    cause: lastError,
+  })
 }
 
 /**

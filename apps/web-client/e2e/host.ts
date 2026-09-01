@@ -118,12 +118,20 @@ export function seedRecording(options: {
   name: string
   seconds: number
   frequency?: number
+  /**
+   * Set false to put the document on the library without ever uploading its
+   * bytes — a recording whose upload never landed. The host answers 404 for
+   * it while remaining perfectly reachable, which a guest has to be able to
+   * tell apart from the host being away.
+   */
+  withBytes?: boolean
 }): Promise<SeededRecording> {
   return send<SeededRecording>({
     type: 'seed',
     name: options.name,
     seconds: options.seconds,
     frequency: options.frequency ?? 440,
+    withBytes: options.withBytes ?? true,
   })
 }
 

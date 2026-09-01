@@ -2,7 +2,12 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData } from '@/types'
-import { fetchBlobFromAny, replicateBlob } from '@/blobClient'
+import {
+  BlobFetchError,
+  fetchBlobFromAny,
+  replicateBlob,
+  type BlobFailureReason,
+} from '@/blobClient'
 import { cacheBlob, cachedBlobSource, recordCacheHit } from '@/blobCache'
 import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
@@ -14,6 +19,21 @@ import { useBlobEndpoints } from './BlobContext'
  * explanation.
  */
 export type PlaybackState = 'idle' | 'loading' | 'ready' | 'error'
+
+/**
+ * Which failure `error` was.
+ *
+ * Every way playback can fail used to arrive at the player as the same
+ * "not available offline", which is only true for one of them: a host that
+ * rejected our token, one that never received the audio, and one that is
+ * genuinely switched off each need a different thing from the user. Carried
+ * alongside `playbackState` rather than folded into it so the state machine
+ * itself stays a plain four-value union.
+ */
+export type PlaybackFailure =
+  | BlobFailureReason
+  /** The recording's bytes never reached a host, so there is nobody to ask. */
+  | 'not-uploaded'
 
 type AudioPlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement>
@@ -28,6 +48,8 @@ type AudioPlayerContextValue = {
   clickedTime: number
   setClickedTime: React.Dispatch<React.SetStateAction<number>>
   playbackState: PlaybackState
+  /** Only meaningful while `playbackState` is `'error'`. */
+  playbackFailure: PlaybackFailure | undefined
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue | undefined>(
@@ -55,6 +77,9 @@ export const AudioPlayerProvider = ({
   const blobEndpoints = useBlobEndpoints()
   const audioRef = useRef<HTMLAudioElement>(new Audio())
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
+  const [playbackFailure, setPlaybackFailure] = useState<
+    PlaybackFailure | undefined
+  >(undefined)
   const [currentSource, setCurrentSource] = useState<string | undefined>(
     undefined,
   )
@@ -97,6 +122,10 @@ export const AudioPlayerProvider = ({
 
     let cancelled = false
     let objectUrl: string | undefined
+    // Switching recordings has to stop the transfer, not just discard what
+    // comes back: a guest on a slow LAN would otherwise go on pulling a tape
+    // nobody is listening to any more, delaying the one that is playing.
+    const controller = new AbortController()
 
     const play = (src: string, revoke = false) => {
       if (cancelled) {
@@ -116,6 +145,7 @@ export const AudioPlayerProvider = ({
 
     const resolve = async () => {
       setPlaybackState('loading')
+      setPlaybackFailure(undefined)
       // The transport belongs to whatever is being loaded now, not to the
       // recording that was just detached.
       setCurrentTime(0)
@@ -166,11 +196,17 @@ export const AudioPlayerProvider = ({
       //    whole library. More than one host is in play when this device syncs
       //    with a remote server as well as its own embedded one: the doc can
       //    carry a hash the nearest store has never seen.
+      // Nothing local answered. What the user should be told from here on
+      // depends on why, so carry the reason rather than deciding at the end
+      // that everything was "offline".
+      let failure: PlaybackFailure = descriptor ? 'unpaired' : 'not-uploaded'
+
       if (descriptor && blobEndpoints.length > 0) {
         try {
           const { blob, missingFrom } = await fetchBlobFromAny(
             blobEndpoints,
             descriptor.hash,
+            { signal: controller.signal },
           )
           if (cancelled) {
             return
@@ -191,11 +227,18 @@ export const AudioPlayerProvider = ({
           recordCacheHit(descriptor.hash, descriptor.size, localStorage)
           return
         } catch (error) {
+          // We withdrew the question ourselves; the cleanup already handled it.
+          if (controller.signal.aborted) {
+            return
+          }
+          failure =
+            error instanceof BlobFetchError ? error.reason : 'unreachable'
           console.error('Could not fetch recording audio:', error)
         }
       }
 
       if (!cancelled) {
+        setPlaybackFailure(failure)
         setPlaybackState('error')
         // There is nothing loaded to play, so leaving the transport running
         // would show a pause button over silence.
@@ -255,6 +298,7 @@ export const AudioPlayerProvider = ({
 
     return () => {
       cancelled = true
+      controller.abort()
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl)
       }
@@ -329,6 +373,7 @@ export const AudioPlayerProvider = ({
         clickedTime,
         setClickedTime,
         playbackState,
+        playbackFailure,
       }}
     >
       {children}

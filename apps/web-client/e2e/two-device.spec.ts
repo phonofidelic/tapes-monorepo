@@ -41,6 +41,17 @@ let libraryUrl: string
 let tapeOne: SeededRecording
 let tapeTwo: SeededRecording
 let longTape: SeededRecording
+let orphanTape: SeededRecording
+
+/**
+ * Every line the player shows instead of playing. Asserting against the set
+ * keeps "it played" from quietly passing when one of these is reworded, which
+ * a check for one literal string would not.
+ */
+const PLAYBACK_FAILURE =
+  /Host unreachable|Pairing expired|Still uploading|have this recording|Not paired with a host/
+
+const failureLine = (page: Page) => page.getByText(PLAYBACK_FAILURE)
 
 test.beforeAll(async () => {
   ;({ libraryUrl } = await startHost())
@@ -56,6 +67,12 @@ test.beforeAll(async () => {
     name: 'Host tape long',
     seconds: 600,
     frequency: 220,
+  })
+  // On the library, addressed, and the host has never held its bytes.
+  orphanTape = await seedRecording({
+    name: 'Host tape orphan',
+    seconds: 1,
+    withBytes: false,
   })
 })
 
@@ -95,7 +112,7 @@ test.describe('host and guest', () => {
 
     // The bytes were only ever on the host: this device has no recording of
     // its own and had never seen this hash.
-    await expect(page.getByText('Not available offline')).toBeHidden()
+    await expect(failureLine(page)).toBeHidden()
     await expect(playerDuration(page)).not.toHaveText('00:00:00')
     // Polled: the fetched bytes are handed to the cache after playback has
     // already started, so this lands slightly after the audio does.
@@ -177,17 +194,36 @@ test.describe('host and guest', () => {
     await stopHost()
     try {
       await play(page, 'Host tape one')
-      await expect(page.getByText('Not available offline')).toBeHidden()
+      await expect(failureLine(page)).toBeHidden()
       await expect(playerDuration(page)).not.toHaveText('00:00:00')
 
-      // Never played, never pinned, and now there is nobody to ask.
+      // Never played, never pinned, and now there is nobody to ask. This is
+      // the one case that genuinely is about being offline.
       await play(page, 'Host tape two')
-      await expect(page.getByText('Not available offline')).toBeVisible()
+      await expect(page.getByText('Host unreachable')).toBeVisible()
     } finally {
       // The host is a per-process singleton; leaving it stopped would take the
       // rest of the file down with it.
       await restartHost()
     }
+  })
+
+  test('a reachable host that never got the audio is not reported as offline', async ({
+    page,
+  }) => {
+    await pair(page)
+
+    await play(page, 'Host tape orphan')
+
+    // The host is up and answering; it just does not hold these bytes. Calling
+    // that "not available offline" sent the user looking for a network problem
+    // that was not there, and waiting for a host that was never coming.
+    await expect(page.getByText(/have this recording/)).toBeVisible()
+    await expect(page.getByText('Host unreachable')).toBeHidden()
+    // Nothing was cached, because nothing was ever served.
+    await expect
+      .poll(() => cachedBlobHashes(page))
+      .not.toContain(orphanTape.descriptor.hash)
   })
 
   test('seeking a long tape asks the host for a range', async ({ page }) => {
