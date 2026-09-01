@@ -116,7 +116,7 @@ const renderRecorder = (endpoint?: BlobEndpoint, file = recordedFile()) =>
       value={{ type: 'web-client', worker: workerWithFile(file) }}
     >
       <SettingsProvider>
-        <BlobProvider endpoint={endpoint}>
+        <BlobProvider endpoints={endpoint ? [endpoint] : []}>
           <Recorder />
         </BlobProvider>
       </SettingsProvider>

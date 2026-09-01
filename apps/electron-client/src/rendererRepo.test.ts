@@ -42,9 +42,25 @@ describe('resolveSyncServerUrls', () => {
       }),
     ).toEqual({
       localUrl: 'ws://127.0.0.1:9001/?t=host-token',
-      // The remote is someone else's server and never sees this token.
+      // The embedded server's own token is not a credential anywhere else, so
+      // the remote never sees it.
       remoteUrl: 'wss://sync.example.com',
     })
+  })
+
+  // A remote server that is another Tapes host guards its socket exactly as
+  // ours does, and the same token opens its `/blobs` surface.
+  it('presents the stored pairing token to a remote host', () => {
+    expect(
+      resolveSyncServerUrls({
+        settings: {
+          syncServerMode: 'remote',
+          remoteSyncServerUrl: 'wss://sync.example.com/sync',
+          pairingToken: 'guest-token',
+        },
+        serverInfo: { ...runningServer, pairingToken: 'host-token' },
+      }).remoteUrl,
+    ).toBe('wss://sync.example.com/sync?t=guest-token')
   })
 
   it('uses the embedded server when it is running', () => {
@@ -156,6 +172,27 @@ describe('readSyncSettings', () => {
     }
 
     expect(readSyncSettings(storage).remoteSyncServerUrl).toBeUndefined()
+  })
+
+  it('reads the pairing token stored for a remote host', () => {
+    const storage = {
+      getItem: () => JSON.stringify({ pairingToken: 'guest-token' }),
+    }
+
+    expect(readSyncSettings(storage).pairingToken).toBe('guest-token')
+  })
+
+  // An empty string is what a cleared input leaves behind, and presenting it
+  // is not different from presenting nothing.
+  it.each([
+    ['empty', ''],
+    ['not a string', 42],
+  ])('drops a pairing token that is %s', (_label, stored) => {
+    const storage = {
+      getItem: () => JSON.stringify({ pairingToken: stored }),
+    }
+
+    expect(readSyncSettings(storage).pairingToken).toBeUndefined()
   })
 
   it('drops a syncServerMode that is not a string', () => {

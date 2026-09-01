@@ -17,7 +17,7 @@ import { getAudioStream, useAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecorder } from '@/context/RecordingContext'
 import { IpcResponse, StopRecordingResponse } from '@/IpcService'
-import { useBlobEndpoint } from '@/context/BlobContext'
+import { useUploadEndpoint } from '@/context/BlobContext'
 import {
   addPendingUpload,
   readPendingUploads,
@@ -37,7 +37,7 @@ export function Recorder() {
 
   const { automergeUrl } = useAutomergeUrl()
   const repo = useRepo()
-  const blobEndpoint = useBlobEndpoint()
+  const blobEndpoint = useUploadEndpoint()
   const [, changeDocState] = useDocument<RecordingRepoState>(
     isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
   )

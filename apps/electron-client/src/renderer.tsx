@@ -4,7 +4,7 @@ import {
   App,
   IpcService,
   SyncServerInfo,
-  resolveBlobEndpoint,
+  resolveBlobEndpoints,
   useAutomergeUrl,
   type BlobEndpoint,
 } from '@tapes-monorepo/core'
@@ -34,7 +34,7 @@ function ElectronAppRoot() {
   const [syncServerUrls, setSyncServerUrls] = useState<SyncServerUrls | null>(
     null,
   )
-  const [blobEndpoint, setBlobEndpoint] = useState<BlobEndpoint | undefined>()
+  const [blobEndpoints, setBlobEndpoints] = useState<BlobEndpoint[]>([])
   const [repo, setRepo] = useState<Repo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const handleRef = useRef<DocHandle<unknown> | null>(null)
@@ -48,8 +48,9 @@ function ElectronAppRoot() {
     appContextValue.ipc
       .send<SyncServerInfo>('sync:get-server-info')
       .then((info) => {
+        const settings = readSyncSettings(localStorage)
         const urls = resolveSyncServerUrls({
-          settings: readSyncSettings(localStorage),
+          settings,
           serverInfo: info,
           envSyncServerUrl: import.meta.env.VITE_SYNC_SERVER_URL,
         })
@@ -60,8 +61,17 @@ function ElectronAppRoot() {
         }
         setSyncServerUrls(urls)
         // Recorded audio goes to the embedded server's own HTTP surface, which
-        // it advertises alongside the sync socket.
-        setBlobEndpoint(resolveBlobEndpoint({ syncServerInfo: info }))
+        // it advertises alongside the sync socket. In remote mode this app also
+        // syncs with a server it does not host, so it can hold docs whose bytes
+        // only that server has ever seen: resolve it as a second endpoint to
+        // fall back to rather than 404ing against ourselves.
+        setBlobEndpoints(
+          resolveBlobEndpoints({
+            syncServerInfo: info,
+            remoteSyncServerUrl: urls.remoteUrl,
+            token: settings.pairingToken,
+          }),
+        )
       })
       .catch((ipcError) => {
         console.error('Failed to reach the embedded sync server', ipcError)
@@ -120,7 +130,7 @@ function ElectronAppRoot() {
     <App
       appContextValue={appContextValue}
       repoContextValue={repo}
-      blobEndpoint={blobEndpoint}
+      blobEndpoints={blobEndpoints}
     />
   )
 }

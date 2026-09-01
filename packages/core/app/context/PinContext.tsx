@@ -7,7 +7,7 @@ import {
 } from 'react'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import type { BlobDescriptor } from '@/types'
-import { fetchBlob } from '@/blobClient'
+import { fetchBlobFromAny, replicateBlob } from '@/blobClient'
 import {
   cacheBlob,
   evictCachedBlob,
@@ -15,7 +15,7 @@ import {
   recordCacheHit,
 } from '@/blobCache'
 import { useAppContext } from './AppContext'
-import { useBlobEndpoint } from './BlobContext'
+import { useBlobEndpoints } from './BlobContext'
 
 /**
  * "Keep offline" pins.
@@ -65,18 +65,28 @@ function writePins(pins: PinMap) {
 
 export function PinProvider({ children }: { children: React.ReactNode }) {
   const appContext = useAppContext()
-  const endpoint = useBlobEndpoint()
+  const endpoints = useBlobEndpoints()
   const [pins, setPins] = useState<PinMap>(readPins)
   const [pinning, setPinning] = useState<ReadonlySet<string>>(new Set())
 
   const pin = useCallback(
     async (url: AutomergeUrl, descriptor: BlobDescriptor) => {
-      if (!endpoint) {
+      if (endpoints.length === 0) {
         return
       }
       setPinning((current) => new Set(current).add(url))
       try {
-        const blob = await fetchBlob(endpoint, descriptor.hash)
+        const { blob, missingFrom } = await fetchBlobFromAny(
+          endpoints,
+          descriptor.hash,
+        )
+        if (missingFrom.length > 0) {
+          void replicateBlob(missingFrom, blob, {
+            mimeType: descriptor.mimeType,
+            docUrl: url,
+            expectedHash: descriptor.hash,
+          })
+        }
         await cacheBlob(appContext, descriptor, blob, url)
         recordCacheHit(descriptor.hash, descriptor.size, localStorage)
 
@@ -109,7 +119,7 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
         })
       }
     },
-    [appContext, endpoint],
+    [appContext, endpoints],
   )
 
   const unpin = useCallback(

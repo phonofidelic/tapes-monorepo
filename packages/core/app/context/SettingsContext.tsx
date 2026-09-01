@@ -8,6 +8,12 @@ type Settings = {
   automergeUrl: string | undefined
   syncServerMode: 'embedded' | 'remote' | undefined
   remoteSyncServerUrl: string | undefined
+  /**
+   * Token for a host this device is a guest of: captured from the pairing URL
+   * on web, typed in on the desktop app when it points at another Tapes host.
+   * It opens that host's sync socket and its `/blobs` surface alike.
+   */
+  pairingToken: string | undefined
   syncServerLanEnabled: 'true' | 'false' | undefined
   syncServerHttpsEnabled: 'true' | 'false' | undefined
 }

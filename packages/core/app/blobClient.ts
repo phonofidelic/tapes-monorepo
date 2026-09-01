@@ -18,6 +18,13 @@ export type BlobEndpoint = {
   /** Origin serving `/blobs`, without a trailing slash. */
   baseUrl: string
   token?: string
+  /**
+   * True when this endpoint is this device's own embedded host, i.e. the bytes
+   * are already on local disk. Callers use it to decide what a local copy is
+   * worth: pinning a blob that is served from this machine's own store buys
+   * nothing, while pinning one that lives on another host does.
+   */
+  local?: boolean
 }
 
 export class BlobRequestError extends Error {
@@ -40,34 +47,50 @@ export type ResolveBlobEndpointInput = {
   isDev?: boolean
   /** `ws(s)://host:port/sync` from settings, when the user set one. */
   remoteSyncServerUrl?: string
-  /** Pairing token, stored by the web-client from the QR `bt` parameter. */
+  /**
+   * Pairing token for a host other than our own embedded one: the web-client
+   * captures it from the pairing URL's `pt` parameter, the electron renderer
+   * reads it from the `pairingToken` setting.
+   */
   token?: string
 }
 
 /**
- * Mirrors the sync-URL precedence in apps/web-client/src/syncServerUrl.ts, but
- * lives here so both shells resolve it the same way.
+ * Every host this device could get bytes from, in the order to try them.
  *
- * Returning `undefined` is a supported outcome, not a failure: a standalone
- * web-client with no host has nowhere to put bytes, and keeps them in OPFS.
+ * Mirrors the sync-URL precedence in apps/web-client/src/syncServerUrl.ts, but
+ * lives here so both shells resolve it the same way. Unlike that chain this one
+ * does not stop at the first match: the electron renderer can be paired with a
+ * remote server *in addition to* running its own embedded one (see
+ * `syncServerMode: 'remote'`), and will then sync docs whose hashes only the
+ * remote host has ever seen. Content addressing means any host holding the
+ * bytes will do, so a miss on one is a reason to ask the next rather than to
+ * fail — and no origin ever belongs in the shared doc, which would leak this
+ * device's topology to every peer.
+ *
+ * The first entry is the *write* target: uploads and new claims go there. An
+ * empty list is a supported outcome, not a failure — a standalone web-client
+ * with no host has nowhere to put bytes, and keeps them in OPFS.
  */
-export function resolveBlobEndpoint(
+export function resolveBlobEndpoints(
   input: ResolveBlobEndpointInput,
-): BlobEndpoint | undefined {
+): BlobEndpoint[] {
   const { syncServerInfo, origin, servedByHost, isDev, remoteSyncServerUrl } =
     input
+  const endpoints: BlobEndpoint[] = []
 
   if (syncServerInfo?.blobBaseUrl) {
-    return {
+    endpoints.push({
       baseUrl: trimSlash(syncServerInfo.blobBaseUrl),
       token: syncServerInfo.pairingToken,
-    }
+      local: true,
+    })
   }
 
   if (origin && (servedByHost || isDev)) {
     // Same origin as the page: in production this server serves both, and in
     // development Vite proxies `/blobs` back to it.
-    return { baseUrl: trimSlash(origin), token: input.token }
+    endpoints.push({ baseUrl: trimSlash(origin), token: input.token })
   }
 
   if (remoteSyncServerUrl && input.token) {
@@ -75,11 +98,18 @@ export function resolveBlobEndpoint(
     // without a token every request would just 401.
     const derived = deriveHttpOrigin(remoteSyncServerUrl)
     if (derived) {
-      return { baseUrl: derived, token: input.token }
+      endpoints.push({ baseUrl: derived, token: input.token })
     }
   }
 
-  return undefined
+  // The page origin and an explicitly configured remote can be the same host,
+  // and asking it twice for a blob it does not have only doubles the latency of
+  // the failure.
+  return endpoints.filter(
+    (endpoint, index) =>
+      endpoints.findIndex((other) => other.baseUrl === endpoint.baseUrl) ===
+      index,
+  )
 }
 
 function trimSlash(value: string): string {
@@ -212,4 +242,115 @@ export async function deleteBlob(
   if (!response.ok && response.status !== 404) {
     throw await failure(response)
   }
+}
+
+/** What a multi-endpoint fetch found, and where. */
+export type BlobFetchResult = {
+  blob: Blob
+  /** The endpoint that served the bytes. */
+  from: BlobEndpoint
+  /**
+   * Endpoints that answered 404 before this one succeeded. They are reachable
+   * and paired, they just do not hold this blob — the case `replicateBlob`
+   * exists to repair.
+   */
+  missingFrom: BlobEndpoint[]
+}
+
+/**
+ * Fetches a blob from the first host that has it.
+ *
+ * A 404 means "not this host, ask the next". Other failures are also worth
+ * moving past — one host can be asleep while another answers — but the last
+ * error is what surfaces once every endpoint has failed, so a caller reporting
+ * to the user says something more useful than "not found".
+ */
+export async function fetchBlobFromAny(
+  endpoints: readonly BlobEndpoint[],
+  hash: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<BlobFetchResult> {
+  if (endpoints.length === 0) {
+    throw new BlobRequestError(404, 'No blob host is configured')
+  }
+
+  const missingFrom: BlobEndpoint[] = []
+  let lastError: unknown
+
+  for (const endpoint of endpoints) {
+    try {
+      const blob = await fetchBlob(endpoint, hash, options)
+      return { blob, from: endpoint, missingFrom }
+    } catch (error) {
+      // An aborted fetch is the caller withdrawing the question, not a host
+      // failing to answer it: trying the next one would ignore that.
+      if (options.signal?.aborted) {
+        throw error
+      }
+      if (error instanceof BlobRequestError && error.status === 404) {
+        missingFrom.push(endpoint)
+      }
+      lastError = error
+    }
+  }
+
+  throw lastError
+}
+
+/**
+ * Pushes bytes we already hold to hosts that turned out not to have them.
+ *
+ * Two hosts that both serve this library should both be able to answer for it;
+ * the alternative is a recording that plays only while one particular machine
+ * is awake. Best-effort by design — a failed copy leaves the blob exactly where
+ * it was, so this never turns a successful playback into an error.
+ */
+export async function replicateBlob(
+  endpoints: readonly BlobEndpoint[],
+  blob: Blob,
+  options: { mimeType: string; docUrl: string; expectedHash: string },
+): Promise<void> {
+  await Promise.all(
+    endpoints.map(async (endpoint) => {
+      try {
+        const descriptor = await uploadBlob(endpoint, blob, {
+          mimeType: options.mimeType,
+          docUrl: options.docUrl,
+        })
+        if (descriptor.hash !== options.expectedHash) {
+          // The host hashes the bytes as it streams them, so a mismatch means
+          // what we sent is not what the doc points at. Nothing to repair from
+          // here, but it should not pass silently.
+          console.warn(
+            `Replicated blob hashed as ${descriptor.hash}, expected ${options.expectedHash}`,
+          )
+        }
+      } catch (error) {
+        console.warn('Could not replicate recording audio to a host:', error)
+      }
+    }),
+  )
+}
+
+/**
+ * Releases this recording's claim on every host that might be holding it.
+ *
+ * Which host has the bytes is deliberately not recorded anywhere, so the only
+ * way to drop a claim is to drop it everywhere; `deleteBlob` already treats an
+ * absent blob as success.
+ */
+export async function deleteBlobEverywhere(
+  endpoints: readonly BlobEndpoint[],
+  hash: string,
+  docUrl: string,
+): Promise<void> {
+  await Promise.all(
+    endpoints.map(async (endpoint) => {
+      try {
+        await deleteBlob(endpoint, hash, docUrl)
+      } catch (error) {
+        console.error('Could not release recording audio on a host:', error)
+      }
+    }),
+  )
 }

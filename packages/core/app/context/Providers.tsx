@@ -17,7 +17,7 @@ export default function Providers({
   values: {
     appContext: AppContextValue
     repoContext: Repo
-    blobEndpoint?: BlobEndpoint
+    blobEndpoints?: readonly BlobEndpoint[]
   }
   children: React.ReactNode
 }) {
@@ -27,9 +27,9 @@ export default function Providers({
         <RepoContext.Provider value={values.repoContext}>
           <RecordingStateProvider>
             <ViewProvider>
-              {/* Pins need the endpoint to prefetch; the player needs pins to
+              {/* Pins need the endpoints to prefetch; the player needs pins to
                   know what it must not evict. */}
-              <BlobProvider endpoint={values.blobEndpoint}>
+              <BlobProvider endpoints={values.blobEndpoints}>
                 <PinProvider>
                   <AudioPlayerProvider>{children}</AudioPlayerProvider>
                 </PinProvider>
