@@ -48,15 +48,15 @@ const base: RecordingData = {
  * pointed at, which is the only externally visible result of the resolution
  * order.
  */
-function Probe() {
+function Probe({ source = base.filepath }: { source?: string }) {
   const { audioRef, setCurrentSource, setCurrentUrl, playbackState } =
     useAudioPlayer()
   const [src, setSrc] = useState('')
 
   useEffect(() => {
-    setCurrentSource(base.filepath)
+    setCurrentSource(source)
     setCurrentUrl(RECORDING_URL)
-  }, [setCurrentSource, setCurrentUrl])
+  }, [source, setCurrentSource, setCurrentUrl])
 
   // The player assigns `src` imperatively on an element it never mounts, so
   // mirror it into state rather than reading the ref while rendering.
@@ -82,12 +82,13 @@ const REMOTE_ENDPOINT: BlobEndpoint = {
 const renderPlayer = (
   appContext: AppContextValue,
   endpoints: readonly BlobEndpoint[] = [],
+  source?: string,
 ) =>
   render(
     <AppContextProvider value={appContext}>
       <BlobProvider endpoints={endpoints}>
         <AudioPlayerProvider>
-          <Probe />
+          <Probe source={source} />
         </AudioPlayerProvider>
       </BlobProvider>
     </AppContextProvider>,
@@ -219,6 +220,39 @@ describe('recordings stored out of band', () => {
     )
     // Kept locally, so a guest's storage grows with what it played.
     await waitFor(() => expect(sent).toContain('blob:put'))
+  })
+
+  // A recording made on the electron host carries that machine's absolute
+  // path. OPFS names are flat, so handing one to `getFileHandle` throws
+  // "Name is not allowed" instead of missing — and the guest never got as far
+  // as asking the host for the bytes it does have.
+  it('does not look in OPFS for a recording made on the electron host', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('audio', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const filepath = '/Users/someone/Library/Tapes/take-one.wav'
+    recording = {
+      ...base,
+      filepath,
+      blob: { hash: HASH, size: 5, mimeType: 'audio/wav', ext: '.wav' },
+    }
+
+    const sent: string[] = []
+    const worker = workerAnswering((message) => {
+      sent.push(message.type)
+      if (message.type === 'blob:put') {
+        return { success: true, payload: {} }
+      }
+      return { success: false, error: 'NotFoundError' }
+    })
+    renderPlayer({ type: 'web-client', worker }, [ENDPOINT], filepath)
+
+    await waitFor(() => expect(srcText()).toMatch(/^blob:/))
+    expect(sent).not.toContain('storage:get')
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:9001/blobs/${HASH}`,
+    )
   })
 
   // The TAP-74 case: a desktop app in remote sync mode holds a doc whose bytes
