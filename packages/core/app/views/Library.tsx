@@ -9,16 +9,16 @@ import {
   MdCheck,
   MdPlayArrow,
   MdDownload,
-  MdFileDownloadOff
+  MdFileDownloadOff,
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { useAppContext } from '@/context/AppContext'
 import { EditRecordingResponse, IpcResponse } from '@/IpcService'
 import { useAudioPlayer } from '@/context/AudioPlayerContext'
-import { useBlobEndpoint } from '@/context/BlobContext'
+import { useBlobEndpoints } from '@/context/BlobContext'
 import { usePins } from '@/context/PinContext'
-import { deleteBlob } from '@/blobClient'
+import { deleteBlobEverywhere } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
 import { useAutomergeUrl } from '@/utils'
 
@@ -92,7 +92,12 @@ function LibraryListItem({
   const appContext = useAppContext()
   const [recording] = useDocument<RecordingData>(automergeUrl)
   const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
-  const blobEndpoint = useBlobEndpoint()
+  const blobEndpoints = useBlobEndpoints()
+  // Pinning is only meaningful for bytes that live somewhere other than this
+  // device's own disk. On the desktop app that is usually nowhere — its
+  // embedded host already keeps every fetchable blob permanently — but a
+  // desktop paired with a remote server has a real reason to keep a copy.
+  const canPin = blobEndpoints.some((endpoint) => !endpoint.local)
   const { pinState: readPinState, pin, unpin } = usePins()
   const pinState = readPinState(automergeUrl)
 
@@ -199,10 +204,10 @@ function LibraryListItem({
                     <MdEdit /> Edit
                   </Button>
                 </li>
-                {recording.blob && blobEndpoint && appContext.type !== 'electron-client' && (
+                {recording.blob && canPin && (
                   <li>
                     <Button
-                      className="flex whitespace-nowrap size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      className="flex size-full gap-2 rounded-sm p-2 whitespace-nowrap hover:bg-zinc-100 dark:hover:bg-zinc-800"
                       title={
                         pinState === 'pinned'
                           ? 'Stop keeping this recording on this device'
@@ -235,7 +240,8 @@ function LibraryListItem({
                     </Button>
                   </li>
                 )}
-                {(appContext.type === 'electron-client' || blobEndpoint) && (
+                {(appContext.type === 'electron-client' ||
+                  blobEndpoints.length > 0) && (
                   <li>
                     <Button
                       className="flex size-full gap-2 rounded-sm p-2 hover:bg-zinc-100 hover:text-rose-500 dark:hover:bg-zinc-800"
@@ -264,20 +270,20 @@ function LibraryListItem({
                             }
                             // If the file doesn't exist, remove it from the list
                           }
-                        } else if (recording.blob && blobEndpoint) {
-                          // A guest releases its claim on the host's copy but
-                          // deliberately cannot delete the host user's own
-                          // audio file; the host unlinks the bytes once no
-                          // document references them.
-                          try {
-                            await deleteBlob(
-                              blobEndpoint,
-                              recording.blob.hash,
-                              recording.url,
-                            )
-                          } catch (error) {
-                            console.error(error)
-                          }
+                        }
+                        if (recording.blob) {
+                          // Release the claim on every host that is not this
+                          // device's own store — the electron delete above
+                          // reaches only the embedded one, and a desktop in
+                          // remote mode can be holding a claim on a second
+                          // host. A guest deliberately cannot delete the host
+                          // user's own audio file; the host unlinks the bytes
+                          // once no document references them.
+                          await deleteBlobEverywhere(
+                            blobEndpoints.filter((endpoint) => !endpoint.local),
+                            recording.blob.hash,
+                            recording.url,
+                          )
                           await unpin(automergeUrl)
                         }
                         onDelete(automergeUrl)

@@ -22,9 +22,15 @@ export type SyncServerUrls = {
 }
 
 /** The subset of core's settings blob that decides where we sync. */
-type SyncSettings = {
+export type SyncSettings = {
   syncServerMode?: string
   remoteSyncServerUrl?: string
+  /**
+   * Pairing token for the remote server, when it is another Tapes host rather
+   * than a bare sync server. It opens both that host's socket and its `/blobs`
+   * surface, exactly as the token in a QR pairing URL does for a web guest.
+   */
+  pairingToken?: string
 }
 
 /**
@@ -49,9 +55,10 @@ export function readSyncSettings(
     return {}
   }
 
-  const { syncServerMode, remoteSyncServerUrl } = parsed as {
+  const { syncServerMode, remoteSyncServerUrl, pairingToken } = parsed as {
     syncServerMode?: unknown
     remoteSyncServerUrl?: unknown
+    pairingToken?: unknown
   }
 
   return {
@@ -60,6 +67,10 @@ export function readSyncSettings(
     remoteSyncServerUrl: isSyncServerUrl(remoteSyncServerUrl)
       ? remoteSyncServerUrl
       : undefined,
+    pairingToken:
+      typeof pairingToken === 'string' && pairingToken.length > 0
+        ? pairingToken
+        : undefined,
   }
 }
 
@@ -101,10 +112,15 @@ export function resolveSyncServerUrls({
     ? withPairingToken(serverInfo.url, serverInfo.pairingToken)
     : undefined
 
-  const remoteUrl =
+  // A remote Tapes host guards its socket the same way ours does, so present
+  // the stored token there too. A bare sync server ignores the parameter.
+  const configuredRemote =
     settings.syncServerMode === 'remote'
       ? (settings.remoteSyncServerUrl ?? envSyncServerUrl)
       : undefined
+  const remoteUrl = configuredRemote
+    ? withPairingToken(configuredRemote, settings.pairingToken)
+    : undefined
 
   // No embedded server means nothing persists this session, so fall back to the
   // build-time server rather than leaving the app with no peer at all.

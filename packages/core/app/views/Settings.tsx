@@ -222,9 +222,11 @@ function SyncSettings() {
   const [syncServerHttpsEnabled, setSyncServerHttpsEnabled] = useSetting(
     'syncServerHttpsEnabled',
   )
+  const [pairingToken, setPairingToken] = useSetting('pairingToken')
   const [remoteUrlDraft, setRemoteUrlDraft] = useState(
     remoteSyncServerUrl ?? '',
   )
+  const [tokenDraft, setTokenDraft] = useState(pairingToken ?? '')
   const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
 
   const mode = syncServerMode ?? 'embedded'
@@ -302,6 +304,36 @@ function SyncSettings() {
             Save
           </Button>
         </div>
+      )}
+      {mode === 'remote' && (
+        <>
+          <div className="flex w-full items-center justify-between gap-5 text-sm">
+            <TextInput
+              label="Pairing token (optional)"
+              type="text"
+              name="remote-pairing-token"
+              id="remote-pairing-token"
+              value={tokenDraft}
+              onChange={(event) => setTokenDraft(event.target.value)}
+            />
+            <Button
+              className="w-fit p-2"
+              title="Save pairing token"
+              onClick={() => {
+                setPairingToken(tokenDraft === '' ? null : tokenDraft)
+                window.location.reload()
+              }}
+            >
+              Save
+            </Button>
+          </div>
+          <p className="pl-2 text-xs text-zinc-500">
+            Needed only when the remote server is another Tapes desktop app:
+            paste the token from its pairing URL (the <code>pt</code> value).
+            Without it this device can browse what it has synced, but cannot
+            play recordings whose audio only that host holds.
+          </p>
+        </>
       )}
       {mode === 'embedded' && (
         <div className="flex flex-col gap-2 text-sm">

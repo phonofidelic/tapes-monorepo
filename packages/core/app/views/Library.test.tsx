@@ -19,6 +19,19 @@ const ENDPOINT: BlobEndpoint = {
   token: 'pair-token',
 }
 
+/** This device's own embedded host: the bytes are already on its disk. */
+const LOCAL_ENDPOINT: BlobEndpoint = {
+  baseUrl: 'http://127.0.0.1:9001',
+  token: 'host-token',
+  local: true,
+}
+
+/** A server the desktop app syncs with but does not host. */
+const REMOTE_ENDPOINT: BlobEndpoint = {
+  baseUrl: 'https://sync.example.com',
+  token: 'pair-token',
+}
+
 const baseRecording: RecordingData = {
   url: RECORDING_URL,
   filename: 'take-one.wav',
@@ -116,11 +129,11 @@ vi.mock('@/context/AudioPlayerContext', () => ({
 
 const renderLibrary = (
   appContext: AppContextValue = webContext,
-  endpoint?: BlobEndpoint,
+  endpoints: readonly BlobEndpoint[] = [],
 ) =>
   render(
     <AppContextProvider value={appContext}>
-      <BlobProvider endpoint={endpoint}>
+      <BlobProvider endpoints={endpoints}>
         <PinProvider>
           <Library />
         </PinProvider>
@@ -174,7 +187,7 @@ describe('offline pinning', () => {
   })
 
   it('offers no pin control when the recording has no stored audio', async () => {
-    renderLibrary(webContext, ENDPOINT)
+    renderLibrary(webContext, [ENDPOINT])
     await userEvent.click(screen.getByTitle('Options'))
 
     expect(screen.queryByText('Keep offline')).not.toBeInTheDocument()
@@ -182,10 +195,30 @@ describe('offline pinning', () => {
 
   it('offers no pin control when there is no host to fetch from', async () => {
     recording = withBlob()
-    renderLibrary(webContext, undefined)
+    renderLibrary(webContext, [])
     await userEvent.click(screen.getByTitle('Options'))
 
     expect(screen.queryByText('Keep offline')).not.toBeInTheDocument()
+  })
+
+  // Every blob this device can fetch is already permanently on its own disk,
+  // so a pin would promise nothing the desktop app doesn't already deliver.
+  it('offers no pin control when the only host is this device itself', async () => {
+    recording = withBlob()
+    renderLibrary(electronContext(), [LOCAL_ENDPOINT])
+    await userEvent.click(screen.getByTitle('Options'))
+
+    expect(screen.queryByText('Keep offline')).not.toBeInTheDocument()
+  })
+
+  // But a desktop app syncing with a server it does not host can be looking at
+  // bytes it does not have, which is a real reason to keep a copy.
+  it('offers the pin control on the desktop app when a host other than this one holds the bytes', async () => {
+    recording = withBlob()
+    renderLibrary(electronContext(), [LOCAL_ENDPOINT, REMOTE_ENDPOINT])
+    await userEvent.click(screen.getByTitle('Options'))
+
+    expect(screen.getByText('Keep offline')).toBeInTheDocument()
   })
 
   it('downloads the audio and records the pin on this device', async () => {
@@ -195,7 +228,9 @@ describe('offline pinning', () => {
       vi.fn().mockResolvedValue(new Response('audio', { status: 200 })),
     )
 
-    renderLibrary({ type: 'web-client', worker: respondingWorker() }, ENDPOINT)
+    renderLibrary({ type: 'web-client', worker: respondingWorker() }, [
+      ENDPOINT,
+    ])
     await userEvent.click(screen.getByTitle('Options'))
     await userEvent.click(screen.getByText('Keep offline'))
 
@@ -216,7 +251,9 @@ describe('offline pinning', () => {
       vi.fn().mockResolvedValue(new Response('audio', { status: 200 })),
     )
 
-    renderLibrary({ type: 'web-client', worker: respondingWorker() }, ENDPOINT)
+    renderLibrary({ type: 'web-client', worker: respondingWorker() }, [
+      ENDPOINT,
+    ])
     await userEvent.click(screen.getByTitle('Options'))
     await userEvent.click(screen.getByText('Keep offline'))
 
@@ -241,7 +278,7 @@ describe('deleting', () => {
       .mockResolvedValue(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    renderLibrary(webContext, ENDPOINT)
+    renderLibrary(webContext, [ENDPOINT])
     await userEvent.click(screen.getByTitle('Options'))
     await userEvent.click(screen.getByText('Delete'))
 
@@ -254,7 +291,7 @@ describe('deleting', () => {
   it('sends the hash alongside the filepath so electron can reclaim the bytes', async () => {
     const send = vi.fn().mockResolvedValue({ success: true })
 
-    renderLibrary(electronContext(send), ENDPOINT)
+    renderLibrary(electronContext(send), [LOCAL_ENDPOINT])
     await userEvent.click(screen.getByTitle('Options'))
     await userEvent.click(screen.getByText('Delete'))
 
@@ -266,5 +303,24 @@ describe('deleting', () => {
         docUrl: RECORDING_URL,
       },
     })
+  })
+
+  // The IPC delete above reaches only the embedded store, so a desktop app in
+  // remote mode would otherwise leave its claim standing on the other host.
+  it('also releases the claim on a host the desktop app does not run', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderLibrary(electronContext(send), [LOCAL_ENDPOINT, REMOTE_ENDPOINT])
+    await userEvent.click(screen.getByTitle('Options'))
+    await userEvent.click(screen.getByText('Delete'))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain(`https://sync.example.com/blobs/${HASH}`)
+    expect(init.method).toBe('DELETE')
   })
 })

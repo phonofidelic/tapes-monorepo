@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import {
   App,
   RecordingRepoState,
-  resolveBlobEndpoint,
+  resolveBlobEndpoints,
   useAutomergeUrl,
 } from '@tapes-monorepo/core'
 import './index.css'
@@ -76,8 +76,9 @@ const syncServerUrl = resolveSyncServerUrl({
 // Where this bundle sends and fetches recorded audio. Same shape as the sync
 // URL chain above: the host's own origin when it is serving us, an explicit
 // remote otherwise, and nothing at all for a standalone deploy — in which case
-// recordings simply stay in this device's OPFS.
-const blobEndpoint = resolveBlobEndpoint({
+// recordings simply stay in this device's OPFS. More than one can resolve, in
+// which case they are tried in order.
+const blobEndpoints = resolveBlobEndpoints({
   origin: window.location.origin,
   servedByHost,
   isDev: import.meta.env.DEV,
@@ -167,7 +168,7 @@ if (!window.Worker) {
       <App
         appContextValue={{ type: 'web-client', worker }}
         repoContextValue={repo}
-        blobEndpoint={blobEndpoint}
+        blobEndpoints={blobEndpoints}
       />
     )
   }

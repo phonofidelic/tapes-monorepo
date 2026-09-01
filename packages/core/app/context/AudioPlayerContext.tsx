@@ -2,10 +2,10 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData } from '@/types'
-import { fetchBlob } from '@/blobClient'
+import { fetchBlobFromAny, replicateBlob } from '@/blobClient'
 import { cacheBlob, cachedBlobSource, recordCacheHit } from '@/blobCache'
 import { useAppContext } from './AppContext'
-import { useBlobEndpoint } from './BlobContext'
+import { useBlobEndpoints } from './BlobContext'
 
 /**
  * `loading` covers fetching a recording's audio from the host on first play,
@@ -40,7 +40,7 @@ export const AudioPlayerProvider = ({
   children: React.ReactNode
 }) => {
   const appContext = useAppContext()
-  const blobEndpoint = useBlobEndpoint()
+  const blobEndpoints = useBlobEndpoints()
   const audioRef = useRef<HTMLAudioElement>(new Audio())
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
   const [currentSource, setCurrentSource] = useState<string | undefined>(
@@ -135,15 +135,32 @@ export const AudioPlayerProvider = ({
         return
       }
 
-      // 4. Fetch from the host and keep what comes back, so a guest's storage
-      //    grows with what it has played rather than with the whole library.
-      if (descriptor && blobEndpoint) {
+      // 4. Fetch from whichever host has it and keep what comes back, so a
+      //    guest's storage grows with what it has played rather than with the
+      //    whole library. More than one host is in play when this device syncs
+      //    with a remote server as well as its own embedded one: the doc can
+      //    carry a hash the nearest store has never seen.
+      if (descriptor && blobEndpoints.length > 0) {
         try {
-          const blob = await fetchBlob(blobEndpoint, descriptor.hash)
+          const { blob, missingFrom } = await fetchBlobFromAny(
+            blobEndpoints,
+            descriptor.hash,
+          )
           if (cancelled) {
             return
           }
           play(URL.createObjectURL(blob), true)
+          // Now that the bytes are here, hand them to the hosts that did not
+          // have them, so the next device to ask does not depend on which one
+          // happens to be awake. Ahead of the local cache write, which is a
+          // separate promise that can fail on its own.
+          if (missingFrom.length > 0) {
+            void replicateBlob(missingFrom, blob, {
+              mimeType: descriptor.mimeType,
+              docUrl: recordingDoc.url,
+              expectedHash: descriptor.hash,
+            })
+          }
           await cacheBlob(appContext, descriptor, blob, recordingDoc.url)
           recordCacheHit(descriptor.hash, descriptor.size, localStorage)
           return
@@ -205,7 +222,7 @@ export const AudioPlayerProvider = ({
   }, [
     currentSource,
     appContext,
-    blobEndpoint,
+    blobEndpoints,
     recordingDoc,
     recordingDoc?.audio,
     recordingDoc?.blob,

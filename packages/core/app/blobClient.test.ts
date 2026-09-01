@@ -4,7 +4,10 @@ import {
   deleteBlob,
   fetchBlob,
   headBlob,
-  resolveBlobEndpoint,
+  deleteBlobEverywhere,
+  fetchBlobFromAny,
+  replicateBlob,
+  resolveBlobEndpoints,
   uploadBlob,
 } from './blobClient'
 
@@ -28,54 +31,88 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('resolveBlobEndpoint', () => {
-  it('prefers the embedded host advertised over IPC', () => {
+describe('resolveBlobEndpoints', () => {
+  it('puts the embedded host advertised over IPC first, marked local', () => {
     expect(
-      resolveBlobEndpoint({
+      resolveBlobEndpoints({
         syncServerInfo: {
           blobBaseUrl: 'http://127.0.0.1:9001/',
           pairingToken: 'host-token',
         },
         origin: 'http://localhost:3000',
         isDev: true,
-      }),
-    ).toEqual({ baseUrl: 'http://127.0.0.1:9001', token: 'host-token' })
+      })[0],
+    ).toEqual({
+      baseUrl: 'http://127.0.0.1:9001',
+      token: 'host-token',
+      local: true,
+    })
   })
 
   it('uses the page origin when the host serves this bundle', () => {
     expect(
-      resolveBlobEndpoint({
+      resolveBlobEndpoints({
         origin: 'https://192.168.1.20:9001',
         servedByHost: true,
         token: 'pair-token',
       }),
-    ).toEqual({ baseUrl: 'https://192.168.1.20:9001', token: 'pair-token' })
+    ).toEqual([{ baseUrl: 'https://192.168.1.20:9001', token: 'pair-token' }])
   })
 
   it('derives an http origin from a remote sync url', () => {
     expect(
-      resolveBlobEndpoint({
+      resolveBlobEndpoints({
         remoteSyncServerUrl: 'wss://sync.example.com/sync',
         token: 'pair-token',
       }),
-    ).toEqual({ baseUrl: 'https://sync.example.com', token: 'pair-token' })
+    ).toEqual([{ baseUrl: 'https://sync.example.com', token: 'pair-token' }])
+  })
+
+  // The case this exists for: an electron client in `syncServerMode: 'remote'`
+  // syncs docs whose bytes only the remote host has, and used to 404 against
+  // its own store with nowhere else to ask.
+  it('keeps the embedded host and a remote one, in that order', () => {
+    expect(
+      resolveBlobEndpoints({
+        syncServerInfo: {
+          blobBaseUrl: 'http://127.0.0.1:9001',
+          pairingToken: 'host-token',
+        },
+        remoteSyncServerUrl: 'wss://sync.example.com/sync?t=pair-token',
+        token: 'pair-token',
+      }),
+    ).toEqual([
+      { baseUrl: 'http://127.0.0.1:9001', token: 'host-token', local: true },
+      { baseUrl: 'https://sync.example.com', token: 'pair-token' },
+    ])
+  })
+
+  it('lists a host reachable two ways only once', () => {
+    expect(
+      resolveBlobEndpoints({
+        origin: 'https://192.168.1.20:9001',
+        servedByHost: true,
+        remoteSyncServerUrl: 'wss://192.168.1.20:9001/sync',
+        token: 'pair-token',
+      }),
+    ).toEqual([{ baseUrl: 'https://192.168.1.20:9001', token: 'pair-token' }])
   })
 
   it('will not use a remote sync url without a pairing token', () => {
     // Every request would 401, so there is nothing to be gained by trying.
     expect(
-      resolveBlobEndpoint({
+      resolveBlobEndpoints({
         remoteSyncServerUrl: 'wss://sync.example.com/sync',
       }),
-    ).toBeUndefined()
+    ).toEqual([])
   })
 
   // A standalone web-client with no host is a supported configuration, not a
   // failure: its bytes simply stay in OPFS.
-  it('returns undefined for a local-only client', () => {
+  it('resolves nothing for a local-only client', () => {
     expect(
-      resolveBlobEndpoint({ origin: 'https://tapes.example.com' }),
-    ).toBeUndefined()
+      resolveBlobEndpoints({ origin: 'https://tapes.example.com' }),
+    ).toEqual([])
   })
 })
 
@@ -208,5 +245,118 @@ describe('deleteBlob', () => {
     stubFetch(jsonResponse(404, { error: 'Unknown blob' }))
 
     await expect(deleteBlob(ENDPOINT, HASH, DOC)).resolves.toBeUndefined()
+  })
+})
+
+const LOCAL = { baseUrl: 'http://127.0.0.1:9001', token: 'host', local: true }
+const REMOTE = { baseUrl: 'https://sync.example.com', token: 'pair-token' }
+
+/** Answers each request from `byBaseUrl`, keyed by the origin it was sent to. */
+function stubHosts(byBaseUrl: Record<string, () => Response>) {
+  const fetchMock = vi.fn((url: string) => {
+    const host = Object.keys(byBaseUrl).find((base) => url.startsWith(base))
+    return Promise.resolve(
+      host ? byBaseUrl[host]() : new Response(null, { status: 502 }),
+    )
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+describe('fetchBlobFromAny', () => {
+  it('falls back to the next host when the first has never seen the blob', async () => {
+    const fetchMock = stubHosts({
+      [LOCAL.baseUrl]: () => jsonResponse(404, { error: 'Unknown blob' }),
+      [REMOTE.baseUrl]: () => new Response('audio bytes', { status: 200 }),
+    })
+
+    const result = await fetchBlobFromAny([LOCAL, REMOTE], HASH)
+
+    expect(result.blob.size).toBe('audio bytes'.length)
+    expect(result.from).toBe(REMOTE)
+    expect(result.missingFrom).toEqual([LOCAL])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops at the first host that has it', async () => {
+    const fetchMock = stubHosts({
+      [LOCAL.baseUrl]: () => new Response('audio bytes', { status: 200 }),
+      [REMOTE.baseUrl]: () => new Response('audio bytes', { status: 200 }),
+    })
+
+    const result = await fetchBlobFromAny([LOCAL, REMOTE], HASH)
+
+    expect(result.from).toBe(LOCAL)
+    expect(result.missingFrom).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces the last failure when no host can answer', async () => {
+    stubHosts({
+      [LOCAL.baseUrl]: () => jsonResponse(404, { error: 'Unknown blob' }),
+      [REMOTE.baseUrl]: () => jsonResponse(401, { error: 'Unauthorized' }),
+    })
+
+    await expect(fetchBlobFromAny([LOCAL, REMOTE], HASH)).rejects.toMatchObject(
+      { status: 401 },
+    )
+  })
+
+  it('reports a missing host rather than a fetch with no endpoints', async () => {
+    await expect(fetchBlobFromAny([], HASH)).rejects.toBeInstanceOf(
+      BlobRequestError,
+    )
+  })
+})
+
+describe('replicateBlob', () => {
+  it('uploads to every host that was missing the blob', async () => {
+    const fetchMock = stubHosts({
+      [REMOTE.baseUrl]: () =>
+        jsonResponse(201, {
+          hash: HASH,
+          size: 11,
+          mimeType: 'audio/wav',
+          ext: '.wav',
+        }),
+    })
+
+    await replicateBlob([REMOTE], new Blob(['audio bytes']), {
+      mimeType: 'audio/wav',
+      docUrl: DOC,
+      expectedHash: HASH,
+    })
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `https://sync.example.com/blobs?doc=${encodeURIComponent(DOC)}`,
+    )
+  })
+
+  it('swallows a failed copy: playback already succeeded', async () => {
+    stubHosts({
+      [REMOTE.baseUrl]: () => jsonResponse(507, { error: 'Store is full' }),
+    })
+
+    await expect(
+      replicateBlob([REMOTE], new Blob(['audio bytes']), {
+        mimeType: 'audio/wav',
+        docUrl: DOC,
+        expectedHash: HASH,
+      }),
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('deleteBlobEverywhere', () => {
+  it('releases the claim on each host and ignores the ones that fail', async () => {
+    const fetchMock = stubHosts({
+      [LOCAL.baseUrl]: () => new Response(null, { status: 204 }),
+      [REMOTE.baseUrl]: () => jsonResponse(500, { error: 'Nope' }),
+    })
+
+    await expect(
+      deleteBlobEverywhere([LOCAL, REMOTE], HASH, DOC),
+    ).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

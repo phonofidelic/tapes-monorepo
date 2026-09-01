@@ -21,18 +21,19 @@ import type { BlobEndpoint } from './blobClient'
  * the embedded sync server's filesystem store), and only the shell knows where
  * its sync server lives. `null` means the shell is still bootstrapping.
  *
- * `blobEndpoint` is where recorded audio is sent and fetched from, resolved by
- * the shell for the same reason. Leaving it undefined is a supported mode: a
- * standalone web client has no host, so its recordings stay on the device.
+ * `blobEndpoints` are the hosts recorded audio is sent to and fetched from, in
+ * the order to try them, resolved by the shell for the same reason. Leaving
+ * them out is a supported mode: a standalone web client has no host, so its
+ * recordings stay on the device.
  */
 export function App({
   appContextValue,
   repoContextValue,
-  blobEndpoint,
+  blobEndpoints,
 }: {
   appContextValue: AppContextValue
   repoContextValue: Repo | null
-  blobEndpoint?: BlobEndpoint
+  blobEndpoints?: readonly BlobEndpoint[]
 }) {
   const mainRef = useRef<HTMLDivElement | null>(null)
 
@@ -45,7 +46,7 @@ export function App({
       values={{
         appContext: appContextValue,
         repoContext: repoContextValue,
-        blobEndpoint,
+        blobEndpoints,
       }}
     >
       <Main mainRef={mainRef} />

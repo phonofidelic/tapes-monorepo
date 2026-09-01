@@ -62,10 +62,19 @@ function Probe() {
   )
 }
 
-const renderPlayer = (appContext: AppContextValue, endpoint?: BlobEndpoint) =>
+/** A server this device syncs with but does not host. */
+const REMOTE_ENDPOINT: BlobEndpoint = {
+  baseUrl: 'https://sync.example.com',
+  token: 'pair-token',
+}
+
+const renderPlayer = (
+  appContext: AppContextValue,
+  endpoints: readonly BlobEndpoint[] = [],
+) =>
   render(
     <AppContextProvider value={appContext}>
-      <BlobProvider endpoint={endpoint}>
+      <BlobProvider endpoints={endpoints}>
         <AudioPlayerProvider>
           <Probe />
         </AudioPlayerProvider>
@@ -142,7 +151,7 @@ describe('legacy recordings with embedded audio', () => {
       mimeType: 'audio/wav',
     }
 
-    renderPlayer({ type: 'web-client', worker: emptyWorker() }, ENDPOINT)
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [ENDPOINT])
 
     await waitFor(() => expect(srcText()).toMatch(/^blob:/))
     expect(blobForObjectUrl(srcText())?.type).toBe('audio/wav')
@@ -164,7 +173,7 @@ describe('recordings stored out of band', () => {
         ? { success: true, payload: { blob: new Blob(['cached']) } }
         : { success: true, payload: { present: true } },
     )
-    renderPlayer({ type: 'web-client', worker }, ENDPOINT)
+    renderPlayer({ type: 'web-client', worker }, [ENDPOINT])
 
     await waitFor(() => expect(srcText()).toMatch(/^blob:/))
     expect(fetchMock).not.toHaveBeenCalled()
@@ -189,7 +198,7 @@ describe('recordings stored out of band', () => {
       }
       return { success: false, error: 'NotFoundError' }
     })
-    renderPlayer({ type: 'web-client', worker }, ENDPOINT)
+    renderPlayer({ type: 'web-client', worker }, [ENDPOINT])
 
     await waitFor(() => expect(srcText()).toMatch(/^blob:/))
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -198,6 +207,61 @@ describe('recordings stored out of band', () => {
     )
     // Kept locally, so a guest's storage grows with what it played.
     await waitFor(() => expect(sent).toContain('blob:put'))
+  })
+
+  // The TAP-74 case: a desktop app in remote sync mode holds a doc whose bytes
+  // its own embedded store has never seen, and used to 404 against itself with
+  // nowhere else to ask.
+  it('asks the next host when the nearest one has never seen the blob', async () => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.startsWith(REMOTE_ENDPOINT.baseUrl)) {
+        return Promise.resolve(
+          init?.method === 'POST'
+            ? new Response(
+                JSON.stringify({
+                  hash: HASH,
+                  size: 5,
+                  mimeType: 'audio/wav',
+                  ext: '.wav',
+                }),
+                { status: 201 },
+              )
+            : new Response('audio', { status: 200 }),
+        )
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: 'Unknown blob' }), {
+          status: 404,
+        }),
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    recording = {
+      ...base,
+      filepath: '',
+      blob: { hash: HASH, size: 5, mimeType: 'audio/wav', ext: '.wav' },
+    }
+
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [
+      { ...ENDPOINT, local: true },
+      REMOTE_ENDPOINT,
+    ])
+
+    await waitFor(() => expect(srcText()).toMatch(/^blob:/))
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:9001/blobs/${HASH}`,
+    )
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      `https://sync.example.com/blobs/${HASH}`,
+    )
+    // And the host that was missing it gets a copy, so the next device to ask
+    // does not depend on which host is awake.
+    await waitFor(() => {
+      const upload = fetchMock.mock.calls.find(
+        ([, init]) => init?.method === 'POST',
+      )
+      expect(upload?.[0]).toContain('http://127.0.0.1:9001/blobs?doc=')
+    })
   })
 
   it('reports an error rather than silently clearing the player', async () => {
@@ -215,7 +279,7 @@ describe('recordings stored out of band', () => {
       blob: { hash: HASH, size: 5, mimeType: 'audio/wav', ext: '.wav' },
     }
 
-    renderPlayer({ type: 'web-client', worker: emptyWorker() }, ENDPOINT)
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [ENDPOINT])
 
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('error'),
@@ -229,7 +293,7 @@ describe('recordings stored out of band', () => {
       blob: { hash: HASH, size: 5, mimeType: 'audio/wav', ext: '.wav' },
     }
 
-    renderPlayer({ type: 'web-client', worker: emptyWorker() }, undefined)
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [])
 
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('error'),
@@ -248,7 +312,7 @@ describe('electron', () => {
       blob: { hash: HASH, size: 4, mimeType: 'audio/wav', ext: '.wav' },
     }
 
-    renderPlayer(electronContext(send), ENDPOINT)
+    renderPlayer(electronContext(send), [ENDPOINT])
 
     await waitFor(() => expect(srcText()).toBe(`tapes-blob://${HASH}`))
   })
@@ -262,7 +326,7 @@ describe('electron', () => {
       blob: { hash: HASH, size: 4, mimeType: 'audio/wav', ext: '.wav' },
     }
 
-    renderPlayer(electronContext(send), undefined)
+    renderPlayer(electronContext(send), [])
 
     await waitFor(() => expect(srcText()).toContain('tapes://take-one.wav'))
   })
