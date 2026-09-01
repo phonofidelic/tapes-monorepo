@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  fireEvent,
+} from '@testing-library/react'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import { AppContextProvider, type AppContextValue } from './AppContext'
 import { BlobProvider } from './BlobContext'
@@ -18,9 +24,14 @@ const ENDPOINT: BlobEndpoint = {
 }
 
 let recording: RecordingData
+/** Per-url documents, for tests that load more than one recording. */
+let recordings: Record<string, RecordingData> = {}
 
 vi.mock('@automerge/automerge-repo-react-hooks', () => ({
-  useDocument: () => [recording, vi.fn()],
+  useDocument: (url?: AutomergeUrl) => [
+    url ? (recordings[url] ?? recording) : undefined,
+    vi.fn(),
+  ],
 }))
 
 const base: RecordingData = {
@@ -124,6 +135,7 @@ beforeEach(() => {
   cleanup()
   localStorage.clear()
   recording = base
+  recordings = {}
 })
 
 afterEach(() => {
@@ -234,6 +246,101 @@ describe('recordings stored out of band', () => {
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('error'),
     )
+  })
+})
+
+describe('switching between recordings', () => {
+  const SECOND_URL = 'automerge:second' as AutomergeUrl
+  const second: RecordingData = {
+    ...base,
+    url: SECOND_URL,
+    filename: 'take-two',
+    filepath: '',
+    name: 'Take two',
+    id: 'take-two',
+    blob: { hash: 'b'.repeat(64), size: 5, mimeType: 'audio/wav', ext: '.wav' },
+  }
+
+  /** Loads the first recording, then swaps the player onto the second. */
+  function SwitchingProbe() {
+    const {
+      audioRef,
+      setCurrentSource,
+      setCurrentUrl,
+      isPlaying,
+      setIsPlaying,
+      playbackState,
+    } = useAudioPlayer()
+    const [src, setSrc] = useState('')
+
+    useEffect(() => {
+      setCurrentSource(base.filepath)
+      setCurrentUrl(RECORDING_URL)
+      setIsPlaying(true)
+    }, [setCurrentSource, setCurrentUrl, setIsPlaying])
+
+    useEffect(() => {
+      const timer = setInterval(() => setSrc(audioRef.current?.src ?? ''), 5)
+      return () => clearInterval(timer)
+    }, [audioRef])
+
+    return (
+      <>
+        <output data-testid="src">{src}</output>
+        <output data-testid="state">{playbackState}</output>
+        <output data-testid="playing">{String(isPlaying)}</output>
+        <button
+          onClick={() => {
+            setCurrentSource(second.filepath)
+            setCurrentUrl(SECOND_URL)
+            setIsPlaying(true)
+          }}
+        >
+          Play second
+        </button>
+      </>
+    )
+  }
+
+  // TAP-83: the element kept the first recording's src while the second one
+  // failed to resolve, so pressing play played the wrong tape under the new
+  // recording's name.
+  it('drops the previous recording rather than playing it in place of an unavailable one', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('', { status: 404 })),
+    )
+    recordings = {
+      [RECORDING_URL]: {
+        ...base,
+        audio: new Uint8Array([1, 2, 3, 4]),
+        mimeType: 'audio/wav',
+      },
+      [SECOND_URL]: second,
+    }
+
+    render(
+      <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
+        <BlobProvider endpoint={ENDPOINT}>
+          <AudioPlayerProvider>
+            <SwitchingProbe />
+          </AudioPlayerProvider>
+        </BlobProvider>
+      </AppContextProvider>,
+    )
+
+    await waitFor(() => expect(srcText()).toMatch(/^blob:/))
+    const firstSrc = srcText()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play second' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error'),
+    )
+    expect(srcText()).not.toBe(firstSrc)
+    expect(srcText()).toBe('')
+    // Nothing is loaded, so the transport must not sit in its playing state.
+    expect(screen.getByTestId('playing')).toHaveTextContent('false')
   })
 })
 
