@@ -23,7 +23,7 @@ export function Settings() {
   const [importUrl, setImportUrl] = useState('')
   const [syncServerLanEnabled] = useSetting('syncServerLanEnabled')
   const [hostedBaseUrl, setHostedBaseUrl] = useState<string | null>(null)
-  const [blobToken, setBlobToken] = useState<string | null>(null)
+  const [pairingToken, setPairingToken] = useState<string | null>(null)
 
   // On the desktop app, guests should load the web-client from this host
   // (same origin as the sync server) rather than the deployed Vercel build,
@@ -35,9 +35,10 @@ export function Settings() {
     }
     appContext.ipc.send<SyncServerInfo>('sync:get-server-info').then((info) => {
       setHostedBaseUrl(info.lanWebAppUrl ?? null)
-      // The guest needs this to read and write audio on the host; pairing is
-      // the only moment we get to hand it over.
-      setBlobToken(info.blobToken ?? null)
+      // The guest needs this to join the host's sync socket at all, and to
+      // read and write audio on it; pairing is the only moment we get to hand
+      // it over.
+      setPairingToken(info.pairingToken ?? null)
     })
   }, [appContext, syncServerLanEnabled])
 
@@ -47,10 +48,10 @@ export function Settings() {
       ? `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
       : 'https://tapes-monorepo-web-client.vercel.app')
 
-  // Anyone with this link can read and write the host's recordings, which was
-  // already true of the library it replicates.
+  // Anyone with this link can read and write the host's recordings: the token
+  // in it is what opens both the sync socket and `/blobs`.
   const pairingUrl = `${baseUrl}/?am=${automergeUrl}${
-    blobToken ? `&bt=${encodeURIComponent(blobToken)}` : ''
+    pairingToken ? `&pt=${encodeURIComponent(pairingToken)}` : ''
   }`
 
   return (

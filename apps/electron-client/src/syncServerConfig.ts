@@ -9,11 +9,13 @@ export type SyncServerConfig = {
   // Serve the LAN over self-signed HTTPS so guests get a secure context
   // (required for playback and recording, not just plain browsing).
   httpsEnabled: boolean
-  // Bearer token guarding the `/blobs` HTTP surface. The sync socket itself is
-  // still unauthenticated on the LAN, but blobs add a *write* endpoint that
-  // consumes the host's disk, so leaving those open would be strictly worse
-  // than the status quo. Distributed to guests via the QR pairing URL.
-  blobToken: string
+  // Shared secret guarding everything this host exposes on the LAN: the
+  // `/blobs` HTTP surface and the sync socket's upgrade. Minted once and
+  // distributed to guests via the QR pairing URL — an unauthenticated socket
+  // would let anyone who can route to the port read or rewrite the whole
+  // library. Rotating it unpairs every guest at once; there is no per-device
+  // revocation.
+  pairingToken: string
 }
 
 const configFilePath = () =>
@@ -25,7 +27,7 @@ export const syncStoragePath = () =>
 /** Root of the content-addressed audio store served over `/blobs`. */
 export const blobStoragePath = () => path.join(app.getPath('userData'), 'blobs')
 
-const createBlobToken = () => crypto.randomBytes(32).toString('base64url')
+const createPairingToken = () => crypto.randomBytes(32).toString('base64url')
 
 /**
  * Resolves the directory of the bundled web-client, staged as an
@@ -64,15 +66,15 @@ export function readSyncServerConfig(): SyncServerConfig {
         peerId: stored.peerId,
         lanEnabled: stored.lanEnabled === true,
         httpsEnabled: stored.httpsEnabled === true,
-        // Configs written before blobs existed have no token; mint one and
+        // Configs written before the token existed have none; mint one and
         // persist it so it stays stable across restarts (a token that changed
         // every launch would unpair every guest).
-        blobToken:
-          typeof stored.blobToken === 'string' && stored.blobToken.length > 0
-            ? stored.blobToken
-            : createBlobToken(),
+        pairingToken:
+          typeof stored.pairingToken === 'string' && stored.pairingToken.length > 0
+            ? stored.pairingToken
+            : createPairingToken(),
       }
-      if (config.blobToken !== stored.blobToken) {
+      if (config.pairingToken !== stored.pairingToken) {
         writeSyncServerConfig(config)
       }
       return config
@@ -85,7 +87,7 @@ export function readSyncServerConfig(): SyncServerConfig {
     peerId: `tapes-embedded-${crypto.randomUUID()}`,
     lanEnabled: false,
     httpsEnabled: false,
-    blobToken: createBlobToken(),
+    pairingToken: createPairingToken(),
   }
   writeSyncServerConfig(config)
   return config

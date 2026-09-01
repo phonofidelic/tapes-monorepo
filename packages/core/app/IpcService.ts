@@ -38,8 +38,11 @@ export type SyncServerInfo = {
   blobBaseUrl?: string
   /** LAN-reachable origin serving `/blobs`. */
   lanBlobBaseUrl?: string
-  /** Bearer token for `/blobs`. Never log this object wholesale. */
-  blobToken?: string
+  /**
+   * Bearer token for `/blobs` and the sync socket. Never log this object
+   * wholesale.
+   */
+  pairingToken?: string
   port: number
   host: string
 }

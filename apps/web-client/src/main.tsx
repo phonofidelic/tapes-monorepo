@@ -34,11 +34,6 @@ import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-index
 //   5. Nothing matched — a standalone deploy with no server to reach. Resolve
 //      to undefined and let core run local-only (IndexedDB plus cross-tab
 //      BroadcastChannel) instead of retrying an origin nothing listens on.
-const syncServerUrl = resolveSyncServerUrl({
-  env: import.meta.env,
-  location: window.location,
-  storage: window.localStorage,
-})
 
 // A bundle the Electron host serves to LAN guests gets no service worker; the
 // plugin is disabled for that build (see vite.config.ts for why). Tear down any
@@ -46,24 +41,37 @@ const syncServerUrl = resolveSyncServerUrl({
 // keep serving a cached bundle from a host it may no longer be able to reach.
 const servedByHost = import.meta.env.VITE_SERVED_BY_HOST === 'true'
 
-// The QR/copy link a host shows for pairing carries its blob token as `bt`.
-// Stash it in the settings blob (next to `remoteSyncServerUrl`) and strip it
-// from the address bar, so it is not left sitting in history or a shared link.
-function captureBlobToken(): string | undefined {
+// The QR/copy link a host shows for pairing carries its token as `pt`. Stash
+// it in the settings blob (next to `remoteSyncServerUrl`) and strip it from the
+// address bar, so it is not left sitting in history or a shared link.
+function capturePairingToken(): string | undefined {
   const settings = JSON.parse(window.localStorage.getItem('settings') ?? '{}')
-  const fromQuery = new URLSearchParams(window.location.search).get('bt')
+  const fromQuery = new URLSearchParams(window.location.search).get('pt')
   if (fromQuery) {
     window.localStorage.setItem(
       'settings',
-      JSON.stringify({ ...settings, blobToken: fromQuery }),
+      JSON.stringify({ ...settings, pairingToken: fromQuery }),
     )
     const url = new URL(window.location.href)
-    url.searchParams.delete('bt')
+    url.searchParams.delete('pt')
     window.history.replaceState({}, '', url)
     return fromQuery
   }
-  return typeof settings.blobToken === 'string' ? settings.blobToken : undefined
+  return typeof settings.pairingToken === 'string'
+    ? settings.pairingToken
+    : undefined
 }
+
+// Read before the sync URL is resolved: a host-served bundle has to present
+// this token on the socket upgrade, not just on `/blobs`.
+const pairingToken = capturePairingToken()
+
+const syncServerUrl = resolveSyncServerUrl({
+  env: import.meta.env,
+  location: window.location,
+  storage: window.localStorage,
+  token: pairingToken,
+})
 
 // Where this bundle sends and fetches recorded audio. Same shape as the sync
 // URL chain above: the host's own origin when it is serving us, an explicit
@@ -74,7 +82,7 @@ const blobEndpoint = resolveBlobEndpoint({
   servedByHost,
   isDev: import.meta.env.DEV,
   remoteSyncServerUrl: syncServerUrl,
-  token: captureBlobToken(),
+  token: pairingToken,
 })
 
 if (servedByHost && 'serviceWorker' in navigator) {

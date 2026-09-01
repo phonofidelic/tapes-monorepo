@@ -15,7 +15,7 @@ afterEach(async () => {
   }
 })
 
-async function startForTest() {
+async function startForTest(pairingToken?: string) {
   storagePath = await mkdtemp(path.join(tmpdir(), 'tapes-sync-'))
   return startSyncServer({
     storagePath,
@@ -24,12 +24,13 @@ async function startForTest() {
     // running desktop app on the default port.
     port: 0,
     peerId: 'test-host',
+    pairingToken,
   })
 }
 
-function connect(url: string) {
+function connect(url: string, headers?: Record<string, string>) {
   return new Promise<void>((resolve, reject) => {
-    const socket = new WebSocket(url)
+    const socket = new WebSocket(url, { headers })
     socket.on('open', () => {
       socket.close()
       resolve()
@@ -54,5 +55,41 @@ describe('startSyncServer', () => {
     const info = await startForTest()
 
     await expect(connect(info.url)).resolves.toBeUndefined()
+  })
+
+  // The token is the only thing standing between a LAN peer and the whole
+  // library, so an upgrade that does not carry it must never reach the repo.
+  describe('with a pairing token', () => {
+    const token = 'pairing-secret'
+
+    it('rejects an upgrade with no token', async () => {
+      const info = await startForTest(token)
+
+      await expect(connect(`${info.url}/sync`)).rejects.toThrow('401')
+    })
+
+    it('rejects an upgrade with the wrong token', async () => {
+      const info = await startForTest(token)
+
+      await expect(connect(`${info.url}/sync?t=nope`)).rejects.toThrow('401')
+    })
+
+    // A browser cannot set headers on a WebSocket, so `?t=` is the form every
+    // paired guest actually uses.
+    it('accepts an upgrade carrying the token as a query parameter', async () => {
+      const info = await startForTest(token)
+
+      await expect(
+        connect(`${info.url}/sync?t=${token}`),
+      ).resolves.toBeUndefined()
+    })
+
+    it('accepts an upgrade carrying the token as a bearer header', async () => {
+      const info = await startForTest(token)
+
+      await expect(
+        connect(`${info.url}/sync`, { authorization: `Bearer ${token}` }),
+      ).resolves.toBeUndefined()
+    })
   })
 })

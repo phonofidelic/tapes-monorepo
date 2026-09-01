@@ -16,15 +16,18 @@ function resolve({
   env = {},
   location = HTTP,
   settings,
+  token,
 }: {
   env?: SyncUrlEnv
   location?: SyncUrlLocation
   settings?: string
+  token?: string
 } = {}) {
   return resolveSyncServerUrl({
     env,
     location,
     storage: storageWith(settings),
+    token,
   })
 }
 
@@ -96,5 +99,31 @@ describe('resolveSyncServerUrl', () => {
 
   it('treats a host flag that is not "true" as standalone', () => {
     expect(resolve({ env: { VITE_SERVED_BY_HOST: 'false' } })).toBeUndefined()
+  })
+
+  // The host verifies this on the upgrade and a WebSocket cannot carry a
+  // header, so a paired guest has to put it in the query or be refused.
+  it('carries the pairing token on the same-origin socket', () => {
+    expect(resolve({ env: { DEV: true }, token: 'a token/+' })).toBe(
+      'ws://lan-host:3000/sync?t=a%20token%2F%2B',
+    )
+  })
+
+  // A remote or build-time server is a different deployment with a different
+  // secret; sending this host's token there would only leak it.
+  it('does not send the pairing token to a remote server', () => {
+    expect(
+      resolve({
+        env: { VITE_SYNC_SERVER_URL: 'wss://sync.example.com' },
+        token: 'host-token',
+      }),
+    ).toBe('wss://sync.example.com')
+
+    expect(
+      resolve({
+        settings: JSON.stringify({ remoteSyncServerUrl: 'ws://stored:1234' }),
+        token: 'host-token',
+      }),
+    ).toBe('ws://stored:1234')
   })
 })

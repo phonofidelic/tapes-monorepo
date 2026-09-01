@@ -44,7 +44,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     webAppDevUrl: devWebAppUrl,
     tls,
     blobStorePath: blobStoragePath(),
-    blobToken: config.blobToken,
+    pairingToken: config.pairingToken,
   })
 }
 

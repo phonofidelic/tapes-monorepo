@@ -29,6 +29,24 @@ const stoppedServer: SyncServerInfo = {
 }
 
 describe('resolveSyncServerUrls', () => {
+  // The embedded server checks the token on every upgrade, its own renderer
+  // included, and the adapter's browser WebSocket cannot send a header.
+  it('carries the pairing token on the embedded server url', () => {
+    expect(
+      resolveSyncServerUrls({
+        settings: {
+          syncServerMode: 'remote',
+          remoteSyncServerUrl: 'wss://sync.example.com',
+        },
+        serverInfo: { ...runningServer, pairingToken: 'host-token' },
+      }),
+    ).toEqual({
+      localUrl: 'ws://127.0.0.1:9001/?t=host-token',
+      // The remote is someone else's server and never sees this token.
+      remoteUrl: 'wss://sync.example.com',
+    })
+  })
+
   it('uses the embedded server when it is running', () => {
     expect(
       resolveSyncServerUrls({ settings: {}, serverInfo: runningServer }),
