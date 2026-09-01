@@ -2,7 +2,7 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { ValidIpcChanel } from '@tapes-monorepo/core'
+import type { ValidIpcChanel } from '@tapes-monorepo/core'
 
 // A Record keyed by the union rather than a hand-kept array: a channel added
 // to `ValidIpcChanel` and forgotten here is a `check-types` failure instead of
