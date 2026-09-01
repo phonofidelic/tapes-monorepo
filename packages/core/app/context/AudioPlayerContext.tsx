@@ -34,6 +34,18 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | undefined>(
   undefined,
 )
 
+/**
+ * Whether a recording's `filepath` could name a file in this device's OPFS,
+ * which holds recordings flat under a uuid. Anything with a path separator (or
+ * a relative-path segment) came from an electron host's real filesystem.
+ */
+const isOpfsName = (filepath: string): boolean =>
+  filepath.length > 0 &&
+  !filepath.includes('/') &&
+  !filepath.includes('\\') &&
+  filepath !== '.' &&
+  filepath !== '..'
+
 export const AudioPlayerProvider = ({
   children,
 }: {
@@ -208,6 +220,14 @@ export const AudioPlayerProvider = ({
         return recordingDoc.filepath
           ? { src: `tapes://${currentSource}`, revoke: false }
           : null
+      }
+      // OPFS names are flat. A recording made on an electron host carries an
+      // absolute filesystem path, which `getFileHandle` rejects outright with
+      // a TypeError ("Name is not allowed") rather than reporting a miss.
+      // Asking for it is meaningless here anyway — those bytes were never in
+      // this device's OPFS, and the host is asked for them below.
+      if (!isOpfsName(currentSource)) {
+        return null
       }
       return new Promise((resolveSource) => {
         const worker = appContext.worker
