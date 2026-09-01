@@ -1,9 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { SyncServerInfo } from '@tapes-monorepo/core'
+import type { AutomergeUrl } from '@automerge/automerge-repo'
 import {
   buildRendererNetwork,
+  isSyncSetting,
   readSyncSettings,
+  rendererRepoKey,
   resolveSyncServerUrls,
+  sameBlobEndpoints,
+  sameSyncServerUrls,
 } from './rendererRepo'
 
 // buildRendererNetwork is asserted through the urls it is given: constructing a
@@ -216,5 +221,117 @@ describe('buildRendererNetwork', () => {
 
   it('builds no adapters when no url resolved', () => {
     expect(buildRendererNetwork({})).toEqual([])
+  })
+})
+
+// TAP-58: the renderer rebuilds its repo when sync settings change instead of
+// reloading the window, so it needs to know which writes matter and whether a
+// re-resolution actually landed somewhere new.
+describe('isSyncSetting', () => {
+  it('accepts every setting that feeds the resolved urls', () => {
+    for (const key of [
+      'syncServerMode',
+      'remoteSyncServerUrl',
+      'pairingToken',
+      'syncServerLanEnabled',
+      'syncServerHttpsEnabled',
+    ]) {
+      expect(isSyncSetting(key)).toBe(true)
+    }
+  })
+
+  it('ignores settings that cannot move the sync server', () => {
+    expect(isSyncSetting('audioFormat')).toBe(false)
+    expect(isSyncSetting('storageLocation')).toBe(false)
+    expect(isSyncSetting('audioInputDeviceId')).toBe(false)
+  })
+})
+
+describe('sameSyncServerUrls', () => {
+  it('treats an identical resolution as unchanged', () => {
+    expect(
+      sameSyncServerUrls(
+        { localUrl: 'ws://127.0.0.1:9001', remoteUrl: undefined },
+        { localUrl: 'ws://127.0.0.1:9001' },
+      ),
+    ).toBe(true)
+  })
+
+  it('reports a newly configured remote as a change', () => {
+    expect(
+      sameSyncServerUrls(
+        { localUrl: 'ws://127.0.0.1:9001' },
+        {
+          localUrl: 'ws://127.0.0.1:9001',
+          remoteUrl: 'wss://sync.example.com',
+        },
+      ),
+    ).toBe(false)
+  })
+
+  // The embedded server restarts on wss when HTTPS is switched on, so the same
+  // server at a new scheme has to count as a change.
+  it('reports a changed scheme as a change', () => {
+    expect(
+      sameSyncServerUrls(
+        { localUrl: 'ws://127.0.0.1:9001' },
+        { localUrl: 'wss://127.0.0.1:9001' },
+      ),
+    ).toBe(false)
+  })
+
+  it('handles the pre-resolution null', () => {
+    expect(sameSyncServerUrls(null, null)).toBe(true)
+    expect(sameSyncServerUrls(null, { localUrl: 'ws://127.0.0.1:9001' })).toBe(
+      false,
+    )
+  })
+})
+
+describe('sameBlobEndpoints', () => {
+  it('compares by value and order', () => {
+    const a = { baseUrl: 'http://127.0.0.1:9001', token: 'abc', local: true }
+    const b = { baseUrl: 'https://sync.example.com', token: 'abc' }
+    expect(sameBlobEndpoints([a, b], [{ ...a }, { ...b }])).toBe(true)
+    expect(sameBlobEndpoints([a, b], [b, a])).toBe(false)
+    expect(sameBlobEndpoints([a], [a, b])).toBe(false)
+  })
+
+  // A token change means the same host with different credentials: the repo has
+  // to reconnect, so this must not read as unchanged.
+  it('reports a changed token as a change', () => {
+    expect(
+      sameBlobEndpoints(
+        [{ baseUrl: 'http://127.0.0.1:9001', token: 'abc' }],
+        [{ baseUrl: 'http://127.0.0.1:9001', token: 'xyz' }],
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('rendererRepoKey', () => {
+  const url = 'automerge:2PfnZbJTdgLuUuBvzuGZQiHW7cX8' as AutomergeUrl
+
+  it('is stable for the same library and servers', () => {
+    expect(rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' })).toBe(
+      rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' }),
+    )
+  })
+
+  it('changes when the servers change', () => {
+    expect(rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' })).not.toBe(
+      rendererRepoKey(url, {
+        localUrl: 'ws://127.0.0.1:9001',
+        remoteUrl: 'wss://sync.example.com',
+      }),
+    )
+  })
+
+  // Importing another device's library has to rebuild the repo around the new
+  // document, not just re-point the existing one.
+  it('changes when the library url changes', () => {
+    expect(rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' })).not.toBe(
+      rendererRepoKey(null, { localUrl: 'ws://127.0.0.1:9001' }),
+    )
   })
 })
