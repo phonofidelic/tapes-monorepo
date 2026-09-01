@@ -5,7 +5,8 @@
     "NODE_ENV",
     "WEB_CLIENT_DEV_URL",
     "VITE_SERVED_BY_HOST",
-    "VITE_SYNC_SERVER_URL"
+    "VITE_SYNC_SERVER_URL",
+    "TAPES_SYNC_SERVER_PORT"
   ],
   "tasks": {
     "build": {

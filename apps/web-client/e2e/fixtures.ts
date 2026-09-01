@@ -206,6 +206,28 @@ export const opfsFiles = (page: Page) =>
   })
 
 /**
+ * Hashes of the blobs this device has cached, from playing or pinning them.
+ *
+ * The recording files a device made itself live flat in the OPFS root (see
+ * `opfsFiles`); fetched blobs live in `blobs/` under their content hash, so
+ * these two never see each other's files.
+ */
+export const cachedBlobHashes = (page: Page) =>
+  page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory()
+    const hashes: string[] = []
+    try {
+      const directory = await root.getDirectoryHandle('blobs')
+      for await (const handle of directory.values()) {
+        if (handle.kind === 'file') hashes.push(handle.name)
+      }
+    } catch {
+      // No blob has ever been cached on this device.
+    }
+    return hashes
+  })
+
+/**
  * The bytes land on the final `dataavailable` -> `recorder:write`, strictly
  * after the worker has already answered `recorder:stop`, so this must poll.
  */
