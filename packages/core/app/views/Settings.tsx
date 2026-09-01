@@ -252,11 +252,9 @@ function SyncSettings() {
         <select
           className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           onChange={(event) => {
-            const value = event.target.value as 'embedded' | 'remote'
-            setSyncServerMode(value)
-            if (value === 'embedded' || remoteSyncServerUrl) {
-              window.location.reload()
-            }
+            // No reload: the shell subscribes to settings changes and rebuilds
+            // its repo against the newly resolved servers.
+            setSyncServerMode(event.target.value as 'embedded' | 'remote')
           }}
           defaultValue={mode}
         >
@@ -298,7 +296,6 @@ function SyncSettings() {
                 return
               }
               setRemoteSyncServerUrl(remoteUrlDraft)
-              window.location.reload()
             }}
           >
             Save
@@ -321,7 +318,6 @@ function SyncSettings() {
               title="Save pairing token"
               onClick={() => {
                 setPairingToken(tokenDraft === '' ? null : tokenDraft)
-                window.location.reload()
               }}
             >
               Save
@@ -384,11 +380,12 @@ function SyncSettings() {
                       return
                     }
 
-                    setSyncServerHttpsEnabled(enabled ? 'true' : 'false')
                     setServerInfo(info)
                     // The server's scheme (ws/wss) changed, so this device's
-                    // own connection URL is now stale — reconnect on reload.
-                    window.location.reload()
+                    // own connection URL is now stale. Written last, because
+                    // that write is what tells the shell to re-resolve the
+                    // server info and reconnect the repo to the new url.
+                    setSyncServerHttpsEnabled(enabled ? 'true' : 'false')
                   }}
                 />
                 Use HTTPS (lets guests play back and record)

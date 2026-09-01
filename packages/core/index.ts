@@ -6,3 +6,7 @@ export * from './app/workerClient'
 export * from './app/blobCache'
 export * from './app/blobUpload'
 export { useAutomergeUrl } from './app/utils'
+export {
+  subscribeToSettingsChange,
+  type SettingKey,
+} from './app/context/SettingsContext'

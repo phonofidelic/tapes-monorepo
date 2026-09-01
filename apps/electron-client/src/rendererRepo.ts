@@ -6,7 +6,11 @@ import {
   type StorageAdapterInterface,
 } from '@automerge/automerge-repo'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
-import type { RecordingRepoState, SyncServerInfo } from '@tapes-monorepo/core'
+import type {
+  BlobEndpoint,
+  RecordingRepoState,
+  SyncServerInfo,
+} from '@tapes-monorepo/core'
 
 /**
  * Where the renderer's repo syncs. The renderer holds no storage of its own —
@@ -229,4 +233,64 @@ export async function bootstrapRendererRepo({
   return load(
     new Repo({ storage: createStorage(), network: createNetwork(urls) }),
   )
+}
+
+/**
+ * The settings whose values feed `resolveSyncServerUrls`/`resolveBlobEndpoints`
+ * above. A write to anything else (an audio format, a storage location) cannot
+ * change where we sync, so the shell ignores it rather than making an IPC round
+ * trip and rebuilding for nothing.
+ *
+ * The LAN and HTTPS toggles are in here because they change the embedded
+ * server's own url: it restarts on a different host or scheme, and the renderer
+ * has to reconnect to where it moved to.
+ */
+const SYNC_SETTING_KEYS: ReadonlySet<string> = new Set([
+  'syncServerMode',
+  'remoteSyncServerUrl',
+  'pairingToken',
+  'syncServerLanEnabled',
+  'syncServerHttpsEnabled',
+])
+
+export function isSyncSetting(key: string): boolean {
+  return SYNC_SETTING_KEYS.has(key)
+}
+
+export function sameSyncServerUrls(
+  a: SyncServerUrls | null,
+  b: SyncServerUrls | null,
+): boolean {
+  if (a === null || b === null) {
+    return a === b
+  }
+  return a.localUrl === b.localUrl && a.remoteUrl === b.remoteUrl
+}
+
+export function sameBlobEndpoints(
+  a: readonly BlobEndpoint[],
+  b: readonly BlobEndpoint[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (endpoint, index) =>
+        endpoint.baseUrl === b[index].baseUrl &&
+        endpoint.token === b[index].token &&
+        endpoint.local === b[index].local,
+    )
+  )
+}
+
+/**
+ * Identifies the repo a given library url and set of servers would produce.
+ * Re-resolving after an unrelated settings write usually lands on the same key,
+ * and rebuilding then would drop every open websocket to hand back an identical
+ * repo.
+ */
+export function rendererRepoKey(
+  storedUrl: AutomergeUrl | null,
+  urls: SyncServerUrls,
+): string {
+  return [storedUrl ?? '', urls.localUrl ?? '', urls.remoteUrl ?? ''].join('|')
 }

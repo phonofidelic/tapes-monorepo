@@ -18,6 +18,28 @@ type Settings = {
   syncServerHttpsEnabled: 'true' | 'false' | undefined
 }
 
+export type SettingKey = keyof Settings
+
+/**
+ * Settings live in a React context inside `App`, but the shells that build the
+ * Automerge `Repo` sit above it — and some of these settings (which sync server
+ * to use, whether the embedded one speaks HTTPS) decide what that repo is
+ * connected to. This is the seam between the two: every write publishes the key
+ * that changed, so a shell can re-resolve and rebuild its repo live instead of
+ * reloading the window. Module-level rather than context, because the listener
+ * is above the provider.
+ */
+const settingsListeners = new Set<(key: SettingKey) => void>()
+
+export function subscribeToSettingsChange(
+  listener: (key: SettingKey) => void,
+): () => void {
+  settingsListeners.add(listener)
+  return () => {
+    settingsListeners.delete(listener)
+  }
+}
+
 const SettingsContext = createContext<{
   settings: Partial<Settings>
   setSettings: (settings: Partial<Settings>) => void
@@ -60,25 +82,27 @@ export function useSetting(setting: keyof Settings) {
   return [settings[setting], setValue] as const
 }
 
-function writeSettingToLocalStorage(key: keyof Settings, value: string | null) {
-  if (value === null) {
-    localStorage.setItem(
-      'settings',
-      JSON.stringify({
-        ...JSON.parse(localStorage.getItem('settings') || '{}'),
-        [key]: undefined,
-      }),
-    )
-    return
-  }
-
+function writeSettingToLocalStorage(key: SettingKey, value: string | null) {
   localStorage.setItem(
     'settings',
     JSON.stringify({
       ...JSON.parse(localStorage.getItem('settings') || '{}'),
-      [key]: value,
+      [key]: value === null ? undefined : value,
     }),
   )
+  notifySettingChange(key)
+}
+
+function notifySettingChange(key: SettingKey) {
+  for (const listener of settingsListeners) {
+    try {
+      listener(key)
+    } catch (error) {
+      // One listener throwing must not stop the others, or leave the write
+      // half-published.
+      console.error('Settings change listener failed', error)
+    }
+  }
 }
 
 function readSettingsFromLocalStorage(): Partial<Settings> {
