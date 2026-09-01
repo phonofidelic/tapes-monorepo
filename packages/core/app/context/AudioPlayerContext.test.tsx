@@ -385,7 +385,7 @@ describe('switching between recordings', () => {
 
     render(
       <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
-        <BlobProvider endpoint={ENDPOINT}>
+        <BlobProvider endpoints={[ENDPOINT]}>
           <AudioPlayerProvider>
             <SwitchingProbe />
           </AudioPlayerProvider>
