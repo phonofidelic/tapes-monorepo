@@ -32,7 +32,7 @@ export class BlobRequestError extends Error {
 
 export type ResolveBlobEndpointInput = {
   /** Electron only: the embedded host's own advertised surface. */
-  syncServerInfo?: Pick<SyncServerInfo, 'blobBaseUrl' | 'blobToken'>
+  syncServerInfo?: Pick<SyncServerInfo, 'blobBaseUrl' | 'pairingToken'>
   /** Origin of the page, when there is one. */
   origin?: string
   /** True when this bundle is being served by the electron host. */
@@ -60,7 +60,7 @@ export function resolveBlobEndpoint(
   if (syncServerInfo?.blobBaseUrl) {
     return {
       baseUrl: trimSlash(syncServerInfo.blobBaseUrl),
-      token: syncServerInfo.blobToken,
+      token: syncServerInfo.pairingToken,
     }
   }
 

@@ -76,6 +76,15 @@ function isSyncServerUrl(value: unknown): value is string {
   }
 }
 
+function withPairingToken(url: string, token?: string): string {
+  if (!token) {
+    return url
+  }
+  const withToken = new URL(url)
+  withToken.searchParams.set('t', token)
+  return withToken.toString()
+}
+
 export function resolveSyncServerUrls({
   settings,
   serverInfo,
@@ -85,7 +94,12 @@ export function resolveSyncServerUrls({
   serverInfo: SyncServerInfo | undefined
   envSyncServerUrl?: string
 }): SyncServerUrls {
-  const localUrl = serverInfo?.running ? serverInfo.url : undefined
+  // The embedded server verifies the pairing token on the upgrade, so even
+  // its own renderer has to present it. `?t=` rather than a bearer header
+  // because the adapter builds a browser `WebSocket`, which cannot set one.
+  const localUrl = serverInfo?.running
+    ? withPairingToken(serverInfo.url, serverInfo.pairingToken)
+    : undefined
 
   const remoteUrl =
     settings.syncServerMode === 'remote'

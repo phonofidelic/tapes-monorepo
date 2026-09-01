@@ -16,6 +16,7 @@ import { WebSocketServerAdapter } from '@automerge/automerge-repo-network-websoc
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
 import { createBlobStore, type BlobStore } from './blobStore'
 import { createBlobRequestHandler } from './blobHttp'
+import { isAuthorized } from './tokenAuth'
 
 export const DEFAULT_SYNC_SERVER_PORT = 9001
 
@@ -35,10 +36,10 @@ export type SyncServerInfo = {
   /** LAN-reachable origin serving `/blobs`. */
   lanBlobBaseUrl?: string
   /**
-   * Bearer token for `/blobs`. Handed to guests through the QR pairing URL;
-   * never log this object wholesale.
+   * Bearer token guarding both `/blobs` and the sync socket. Handed to guests
+   * through the QR pairing URL; never log this object wholesale.
    */
-  blobToken?: string
+  pairingToken?: string
   port: number
   host: string
 }
@@ -74,8 +75,11 @@ export type SyncServerOptions = {
    * keeps its tests passing) without one.
    */
   blobStorePath?: string
-  /** Bearer token guarding `/blobs`. */
-  blobToken?: string
+  /**
+   * Bearer token guarding `/blobs` and the sync socket's upgrade. Omitted only
+   * by tests that exercise the unauthenticated shape; the app always has one.
+   */
+  pairingToken?: string
 }
 
 type RunningSyncServer = {
@@ -270,7 +274,7 @@ export async function startSyncServer(
     tls,
     webAppDevUrl,
     blobStorePath,
-    blobToken,
+    pairingToken,
   } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
 
@@ -283,7 +287,7 @@ export async function startSyncServer(
   }
 
   const handleBlobRequest = blobStore
-    ? createBlobRequestHandler({ store: blobStore, token: blobToken })
+    ? createBlobRequestHandler({ store: blobStore, token: pairingToken })
     : unavailableBlobRequestHandler
 
   const handler = createRequestHandler(webClientPath, handleBlobRequest)
@@ -303,7 +307,23 @@ export async function startSyncServer(
     port = await listen(server, host, 0)
   }
 
-  const wss = new WebSocketServer({ server })
+  // `noServer` rather than `{ server }`: the upgrade has to be answered by
+  // hand so the pairing token can be checked before a peer ever reaches the
+  // repo. Without it, anyone who can route to this port joins the library and
+  // can read or rewrite every recording in it.
+  const wss = new WebSocketServer({ noServer: true })
+
+  server.on('upgrade', (request, socket, head) => {
+    const url = new URL(request.url ?? '/', 'http://localhost')
+    if (!isAuthorized(request, url, pairingToken)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+      socket.destroy()
+      return
+    }
+    wss.handleUpgrade(request, socket, head, (client) => {
+      wss.emit('connection', client, request)
+    })
+  })
 
   // The adapter types its server via isomorphic-ws, which is the same ws
   // class at runtime but a structurally incompatible type.
@@ -341,7 +361,7 @@ export async function startSyncServer(
       blobBaseUrl: blobStore ? `${httpScheme}://127.0.0.1:${port}` : undefined,
       lanBlobBaseUrl:
         blobStore && lanIp ? `${httpScheme}://${lanIp}:${port}` : undefined,
-      blobToken: blobStore ? blobToken : undefined,
+      pairingToken,
       port,
       host,
     },

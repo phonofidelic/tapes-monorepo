@@ -20,10 +20,18 @@ export function resolveSyncServerUrl({
   env,
   location,
   storage,
+  token,
 }: {
   env: SyncUrlEnv
   location: SyncUrlLocation
   storage: Pick<Storage, 'getItem'>
+  /**
+   * The pairing token this device was handed by the host, when it has one. It
+   * is only ever presented to the host itself (the same-origin case below): a
+   * remote or build-time server is a different deployment with a different
+   * secret, and sending this one there would just leak it.
+   */
+  token?: string
 }): string | undefined {
   // 1. Build-time env var: the Vercel deploy path.
   if (env.VITE_SYNC_SERVER_URL) {
@@ -44,9 +52,16 @@ export function resolveSyncServerUrl({
   // vite.config.ts); in a staged build it is the Electron host itself, whose
   // WebSocketServer is attached to the whole http server rather than a route,
   // so it accepts the upgrade on `/sync` too.
+  //
+  // The host verifies the pairing token on that upgrade, and a browser cannot
+  // set headers on a `WebSocket`, so it rides the query as `?t=` — the same
+  // form `/blobs` accepts. Without a token the connection will be refused; we
+  // still return the URL so the failure is a visible 401 rather than a silent
+  // local-only session.
   if (env.DEV || env.VITE_SERVED_BY_HOST === 'true') {
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
-    return `${scheme}://${location.host}/sync`
+    const query = token ? `?t=${encodeURIComponent(token)}` : ''
+    return `${scheme}://${location.host}/sync${query}`
   }
 
   // 5. A standalone static deploy has nothing to sync with.

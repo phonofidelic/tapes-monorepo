@@ -1,7 +1,7 @@
-import crypto from 'crypto'
 import type http from 'http'
 import { pipeline } from 'stream/promises'
 import { BlobTooLargeError, isValidBlobHash, type BlobStore } from './blobStore'
+import { isAuthorized } from './tokenAuth'
 
 /**
  * The `/blobs` HTTP surface, served from the same origin and port as the sync
@@ -63,37 +63,6 @@ function sendJson(
 function sendStatus(response: http.ServerResponse, status: number) {
   response.writeHead(status, CORS_HEADERS)
   response.end()
-}
-
-function timingSafeMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a)
-  const right = Buffer.from(b)
-  // timingSafeEqual throws on length mismatch, which would itself leak length.
-  if (left.length !== right.length) {
-    return false
-  }
-  return crypto.timingSafeEqual(left, right)
-}
-
-/**
- * Accepts the token as a bearer header or as `?t=`. The query form exists so a
- * plain `<audio src>` can stream a range directly one day — an element cannot
- * set headers.
- */
-function isAuthorized(
-  request: http.IncomingMessage,
-  url: URL,
-  token?: string,
-): boolean {
-  if (!token) {
-    return true
-  }
-  const header = request.headers.authorization
-  if (header?.startsWith('Bearer ')) {
-    return timingSafeMatch(header.slice('Bearer '.length), token)
-  }
-  const query = url.searchParams.get('t')
-  return query !== null && timingSafeMatch(query, token)
 }
 
 type ParsedRange =

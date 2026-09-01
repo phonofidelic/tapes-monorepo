@@ -34,7 +34,7 @@ describe('resolveBlobEndpoint', () => {
       resolveBlobEndpoint({
         syncServerInfo: {
           blobBaseUrl: 'http://127.0.0.1:9001/',
-          blobToken: 'host-token',
+          pairingToken: 'host-token',
         },
         origin: 'http://localhost:3000',
         isDev: true,

@@ -58,7 +58,7 @@ async function startHost(
     peerId: 'test-host',
     webClientPath,
     blobStorePath: withStore ? blobRoot : undefined,
-    blobToken: withStore ? TOKEN : undefined,
+    pairingToken: withStore ? TOKEN : undefined,
   })
 
   return { origin: `http://127.0.0.1:${info.port}`, blobRoot }
@@ -95,11 +95,11 @@ describe('blob routes', () => {
       port: 0,
       peerId: 'test-host',
       blobStorePath: blobRoot,
-      blobToken: TOKEN,
+      pairingToken: TOKEN,
     })
 
     expect(info.blobBaseUrl).toBe(`http://127.0.0.1:${info.port}`)
-    expect(info.blobToken).toBe(TOKEN)
+    expect(info.pairingToken).toBe(TOKEN)
   })
 
   it('rejects an upload with no token', async () => {

@@ -117,7 +117,7 @@ function readSettings(): Record<string, unknown> {
 }
 
 /**
- * Dismissal lives in the same `settings` blob as `blobToken` and
+ * Dismissal lives in the same `settings` blob as `pairingToken` and
  * `remoteSyncServerUrl` (see main.tsx) rather than a key of its own, so the
  * shell keeps one place where its local preferences are stored.
  */
