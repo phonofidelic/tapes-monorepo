@@ -62,7 +62,16 @@ export const AudioPlayerProvider = ({
   const [clickedTime, setClickedTime] = useState(0)
 
   useEffect(() => {
-    if (!currentSource) {
+    // Detach whatever the player is holding before resolving anything.
+    // Resolving is asynchronous and can fail outright, and until this ran the
+    // element kept the previous recording's `src`: play an unavailable tape
+    // and the last one played instead, under the new recording's name.
+    const audio = audioRef.current
+    audio.pause()
+    audio.removeAttribute('src')
+    audio.load()
+
+    if (!currentUrl) {
       return
     }
 
@@ -95,6 +104,11 @@ export const AudioPlayerProvider = ({
 
     const resolve = async () => {
       setPlaybackState('loading')
+      // The transport belongs to whatever is being loaded now, not to the
+      // recording that was just detached.
+      setCurrentTime(0)
+      setDuration(0)
+      durationRef.current = 0
 
       // 1. Legacy embedded bytes. Automerge history is append-only, so docs
       //    written before audio moved out of band still carry their audio and
@@ -154,6 +168,9 @@ export const AudioPlayerProvider = ({
 
       if (!cancelled) {
         setPlaybackState('error')
+        // There is nothing loaded to play, so leaving the transport running
+        // would show a pause button over silence.
+        setIsPlaying(false)
       }
     }
 
@@ -165,6 +182,9 @@ export const AudioPlayerProvider = ({
       src: string
       revoke: boolean
     } | null> => {
+      if (!currentSource) {
+        return null
+      }
       if (appContext.type === 'electron-client') {
         // The protocol handler resolves a path this device knows about; a
         // recording made elsewhere has a filepath that means nothing here.
@@ -203,6 +223,7 @@ export const AudioPlayerProvider = ({
       }
     }
   }, [
+    currentUrl,
     currentSource,
     appContext,
     blobEndpoint,
