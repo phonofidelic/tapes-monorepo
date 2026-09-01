@@ -3,7 +3,7 @@ import { open, mkdir, rm, chmod, cp } from 'fs/promises'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
 import { execSync } from 'child_process'
-import * as StreamZip from 'node-stream-zip'
+import StreamZip from 'node-stream-zip'
 
 async function main() {
   const tmpDir = await getDir('tmp')
