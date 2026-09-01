@@ -11,6 +11,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 // see the `disable` option below and the unregister in src/main.tsx.
 const servedByHost = process.env.VITE_SERVED_BY_HOST === 'true'
 
+// Loopback port the `/sync` and `/blobs` proxies below hop to. The Electron
+// host's embedded server owns 9001 (DEFAULT_SYNC_SERVER_PORT), which is what a
+// developer running `yarn dev` alongside the desktop app wants. The two-device
+// e2e harness runs its own headless host on a different port and points this
+// dev server at it, so it never collides with a desktop app already running.
+const syncServerPort = process.env.TAPES_SYNC_SERVER_PORT ?? '9001'
+
 const plugins = [
   wasm(),
   topLevelAwait(),
@@ -135,7 +142,7 @@ export default defineConfig({
     // a `wss://` guest (dev:https) tunnel to the plain `ws://` loopback target.
     proxy: {
       '/sync': {
-        target: 'ws://127.0.0.1:9001',
+        target: `ws://127.0.0.1:${syncServerPort}`,
         ws: true,
         secure: false,
         changeOrigin: true,
@@ -144,7 +151,7 @@ export default defineConfig({
       // sync socket, so it needs the same hop in development. Blobs are always
       // served by the embedded host itself, never by this dev server.
       '/blobs': {
-        target: 'http://127.0.0.1:9001',
+        target: `http://127.0.0.1:${syncServerPort}`,
         secure: false,
         changeOrigin: true,
       },

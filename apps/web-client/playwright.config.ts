@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { GUEST_PORT, HOST_PORT } from './e2e/ports'
 
 const PORT = 4173
 // `localhost`, not `127.0.0.1`: Vite's dev server binds the hostname, and the
@@ -13,6 +14,12 @@ const BASE_URL = `http://localhost:${PORT}`
 // collision into a failed run.
 const PREVIEW_PORT = 4175
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`
+
+// The two-device suite's guest. A dev server of its own rather than the one on
+// 4173, because it is configured differently: no VITE_SYNC_SERVER_URL, so the
+// app resolves sync to same-origin `/sync`, and both that and `/blobs` are
+// proxied to the headless host the suite runs (see e2e/host.ts).
+const GUEST_URL = `http://localhost:${GUEST_PORT}`
 
 export default defineConfig({
   testDir: './e2e',
@@ -46,8 +53,8 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      // The PWA specs need the preview server, not this one.
-      testIgnore: /pwa\.spec\.ts/,
+      // These two have servers of their own.
+      testIgnore: [/pwa\.spec\.ts/, /two-device\.spec\.ts/],
       use: {
         browserName: 'chromium',
         launchOptions: {
@@ -56,6 +63,24 @@ export default defineConfig({
             // *device* on Linux: CI additionally loads PulseAudio virtual
             // sources, without which enumerateDevices() returns no audioinput
             // and getUserMedia throws NotFoundError.
+            '--use-fake-device-for-media-capture',
+            '--use-fake-ui-for-media-stream',
+            '--autoplay-policy=no-user-gesture-required',
+          ],
+        },
+      },
+    },
+    {
+      name: 'two-device',
+      testMatch: /two-device\.spec\.ts/,
+      use: {
+        browserName: 'chromium',
+        baseURL: GUEST_URL,
+        launchOptions: {
+          args: [
+            // The guest records in one of these tests, same as the
+            // single-device suite — and on Linux still needs CI's PulseAudio
+            // virtual sources for a capture *device* to exist at all.
             '--use-fake-device-for-media-capture',
             '--use-fake-ui-for-media-stream',
             '--autoplay-policy=no-user-gesture-required',
@@ -98,6 +123,25 @@ export default defineConfig({
       // which is the standalone-PWA case the offline spec is about. Left unset
       // it would inherit a developer's .env.local and stop being deterministic.
       env: { VITE_SYNC_SERVER_URL: '' },
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      // The guest of the two-device suite. `VITE_SYNC_SERVER_URL` is blank on
+      // purpose: it is the first link in the app's precedence chain, and a
+      // value here would stop it ever reaching the dev-server case that
+      // resolves sync to same-origin `/sync` — the whole path under test.
+      command: `yarn vite --port ${GUEST_PORT} --strictPort`,
+      url: GUEST_URL,
+      env: {
+        VITE_SYNC_SERVER_URL: '',
+        // Where this server's `/sync` and `/blobs` proxies hop to. The host is
+        // started by the suite itself, so this server can (and does) come up
+        // before anything is listening there.
+        TAPES_SYNC_SERVER_PORT: String(HOST_PORT),
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       stdout: 'pipe',

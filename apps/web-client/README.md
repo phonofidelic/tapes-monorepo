@@ -105,10 +105,29 @@ The suite exercises mic capture and device switching, so it needs an audio input
 device; CI provides one via a virtual PulseAudio source (see
 `.github/workflows/ci.yml`).
 
-Two projects, on two servers: `chromium` runs against the dev server, and `pwa`
+Three projects, on three servers. `chromium` runs against the dev server; `pwa`
 (`e2e/pwa.spec.ts`) against `vite preview`, since the service worker only exists
-in a built bundle. Run just the latter with:
+in a built bundle; and `two-device` (`e2e/two-device.spec.ts`) against a second
+dev server whose `/sync` and `/blobs` are proxied to a real host. Run one with:
 
 ```sh
 yarn workspace web-client e2e --project=pwa
 ```
+
+### The two-device project
+
+`two-device` is the host↔guest suite: pairing over the QR url, a guest uploading
+what it records, a guest playing a tape it never recorded, per-device caching and
+pinning, and `Range` requests to a real `<audio>` element.
+
+The host is the electron client's own embedded sync server (`startSyncServer`),
+run headlessly in a child process against a temporary store — no Electron, and
+nothing reimplemented. `e2e/host.ts` drives it over stdio; `e2e/hostProcess.ts`
+is the far side and explains why it is a separate process. The browser is a
+genuine guest: its own origin and OPFS, holding only the pairing url it was
+handed.
+
+Two knobs it relies on: `TAPES_SYNC_SERVER_PORT` retargets the dev server's
+`/sync` and `/blobs` proxies away from the desktop app's `9001` (see
+`vite.config.ts`), and the host binds `9101` so a running desktop app is never
+in the way.
