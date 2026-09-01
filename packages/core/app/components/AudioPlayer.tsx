@@ -1,10 +1,27 @@
-import { useAudioPlayer } from '@/context/AudioPlayerContext'
+import {
+  useAudioPlayer,
+  type PlaybackFailure,
+} from '@/context/AudioPlayerContext'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { clsx } from 'clsx'
 import { MdStop, MdPlayArrow, MdPause } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
 import { RecordingData } from '@/types'
 import { FormattedTime } from './FormattedTime'
+
+/**
+ * What each failure asks of the user. Only `unreachable` is the "offline" case
+ * this line used to claim for all of them — a host that rejected our token is
+ * sitting right there, and a recording that never reached one will not appear
+ * however long the user waits.
+ */
+const FAILURE_MESSAGE: Record<PlaybackFailure, string> = {
+  unreachable: 'Host unreachable — not available offline',
+  unauthorized: "Pairing expired — re-scan the host's code",
+  'not-uploaded': 'Still uploading from the host',
+  missing: "The host doesn't have this recording",
+  unpaired: 'Not paired with a host',
+}
 
 export function AudioPlayer() {
   const {
@@ -16,6 +33,7 @@ export function AudioPlayer() {
     duration,
     currentTime,
     playbackState,
+    playbackFailure,
   } = useAudioPlayer()
   const [recording] = useDocument<RecordingData>(currentUrl)
 
@@ -53,7 +71,9 @@ export function AudioPlayer() {
             <p className="text-xs text-zinc-400">Downloading…</p>
           )}
           {playbackState === 'error' && (
-            <p className="text-xs text-rose-500">Not available offline</p>
+            <p className="text-xs text-rose-500">
+              {FAILURE_MESSAGE[playbackFailure ?? 'unreachable']}
+            </p>
           )}
           <div className="flex w-full justify-between gap-2">
             <p className="text-sm">

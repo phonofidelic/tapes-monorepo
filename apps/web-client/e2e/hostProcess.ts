@@ -40,6 +40,7 @@ type Command =
       name: string
       seconds: number
       frequency: number
+      withBytes: boolean
     }
   | { id: number; type: 'objects' }
   | { id: number; type: 'stop' }
@@ -140,10 +141,18 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
     doc.url = recording.url
   })
 
-  const descriptor = await upload(
-    recording.url,
-    wavBytes(command.seconds, command.frequency),
-  )
+  const bytes = wavBytes(command.seconds, command.frequency)
+  const descriptor = command.withBytes
+    ? await upload(recording.url, bytes)
+    : // A descriptor the host holds no bytes for. The document says where the
+      // audio is addressed and `/blobs` answers 404, which is what a recording
+      // whose upload never landed looks like from a guest.
+      {
+        hash: 'f'.repeat(64),
+        size: bytes.byteLength,
+        mimeType: 'audio/wav',
+        ext: '.wav',
+      }
   recording.change((doc) => {
     doc.blob = descriptor
   })

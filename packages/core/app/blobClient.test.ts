@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BlobFetchError,
   BlobRequestError,
+  classifyBlobFailure,
   deleteBlob,
   fetchBlob,
   headBlob,
@@ -196,13 +198,82 @@ describe('fetchBlob', () => {
     })
   })
 
-  it('passes the abort signal through', async () => {
-    const fetchMock = stubFetch(new Response('x'))
+  it('aborts an in-flight request when the caller withdraws', async () => {
+    // The signal reaching `fetch` is no longer the caller's own object: it is
+    // linked to one that also carries the response deadline. What has to hold
+    // is that the caller's abort still reaches the request, and that it stays
+    // an abort rather than being reported as this host timing out.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')),
+            )
+          }),
+      ),
+    )
     const controller = new AbortController()
 
-    await fetchBlob(ENDPOINT, HASH, { signal: controller.signal })
+    const pending = fetchBlob(ENDPOINT, HASH, { signal: controller.signal })
+    controller.abort()
 
-    expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal)
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('gives up on a host that accepts the connection and says nothing', async () => {
+    // Previously this hung forever: no timeout was ever wired in, so a silent
+    // host left playback stuck on "Downloading…" rather than failing over.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')),
+            )
+          }),
+      ),
+    )
+
+    await expect(
+      fetchBlob(ENDPOINT, HASH, { timeoutMs: 5 }),
+    ).rejects.toMatchObject({ status: 408 })
+  })
+})
+
+describe('classifyBlobFailure', () => {
+  it('lets an unauthorized host outrank one that simply lacks the blob', () => {
+    // The 401 is the actionable one: re-pair. A 404 from another host says
+    // nothing about it, and must not be what the user is told.
+    expect(
+      classifyBlobFailure([
+        { kind: 'status', status: 404 },
+        { kind: 'status', status: 401 },
+      ]),
+    ).toBe('unauthorized')
+  })
+
+  it('prefers an unreachable host to a definitive miss', () => {
+    expect(
+      classifyBlobFailure([
+        { kind: 'status', status: 404 },
+        { kind: 'network' },
+      ]),
+    ).toBe('unreachable')
+  })
+
+  it('reports a miss only when every host that answered said no', () => {
+    expect(classifyBlobFailure([{ kind: 'status', status: 404 }])).toBe(
+      'missing',
+    )
+  })
+
+  it('treats a broken host as an absent one', () => {
+    expect(classifyBlobFailure([{ kind: 'status', status: 503 }])).toBe(
+      'unreachable',
+    )
   })
 })
 
@@ -291,21 +362,34 @@ describe('fetchBlobFromAny', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('surfaces the last failure when no host can answer', async () => {
+  it('reports why across every host, not just the last one asked', async () => {
+    // Asking in this order used to report the 401 only because it happened to
+    // come last. Reverse them and the same run reported "not found", which is
+    // the one thing the user could do nothing about.
     stubHosts({
-      [LOCAL.baseUrl]: () => jsonResponse(404, { error: 'Unknown blob' }),
-      [REMOTE.baseUrl]: () => jsonResponse(401, { error: 'Unauthorized' }),
+      [LOCAL.baseUrl]: () => jsonResponse(401, { error: 'Unauthorized' }),
+      [REMOTE.baseUrl]: () => jsonResponse(404, { error: 'Unknown blob' }),
     })
 
     await expect(fetchBlobFromAny([LOCAL, REMOTE], HASH)).rejects.toMatchObject(
-      { status: 401 },
+      { reason: 'unauthorized' },
     )
   })
 
-  it('reports a missing host rather than a fetch with no endpoints', async () => {
-    await expect(fetchBlobFromAny([], HASH)).rejects.toBeInstanceOf(
-      BlobRequestError,
-    )
+  it('keeps the underlying error as the cause', async () => {
+    stubHosts({
+      [LOCAL.baseUrl]: () => jsonResponse(404, { error: 'Unknown blob' }),
+    })
+
+    const error = await fetchBlobFromAny([LOCAL], HASH).catch((e) => e)
+    expect(error).toBeInstanceOf(BlobFetchError)
+    expect(error.cause).toBeInstanceOf(BlobRequestError)
+  })
+
+  it('says this device is paired with nothing when it has no endpoints', async () => {
+    await expect(fetchBlobFromAny([], HASH)).rejects.toMatchObject({
+      reason: 'unpaired',
+    })
   })
 })
 

@@ -49,8 +49,13 @@ const base: RecordingData = {
  * order.
  */
 function Probe({ source = base.filepath }: { source?: string }) {
-  const { audioRef, setCurrentSource, setCurrentUrl, playbackState } =
-    useAudioPlayer()
+  const {
+    audioRef,
+    setCurrentSource,
+    setCurrentUrl,
+    playbackState,
+    playbackFailure,
+  } = useAudioPlayer()
   const [src, setSrc] = useState('')
 
   useEffect(() => {
@@ -69,6 +74,7 @@ function Probe({ source = base.filepath }: { source?: string }) {
     <>
       <output data-testid="src">{src}</output>
       <output data-testid="state">{playbackState}</output>
+      <output data-testid="failure">{playbackFailure ?? ''}</output>
     </>
   )
 }
@@ -344,6 +350,89 @@ describe('recordings stored out of band', () => {
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('error'),
     )
+  })
+
+  /**
+   * Every one of these used to reach the player as the same "not available
+   * offline". Only the last is actually about being offline, and the first two
+   * stay broken however long the user waits for the host to come back.
+   */
+  describe('saying which failure it was', () => {
+    const withBlob = () => ({
+      ...base,
+      filepath: '',
+      blob: { hash: HASH, size: 5, mimeType: 'audio/wav', ext: '.wav' },
+    })
+
+    it('distinguishes a recording whose audio never reached a host', async () => {
+      recording = { ...base, filepath: '', blob: undefined }
+
+      renderPlayer({ type: 'web-client', worker: emptyWorker() }, [ENDPOINT])
+
+      await waitFor(() =>
+        expect(screen.getByTestId('failure')).toHaveTextContent('not-uploaded'),
+      )
+    })
+
+    it('distinguishes a device that is paired with nothing', async () => {
+      recording = withBlob()
+
+      renderPlayer({ type: 'web-client', worker: emptyWorker() }, [])
+
+      await waitFor(() =>
+        expect(screen.getByTestId('failure')).toHaveTextContent('unpaired'),
+      )
+    })
+
+    it('distinguishes a host that no longer accepts our token', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+          }),
+        ),
+      )
+      recording = withBlob()
+
+      renderPlayer({ type: 'web-client', worker: emptyWorker() }, [ENDPOINT])
+
+      await waitFor(() =>
+        expect(screen.getByTestId('failure')).toHaveTextContent('unauthorized'),
+      )
+    })
+
+    it('distinguishes a host that does not hold these bytes', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ error: 'Unknown blob' }), {
+            status: 404,
+          }),
+        ),
+      )
+      recording = withBlob()
+
+      renderPlayer({ type: 'web-client', worker: emptyWorker() }, [ENDPOINT])
+
+      await waitFor(() =>
+        expect(screen.getByTestId('failure')).toHaveTextContent('missing'),
+      )
+    })
+
+    it('distinguishes a host that cannot be reached at all', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+      )
+      recording = withBlob()
+
+      renderPlayer({ type: 'web-client', worker: emptyWorker() }, [ENDPOINT])
+
+      await waitFor(() =>
+        expect(screen.getByTestId('failure')).toHaveTextContent('unreachable'),
+      )
+    })
   })
 })
 
