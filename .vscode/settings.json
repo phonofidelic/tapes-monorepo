@@ -1,7 +1,4 @@
 {
-  // The global user settings disable Prettier and route .tsx/.json to other
-  // formatters. This project formats with Prettier + .prettierrc, so re-enable
-  // it here (both keys are resource-scoped, so the workspace wins).
   "prettier.enable": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
