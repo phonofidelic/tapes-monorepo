@@ -134,7 +134,8 @@ function SyncSettings() {
     remoteSyncServerUrl ?? '',
   )
   const [tokenDraft, setTokenDraft] = useState(pairingToken ?? '')
-  const [importUrl, setImportUrl] = useState('')
+  const [importUrl, setImportUrl] = useState<string | null>(null)
+  const [importUrlError, setImportUrlError] = useState<string | null>(null)
 
   const resolvedSyncServerMode = syncServerMode ?? 'embedded'
 
@@ -372,10 +373,13 @@ function SyncSettings() {
               try {
                 const automergeImportUrl = new URL(value).searchParams.get('am')
                 if (!isValidAutomergeUrl(automergeImportUrl)) {
-                  return 'Invalid URL'
+                  setImportUrlError('Invalid URL')
+                  return 'Invalid Automerge URL'
                 }
+                setImportUrlError(null)
                 return undefined
               } catch {
+                setImportUrlError('Invalid URL')
                 return 'Invalid URL'
               }
             }}
@@ -383,12 +387,26 @@ function SyncSettings() {
           <Button
             className="w-fit rounded-full p-2"
             title="Import data"
+            disabled={!importUrl || importUrlError !== null}
             onClick={() => {
-              const automergeImportUrl = new URL(importUrl).searchParams.get(
-                'am',
-              )
+              if (!importUrl) {
+                console.error('A host URL is required')
+                setImportUrlError('A host URL is required')
+                return
+              }
+              let automergeImportUrl: string | null
+
+              try {
+                automergeImportUrl = new URL(importUrl).searchParams.get('am')
+              } catch {
+                console.error('Invalid URL')
+                setImportUrlError('Invalid URL')
+                return
+              }
+
               if (!isValidAutomergeUrl(automergeImportUrl)) {
                 console.error('Invalid Automerge URL')
+                setImportUrlError('Invalid Automerge URL')
                 return
               }
               setAutomergeUrl(automergeImportUrl)
