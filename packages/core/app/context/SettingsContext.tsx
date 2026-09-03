@@ -1,11 +1,10 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useRef, useState } from 'react'
 
-type Settings = {
+export type Settings = {
   audioInputDeviceId: string | undefined
   audioFormat: 'mp3' | 'wav' | 'ogg' | 'flac' | undefined
   audioChannelCount: '1' | '2' | undefined
   storageLocation: string | undefined
-  automergeUrl: string | undefined
   syncServerMode: 'embedded' | 'remote' | undefined
   remoteSyncServerUrl: string | undefined
   /**
@@ -19,6 +18,19 @@ type Settings = {
 }
 
 export type SettingKey = keyof Settings
+
+/**
+ * The shells read this blob straight out of storage to resolve which sync
+ * server to build their repo against (`rendererRepo.ts`, `syncServerUrl.ts`),
+ * so its shape is a contract: one flat object of string values, with unset
+ * keys absent rather than present-and-null.
+ */
+const STORAGE_KEY = 'settings'
+
+const DEFAULT_SETTINGS: Partial<Settings> = {
+  audioChannelCount: '1',
+  audioFormat: 'wav',
+}
 
 /**
  * Settings live in a React context inside `App`, but the shells that build the
@@ -42,7 +54,7 @@ export function subscribeToSettingsChange(
 
 const SettingsContext = createContext<{
   settings: Partial<Settings>
-  setSettings: (settings: Partial<Settings>) => void
+  setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => void
 } | null>(null)
 
 export const SettingsProvider = ({
@@ -50,15 +62,42 @@ export const SettingsProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const [settings, setSettings] = useState<Partial<Settings>>(
-    readSettingsFromLocalStorage,
+  const [settings, setSettings] = useState<Partial<Settings>>(readSettings)
+
+  /**
+   * React state is the source of truth and the whole object is persisted on
+   * every write, so storage can never hold a key that state has dropped. The
+   * ref is what makes two writes in the same tick compose: `settings` is a
+   * render-scoped snapshot, and the second write would otherwise spread the
+   * value the first one had already replaced.
+   */
+  const latestSettings = useRef(settings)
+
+  const setSetting = useCallback(
+    <K extends SettingKey>(key: K, value: Settings[K]) => {
+      const updatedSettings = { ...latestSettings.current }
+      if (value === undefined) {
+        // `undefined` is the single representation of unset: dropping the key
+        // keeps the in-memory object identical to what a reload parses back,
+        // since `JSON.stringify` omits undefined values anyway.
+        delete updatedSettings[key]
+      } else {
+        updatedSettings[key] = value
+      }
+
+      latestSettings.current = updatedSettings
+      setSettings(updatedSettings)
+      writeSettings(updatedSettings)
+      notifySettingChange(key)
+    },
+    [],
   )
 
   return (
     <SettingsContext.Provider
       value={{
         settings,
-        setSettings,
+        setSetting,
       }}
     >
       {children}
@@ -66,31 +105,21 @@ export const SettingsProvider = ({
   )
 }
 
-export function useSetting(setting: keyof Settings) {
+export function useSetting<K extends SettingKey>(setting: K) {
   const context = useContext(SettingsContext)
   if (context === null) {
     throw new Error('useSetting must be used within a SettingsProvider')
   }
-  const { settings, setSettings } = context
+  const { settings, setSetting } = context
 
-  const setValue = (value: string | null) => {
-    const updatedSetting = { ...settings, [setting]: value }
-    setSettings(updatedSetting)
-    writeSettingToLocalStorage(setting, value)
-  }
+  const setValue = useCallback(
+    (value: Settings[K]) => {
+      setSetting(setting, value)
+    },
+    [setSetting, setting],
+  )
 
   return [settings[setting], setValue] as const
-}
-
-function writeSettingToLocalStorage(key: SettingKey, value: string | null) {
-  localStorage.setItem(
-    'settings',
-    JSON.stringify({
-      ...JSON.parse(localStorage.getItem('settings') || '{}'),
-      [key]: value === null ? undefined : value,
-    }),
-  )
-  notifySettingChange(key)
 }
 
 function notifySettingChange(key: SettingKey) {
@@ -105,23 +134,37 @@ function notifySettingChange(key: SettingKey) {
   }
 }
 
-function readSettingsFromLocalStorage(): Partial<Settings> {
-  const storedSettings = JSON.parse(
-    localStorage.getItem('settings') ?? '{}',
-  ) as Partial<Settings>
+function readSettings(): Partial<Settings> {
+  try {
+    const storedSettings = JSON.parse(
+      globalThis.localStorage?.getItem(STORAGE_KEY) ?? '{}',
+    ) as unknown
 
-  if (!storedSettings?.audioChannelCount || !storedSettings?.audioFormat) {
-    if (!storedSettings?.audioChannelCount) {
-      writeSettingToLocalStorage('audioChannelCount', '1')
+    if (
+      typeof storedSettings !== 'object' ||
+      storedSettings === null ||
+      Array.isArray(storedSettings)
+    ) {
+      throw new Error('Stored settings are not an object')
     }
-    if (!storedSettings?.audioFormat) {
-      writeSettingToLocalStorage('audioFormat', 'wav')
-    }
-    return {
-      audioChannelCount: storedSettings?.audioChannelCount ?? '1',
-      audioFormat: storedSettings?.audioFormat ?? 'wav',
-    }
+
+    // A merge, not an early return: a missing default must not cost the user
+    // the keys that *are* stored — a storage location, or the pairing a guest
+    // device syncs through.
+    return { ...DEFAULT_SETTINGS, ...(storedSettings as Partial<Settings>) }
+  } catch (error) {
+    // Corrupt JSON, or no storage at all (SSR, a locked-down browser). Losing
+    // settings is recoverable; throwing here takes down the whole app from
+    // inside a `useState` initializer, which is not.
+    console.warn('Could not read settings, falling back to defaults', error)
+    return { ...DEFAULT_SETTINGS }
   }
+}
 
-  return storedSettings
+function writeSettings(settings: Partial<Settings>) {
+  try {
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(settings))
+  } catch (error) {
+    console.warn('Could not persist settings', error)
+  }
 }
