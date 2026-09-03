@@ -17,7 +17,7 @@ function devCspAllowInlineStyles(): Plugin {
 }
 
 // https://vitejs.dev/config
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -32,6 +32,22 @@ export default defineConfig({
         __dirname,
         '../../packages/core/dist/core.css',
       ),
+      // In dev, resolve the shared UI library to its TypeScript sources instead
+      // of the bundle `vp build --watch` emits. Rolldown minifies that bundle
+      // (`function n(...)`, `export { n as Button }`), so react-refresh cannot
+      // recognise the exports as components and never installs an HMR boundary
+      // — every edit in packages/ui bubbled up to a full page reload. The
+      // sources get real Fast Refresh, and skip the watch-build hop entirely.
+      // Builds keep using the package entry so the published bundle is what
+      // ships.
+      ...(command === 'serve'
+        ? {
+            '@tapes-monorepo/ui': path.resolve(
+              __dirname,
+              '../../packages/ui/lib/index.ts',
+            ),
+          }
+        : {}),
     },
   },
   // The Automerge WASM glue emits top-level await and destructuring; esbuild
@@ -41,4 +57,4 @@ export default defineConfig({
     target: 'esnext',
   },
   plugins: [react(), wasm(), topLevelAwait(), devCspAllowInlineStyles()],
-})
+}))
