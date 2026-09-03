@@ -6,7 +6,8 @@
     "WEB_CLIENT_DEV_URL",
     "VITE_SERVED_BY_HOST",
     "VITE_SYNC_SERVER_URL",
-    "TAPES_SYNC_SERVER_PORT"
+    "TAPES_SYNC_SERVER_PORT",
+    "TAPES_E2E"
   ],
   "tasks": {
     "build": {

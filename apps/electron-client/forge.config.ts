@@ -35,8 +35,8 @@ const canNotarize =
   hasDeveloperIdCertificate() &&
   Boolean(
     process.env.APPLE_ID &&
-      process.env.APPLE_PASSWORD &&
-      process.env.APPLE_TEAM_ID,
+    process.env.APPLE_PASSWORD &&
+    process.env.APPLE_TEAM_ID,
   )
 
 const repositoryOptions = {
@@ -44,9 +44,23 @@ const repositoryOptions = {
   name: process.env.REPO_NAME ?? '',
 } as const
 
+/**
+ * A build the e2e suite can drive.
+ *
+ * Playwright's Electron support talks to the main process over node's inspector
+ * — it launches the app with `--inspect=0` and waits for the debugger line on
+ * stderr — which the `EnableNodeCliInspectArguments` fuse switches off. A
+ * shipped build must keep that fuse: it is what stops anyone from attaching a
+ * debugger to an installed copy and reading whatever the main process holds. So
+ * the e2e build turns exactly that one fuse back on, and lands in an `out`
+ * directory of its own so it can never be mistaken for a release.
+ */
+const isE2EBuild = Boolean(process.env.TAPES_E2E)
+
 const config: ForgeConfig = {
+  ...(isE2EBuild ? { outDir: 'out-e2e' } : {}),
   packagerConfig: {
-    name: "Tapes",
+    name: 'Tapes',
     icon: 'assets/tapes-app',
     asar: true,
     osxSign: {},
@@ -109,7 +123,7 @@ const config: ForgeConfig = {
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-      [FuseV1Options.EnableNodeCliInspectArguments]: false,
+      [FuseV1Options.EnableNodeCliInspectArguments]: isE2EBuild,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),

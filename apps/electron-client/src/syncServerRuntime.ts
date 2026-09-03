@@ -7,6 +7,7 @@ import {
 import {
   blobStoragePath,
   readSyncServerConfig,
+  syncServerPort,
   syncStoragePath,
   webClientDevUrl,
   webClientPath,
@@ -39,6 +40,9 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
   return startSyncServer({
     storagePath: syncStoragePath(),
     host,
+    // Undefined unless something pinned one, which leaves `startSyncServer` on
+    // its own default.
+    port: syncServerPort(),
     peerId: config.peerId,
     webClientPath: webClientPath(),
     webAppDevUrl: devWebAppUrl,
