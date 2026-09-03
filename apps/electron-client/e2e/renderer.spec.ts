@@ -191,6 +191,31 @@ test.describe('the electron renderer', () => {
       `the store holds ${objects.length} object(s), none of them ${recording.blob!.hash}`,
     ).toBeDefined()
     expect(stored!.size).toBe(recording.blob!.size)
+
+    // The other half of the scheme story: `tapes://` addresses the file this
+    // device recorded, by absolute path. Both schemes are registered as
+    // privileged, and `tapes-blob` as `standard` on top of that — which
+    // `tapes` must not be, because normalising a standard url drops the
+    // leading slash off the path. This is the assertion that catches it if
+    // that registration ever changes.
+    const servedFromDisk = await renderer.evaluate(
+      (filepath) =>
+        new Promise<{ loaded: boolean; detail: string }>((resolve) => {
+          const audio = new Audio(`tapes://${filepath}`)
+          const finish = (loaded: boolean, detail: string) =>
+            resolve({ loaded, detail })
+          audio.addEventListener('loadeddata', () =>
+            finish(true, `readyState ${audio.readyState}`),
+          )
+          audio.addEventListener('error', () =>
+            finish(false, `media error ${audio.error?.code ?? 'unknown'}`),
+          )
+          setTimeout(() => finish(false, 'never loaded'), 15_000)
+          audio.load()
+        }),
+      recording.filepath,
+    )
+    expect(servedFromDisk.loaded, servedFromDisk.detail).toBe(true)
   })
 
   test('records a tape a browser guest can play', async ({ page }) => {
