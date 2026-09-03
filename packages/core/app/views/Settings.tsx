@@ -19,40 +19,6 @@ export function Settings() {
   const [audioChannelCount, setAudioChannelCount] =
     useSetting('audioChannelCount')
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
-  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
-  const [importUrl, setImportUrl] = useState('')
-  const [syncServerLanEnabled] = useSetting('syncServerLanEnabled')
-  const [hostedBaseUrl, setHostedBaseUrl] = useState<string | null>(null)
-  const [pairingToken, setPairingToken] = useState<string | null>(null)
-
-  // On the desktop app, guests should load the web-client from this host
-  // (same origin as the sync server) rather than the deployed Vercel build,
-  // so they don't hit HTTPS-vs-ws mixed-content. Only the LAN-reachable URL
-  // works for another device; without it we fall back to the hosted build.
-  useEffect(() => {
-    if (appContext.type !== 'electron-client') {
-      return
-    }
-    appContext.ipc.send<SyncServerInfo>('sync:get-server-info').then((info) => {
-      setHostedBaseUrl(info.lanWebAppUrl ?? null)
-      // The guest needs this to join the host's sync socket at all, and to
-      // read and write audio on it; pairing is the only moment we get to hand
-      // it over.
-      setPairingToken(info.pairingToken ?? null)
-    })
-  }, [appContext, syncServerLanEnabled])
-
-  const baseUrl =
-    hostedBaseUrl ??
-    (process.env.NODE_ENV === 'development'
-      ? `${import.meta.env.VITE_LOCAL_NETWORK_PROTOCOL}://${import.meta.env.VITE_LOCAL_NETWORK_IP}:3000`
-      : 'https://tapes-monorepo-web-client.vercel.app')
-
-  // Anyone with this link can read and write the host's recordings: the token
-  // in it is what opens both the sync socket and `/blobs`.
-  const pairingUrl = `${baseUrl}/?am=${automergeUrl}${
-    pairingToken ? `&pt=${encodeURIComponent(pairingToken)}` : ''
-  }`
 
   return (
     <div className="flex flex-col gap-4">
@@ -144,68 +110,7 @@ export function Settings() {
           </div>
         </div>
       )}
-      {appContext.type === 'electron-client' && <SyncSettings />}
-      <div className="flex flex-col gap-2">
-        <h2>Data</h2>
-        <div className="flex flex-col gap-2 p-2">
-          <p className="text-sm">Replicate your data to another device:</p>
-          <div className="flex items-center justify-around">
-            <QRCodeSVG value={pairingUrl} />
-            <p>or</p>
-            <Button
-              className="p-2"
-              title="Copy URL to clipboard"
-              onClick={() => {
-                navigator.clipboard.writeText(pairingUrl)
-              }}
-            >
-              Copy URL <MdOutlineContentCopy />
-            </Button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-4 p-2">
-          <p className="text-sm">Import your data from another device:</p>
-
-          <div className="flex w-full items-center justify-between gap-5">
-            <TextInput
-              label="Paste the URL here"
-              type="text"
-              name="import-url"
-              id="impor-url"
-              onChange={(e) => setImportUrl(e.target.value)}
-              validate={(value) => {
-                try {
-                  const automergeImportUrl = new URL(value).searchParams.get(
-                    'am',
-                  )
-                  if (!isValidAutomergeUrl(automergeImportUrl)) {
-                    return 'Invalid URL'
-                  }
-                  return undefined
-                } catch {
-                  return 'Invalid URL'
-                }
-              }}
-            />
-            <Button
-              className="w-fit rounded-full p-2"
-              title="Import data"
-              onClick={() => {
-                const automergeImportUrl = new URL(importUrl).searchParams.get(
-                  'am',
-                )
-                if (!isValidAutomergeUrl(automergeImportUrl)) {
-                  console.error('Invalid Automerge URL')
-                  return
-                }
-                setAutomergeUrl(automergeImportUrl)
-              }}
-            >
-              <MdOutlineFileUpload />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <SyncSettings />
     </div>
   )
 }
@@ -223,201 +128,294 @@ function SyncSettings() {
     'syncServerHttpsEnabled',
   )
   const [pairingToken, setPairingToken] = useSetting('pairingToken')
+  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
+  const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
   const [remoteUrlDraft, setRemoteUrlDraft] = useState(
     remoteSyncServerUrl ?? '',
   )
   const [tokenDraft, setTokenDraft] = useState(pairingToken ?? '')
-  const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
+  const [importUrl, setImportUrl] = useState<string | null>(null)
+  const [importUrlError, setImportUrlError] = useState<string | null>(null)
 
-  const mode = syncServerMode ?? 'embedded'
+  const resolvedSyncServerMode = syncServerMode ?? 'embedded'
 
+  // On the desktop app, guests should load the web-client from this host
+  // (same origin as the sync server) rather than the deployed Vercel build,
+  // so they don't hit HTTPS-vs-ws mixed-content. Only the LAN-reachable URL
+  // works for another device; without it we fall back to the hosted build.
   useEffect(() => {
-    if (appContext.type !== 'electron-client' || mode !== 'embedded') {
+    if (
+      appContext.type !== 'electron-client' ||
+      resolvedSyncServerMode !== 'embedded'
+    ) {
       return
     }
-    appContext.ipc
-      .send<SyncServerInfo>('sync:get-server-info')
-      .then(setServerInfo)
-  }, [appContext, mode])
 
-  if (appContext.type !== 'electron-client') {
-    return null
-  }
+    // A toggle that lands while this is in flight would otherwise resolve into
+    // state describing the server we just moved away from.
+    let cancelled = false
+
+    appContext.ipc.send<SyncServerInfo>('sync:get-server-info').then((info) => {
+      if (cancelled) {
+        return
+      }
+      setServerInfo(info)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    appContext,
+    resolvedSyncServerMode,
+    syncServerLanEnabled, // Re-fetch trigger
+    syncServerHttpsEnabled, // Re-fetch trigger
+  ])
+
+  // Anyone with this link can read and write the host's recordings: the token
+  // in it is what opens both the sync socket and `/blobs`.
+  const guestUrl =
+    resolvedSyncServerMode === 'embedded' && serverInfo?.lanWebAppUrl
+      ? `${serverInfo.lanWebAppUrl}/?am=${automergeUrl}${
+          serverInfo.pairingToken
+            ? `&pt=${encodeURIComponent(serverInfo.pairingToken)}`
+            : ''
+        }`
+      : null
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-4">
       <h2>Sync</h2>
-      <label className="flex flex-col gap-2 text-sm">
-        <h3>Sync server:</h3>
-        <select
-          className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          onChange={(event) => {
-            // No reload: the shell subscribes to settings changes and rebuilds
-            // its repo against the newly resolved servers.
-            setSyncServerMode(event.target.value as 'embedded' | 'remote')
-          }}
-          defaultValue={mode}
-        >
-          <option value="embedded">This device (built-in)</option>
-          <option value="remote">Remote server</option>
-        </select>
-      </label>
-      {mode === 'remote' && (
-        <div className="flex w-full items-center justify-between gap-5 text-sm">
+      {appContext.type === 'electron-client' && (
+        <>
+          <label className="flex flex-col gap-2 text-sm">
+            <h3>Sync server:</h3>
+            <select
+              className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              onChange={(event) => {
+                // No reload: the shell subscribes to settings changes and rebuilds
+                // its repo against the newly resolved servers.
+                setSyncServerMode(event.target.value as 'embedded' | 'remote')
+              }}
+              defaultValue={resolvedSyncServerMode}
+            >
+              <option value="embedded">This device (built-in)</option>
+              <option value="remote">Remote server</option>
+            </select>
+          </label>
+
+          {resolvedSyncServerMode === 'remote' && (
+            <>
+              <div className="flex w-full items-center justify-between gap-5 text-sm">
+                <TextInput
+                  label="Remote sync server URL"
+                  type="text"
+                  name="remote-sync-server-url"
+                  id="remote-sync-server-url"
+                  value={remoteUrlDraft}
+                  onChange={(event) => setRemoteUrlDraft(event.target.value)}
+                  validate={(value) => {
+                    try {
+                      const url = new URL(value)
+                      if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+                        return 'Must be a ws:// or wss:// URL'
+                      }
+                      return undefined
+                    } catch {
+                      return 'Invalid URL'
+                    }
+                  }}
+                />
+                <Button
+                  className="w-fit p-2"
+                  title="Save sync server URL"
+                  onClick={() => {
+                    try {
+                      const url = new URL(remoteUrlDraft)
+                      if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+                        return
+                      }
+                    } catch {
+                      return
+                    }
+                    setRemoteSyncServerUrl(remoteUrlDraft)
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+
+              <div className="flex w-full items-center justify-between gap-5 text-sm">
+                <TextInput
+                  label="Pairing token (optional)"
+                  type="text"
+                  name="remote-pairing-token"
+                  id="remote-pairing-token"
+                  value={tokenDraft}
+                  onChange={(event) => setTokenDraft(event.target.value)}
+                />
+                <Button
+                  className="w-fit p-2"
+                  title="Save pairing token"
+                  onClick={() => {
+                    setPairingToken(tokenDraft === '' ? null : tokenDraft)
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+              <p className="pl-2 text-xs text-zinc-500">
+                Needed only when the remote server is another Tapes desktop app:
+                paste the token from its pairing URL (the <code>pt</code>{' '}
+                value). Without it this device can browse what it has synced,
+                but cannot play recordings whose audio only that host holds.
+              </p>
+            </>
+          )}
+          {resolvedSyncServerMode === 'embedded' && (
+            <div className="flex flex-col gap-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={syncServerLanEnabled === 'true'}
+                  onChange={async (event) => {
+                    const enabled = event.target.checked
+                    const info = (await appContext.ipc.send<
+                      SyncServerInfo | undefined
+                    >('sync:set-lan-enabled', {
+                      data: { enabled },
+                    })) as SyncServerInfo | undefined
+
+                    if (!info) {
+                      console.error('No response from sync:set-lan-enabled')
+                      return
+                    }
+
+                    setSyncServerLanEnabled(enabled ? 'true' : 'false')
+                  }}
+                />
+                Share with other devices on this network
+              </label>
+              <p className="pl-2 text-xs text-zinc-500">
+                Anyone on your local network can connect while this is enabled.
+                Open the app URL below on another device to browse the synced
+                recording library — no install needed.
+              </p>
+              {syncServerLanEnabled === 'true' && (
+                <>
+                  <label className="flex items-center gap-2 pl-2">
+                    <input
+                      type="checkbox"
+                      checked={syncServerHttpsEnabled === 'true'}
+                      onChange={async (event) => {
+                        const enabled = event.target.checked
+                        const info = (await appContext.ipc.send<
+                          SyncServerInfo | undefined
+                        >('sync:set-https-enabled', {
+                          data: { enabled },
+                        })) as SyncServerInfo | undefined
+
+                        if (!info) {
+                          console.error(
+                            'No response from sync:set-https-enabled',
+                          )
+                          return
+                        }
+
+                        // The server's scheme (ws/wss) changed, so this device's
+                        // own connection URL is now stale. Written last, because
+                        // that write is what tells the shell to re-resolve the
+                        // server info and reconnect the repo to the new url.
+                        setSyncServerHttpsEnabled(enabled ? 'true' : 'false')
+                      }}
+                    />
+                    Use HTTPS (lets guests play back and record)
+                  </label>
+                  <p className="pl-2 text-xs text-zinc-500">
+                    Guests need a secure connection to play back or record
+                    audio. With HTTPS on, a guest accepts a one-time certificate
+                    warning (the certificate is self-signed by this device),
+                    then gets full functionality. Without it, guests can only
+                    browse the library.
+                  </p>
+                </>
+              )}
+              {syncServerLanEnabled === 'true' && guestUrl && (
+                <div className="flex flex-col items-center gap-4 py-8">
+                  <QRCodeSVG value={guestUrl} />
+                  <p>or</p>
+                  <Button
+                    className="p-2"
+                    title="Copy URL to clipboard"
+                    onClick={() => {
+                      navigator.clipboard.writeText(guestUrl)
+                    }}
+                  >
+                    Copy URL <MdOutlineContentCopy />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+      <div className="flex flex-col gap-4">
+        <p className="text-sm">Import data from another device:</p>
+
+        <div className="flex w-full items-center justify-between gap-5">
           <TextInput
-            label="Remote sync server URL"
+            label="Paste the host URL here"
             type="text"
-            name="remote-sync-server-url"
-            id="remote-sync-server-url"
-            value={remoteUrlDraft}
-            onChange={(event) => setRemoteUrlDraft(event.target.value)}
+            name="import-url"
+            id="import-url"
+            onChange={(e) => setImportUrl(e.target.value)}
             validate={(value) => {
               try {
-                const url = new URL(value)
-                if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-                  return 'Must be a ws:// or wss:// URL'
+                const automergeImportUrl = new URL(value).searchParams.get('am')
+                if (!isValidAutomergeUrl(automergeImportUrl)) {
+                  setImportUrlError('Invalid URL')
+                  return 'Invalid Automerge URL'
                 }
+                setImportUrlError(null)
                 return undefined
               } catch {
+                setImportUrlError('Invalid URL')
                 return 'Invalid URL'
               }
             }}
           />
           <Button
-            className="w-fit p-2"
-            title="Save sync server URL"
+            className="w-fit rounded-full p-2"
+            title="Import data"
+            disabled={!importUrl || importUrlError !== null}
             onClick={() => {
-              try {
-                const url = new URL(remoteUrlDraft)
-                if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-                  return
-                }
-              } catch {
+              if (!importUrl) {
+                console.error('A host URL is required')
+                setImportUrlError('A host URL is required')
                 return
               }
-              setRemoteSyncServerUrl(remoteUrlDraft)
+              let automergeImportUrl: string | null
+
+              try {
+                automergeImportUrl = new URL(importUrl).searchParams.get('am')
+              } catch {
+                console.error('Invalid URL')
+                setImportUrlError('Invalid URL')
+                return
+              }
+
+              if (!isValidAutomergeUrl(automergeImportUrl)) {
+                console.error('Invalid Automerge URL')
+                setImportUrlError('Invalid Automerge URL')
+                return
+              }
+              setAutomergeUrl(automergeImportUrl)
             }}
           >
-            Save
+            <MdOutlineFileUpload />
           </Button>
         </div>
-      )}
-      {mode === 'remote' && (
-        <>
-          <div className="flex w-full items-center justify-between gap-5 text-sm">
-            <TextInput
-              label="Pairing token (optional)"
-              type="text"
-              name="remote-pairing-token"
-              id="remote-pairing-token"
-              value={tokenDraft}
-              onChange={(event) => setTokenDraft(event.target.value)}
-            />
-            <Button
-              className="w-fit p-2"
-              title="Save pairing token"
-              onClick={() => {
-                setPairingToken(tokenDraft === '' ? null : tokenDraft)
-              }}
-            >
-              Save
-            </Button>
-          </div>
-          <p className="pl-2 text-xs text-zinc-500">
-            Needed only when the remote server is another Tapes desktop app:
-            paste the token from its pairing URL (the <code>pt</code> value).
-            Without it this device can browse what it has synced, but cannot
-            play recordings whose audio only that host holds.
-          </p>
-        </>
-      )}
-      {mode === 'embedded' && (
-        <div className="flex flex-col gap-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={syncServerLanEnabled === 'true'}
-              onChange={async (event) => {
-                const enabled = event.target.checked
-                const info = (await appContext.ipc.send<
-                  SyncServerInfo | undefined
-                >('sync:set-lan-enabled', {
-                  data: { enabled },
-                })) as SyncServerInfo | undefined
-
-                if (!info) {
-                  console.error('No response from sync:set-lan-enabled')
-                  return
-                }
-
-                setSyncServerLanEnabled(enabled ? 'true' : 'false')
-                setServerInfo(info)
-              }}
-            />
-            Share with other devices on this network
-          </label>
-          <p className="pl-2 text-xs text-zinc-500">
-            Anyone on your local network can connect while this is enabled. Open
-            the app URL below on another device to browse the synced recording
-            library — no install needed.
-          </p>
-          {syncServerLanEnabled === 'true' && (
-            <>
-              <label className="flex items-center gap-2 pl-2">
-                <input
-                  type="checkbox"
-                  checked={syncServerHttpsEnabled === 'true'}
-                  onChange={async (event) => {
-                    const enabled = event.target.checked
-                    const info = (await appContext.ipc.send<
-                      SyncServerInfo | undefined
-                    >('sync:set-https-enabled', {
-                      data: { enabled },
-                    })) as SyncServerInfo | undefined
-
-                    if (!info) {
-                      console.error('No response from sync:set-https-enabled')
-                      return
-                    }
-
-                    setServerInfo(info)
-                    // The server's scheme (ws/wss) changed, so this device's
-                    // own connection URL is now stale. Written last, because
-                    // that write is what tells the shell to re-resolve the
-                    // server info and reconnect the repo to the new url.
-                    setSyncServerHttpsEnabled(enabled ? 'true' : 'false')
-                  }}
-                />
-                Use HTTPS (lets guests play back and record)
-              </label>
-              <p className="pl-2 text-xs text-zinc-500">
-                Guests need a secure connection to play back or record audio.
-                With HTTPS on, a guest accepts a one-time certificate warning
-                (the certificate is self-signed by this device), then gets full
-                functionality. Without it, guests can only browse the library.
-              </p>
-            </>
-          )}
-          {syncServerLanEnabled === 'true' && serverInfo?.lanWebAppUrl && (
-            <div className="flex items-center gap-2 pl-2">
-              <p className="truncate text-xs" title={serverInfo.lanWebAppUrl}>
-                {serverInfo.lanWebAppUrl}
-              </p>
-              <Button
-                className="w-fit rounded-full p-2"
-                title="Copy web app URL to clipboard"
-                onClick={() => {
-                  if (serverInfo.lanWebAppUrl) {
-                    navigator.clipboard.writeText(serverInfo.lanWebAppUrl)
-                  }
-                }}
-              >
-                <MdOutlineContentCopy />
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
