@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData } from '@/types'
@@ -39,14 +46,25 @@ type AudioPlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement>
   currentTime: number
   duration: number
+  /**
+   * The length the transport can actually address. Normally `duration`, but a
+   * media element commonly reports `Infinity` for a MediaRecorder-written
+   * `audio/mp4` until it has seen the whole stream, and a fraction of that is
+   * meaningless — so fall back to how far the element says it can seek, and to
+   * `0` when it can't seek at all.
+   */
+  seekableDuration: number
   currentSource: string | undefined
   setCurrentSource: React.Dispatch<React.SetStateAction<string | undefined>>
   currentUrl: AutomergeUrl | undefined
   setCurrentUrl: React.Dispatch<React.SetStateAction<AutomergeUrl | undefined>>
   isPlaying: boolean
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>
-  clickedTime: number
-  setClickedTime: React.Dispatch<React.SetStateAction<number>>
+  /**
+   * Moves both the audio element and the transport to `time` (seconds),
+   * clamped to what is seekable. A no-op while nothing is addressable.
+   */
+  seek: (time: number) => void
   playbackState: PlaybackState
   /** Only meaningful while `playbackState` is `'error'`. */
   playbackFailure: PlaybackFailure | undefined
@@ -96,7 +114,9 @@ export const AudioPlayerProvider = ({
   // audio effect re-running (and calling audio.load()) whenever it changes.
   const durationRef = useRef(0)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [clickedTime, setClickedTime] = useState(0)
+  // How far the element reports it can seek, for the sources whose `duration`
+  // never resolves to a finite number.
+  const [seekableEnd, setSeekableEnd] = useState(0)
 
   useEffect(() => {
     // Detach whatever the player is holding before resolving anything.
@@ -151,6 +171,7 @@ export const AudioPlayerProvider = ({
       setCurrentTime(0)
       setDuration(0)
       durationRef.current = 0
+      setSeekableEnd(0)
 
       // 1. Legacy embedded bytes. Automerge history is append-only, so docs
       //    written before audio moved out of band still carry their audio and
@@ -317,9 +338,27 @@ export const AudioPlayerProvider = ({
     const audio = audioRef.current
     audio.load()
 
+    const readSeekableEnd = () => {
+      // jsdom — and a source that has buffered nothing — has no seekable range.
+      const seekable = audio.seekable
+      if (!seekable || seekable.length === 0) {
+        return
+      }
+      setSeekableEnd(seekable.end(seekable.length - 1))
+    }
+
     const onLoadedMetadata = () => {
       durationRef.current = audio.duration
       setDuration(audio.duration)
+      readSeekableEnd()
+    }
+
+    // `duration` arrives as Infinity for a MediaRecorder-written stream and is
+    // corrected once the element has seen the end of it.
+    const onDurationChange = () => {
+      durationRef.current = audio.duration
+      setDuration(audio.duration)
+      readSeekableEnd()
     }
 
     const onCanPlay = async () => {
@@ -330,13 +369,24 @@ export const AudioPlayerProvider = ({
 
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime)
+      readSeekableEnd()
+    }
+
+    const onProgress = () => {
+      readSeekableEnd()
     }
 
     const onEnded = () => {
       audio.pause()
       setIsPlaying(false)
-      setCurrentTime(0)
-      audio.currentTime = durationRef.current
+      // Park the element and the transport in the same place. This used to
+      // report 0 while leaving the element at the end, so a seek after a
+      // natural end started from somewhere the UI never showed.
+      const end = Number.isFinite(durationRef.current)
+        ? durationRef.current
+        : audio.currentTime
+      audio.currentTime = end
+      setCurrentTime(end)
     }
 
     const onError = () => {
@@ -344,19 +394,44 @@ export const AudioPlayerProvider = ({
     }
 
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('durationchange', onDurationChange)
     audio.addEventListener('canplay', onCanPlay)
     audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('progress', onProgress)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
 
     return () => {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('durationchange', onDurationChange)
       audio.removeEventListener('canplay', onCanPlay)
       audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('progress', onProgress)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
   }, [isPlaying])
+
+  const seekableDuration =
+    Number.isFinite(duration) && duration > 0 ? duration : seekableEnd
+  // `seek` is handed to pointer and key handlers that re-bind on every move,
+  // so keep it stable and read the bound through a ref rather than a dep.
+  const seekableDurationRef = useRef(0)
+  useEffect(() => {
+    seekableDurationRef.current = seekableDuration
+  }, [seekableDuration])
+
+  const seek = useCallback((time: number) => {
+    const limit = seekableDurationRef.current
+    if (!Number.isFinite(time) || limit <= 0) {
+      return
+    }
+    const next = Math.min(Math.max(time, 0), limit)
+    audioRef.current.currentTime = next
+    // The element emits `timeupdate` at its own cadence, so move the transport
+    // now rather than a frame or two later.
+    setCurrentTime(next)
+  }, [])
 
   return (
     <AudioPlayerContext.Provider
@@ -370,8 +445,8 @@ export const AudioPlayerProvider = ({
         setCurrentUrl,
         isPlaying,
         setIsPlaying,
-        clickedTime,
-        setClickedTime,
+        seekableDuration,
+        seek,
         playbackState,
         playbackFailure,
       }}

@@ -44,3 +44,21 @@ if (!Blob.prototype.text) {
     })
   }
 }
+
+// jsdom implements no PointerEvent, so testing-library falls back to a bare
+// Event and the coordinates never arrive — which is all a transport-bar drag
+// is made of. MouseEvent carries clientX/clientY natively; only the pointer id
+// has to be added.
+if (!globalThis.PointerEvent) {
+  class PointerEventPolyfill extends MouseEvent {
+    readonly pointerId: number
+
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params)
+      this.pointerId = params.pointerId ?? 0
+    }
+  }
+
+  globalThis.PointerEvent =
+    PointerEventPolyfill as unknown as typeof globalThis.PointerEvent
+}
