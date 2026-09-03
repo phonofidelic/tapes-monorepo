@@ -25,8 +25,8 @@ yarn workspace electron-client dev           # host + guest URL over http
 yarn workspace electron-client dev:https     # host advertises https://<lan-ip>:3000 to guests
 ```
 
-`dev`/`dev:https` set `LOCAL_NETWORK_IP` and `WEB_CLIENT_DEV_URL` from
-`ipconfig getifaddr en0` (macOS) and load env via
+`dev`/`dev:https` set `WEB_CLIENT_DEV_URL` from `ipconfig getifaddr en0`
+(macOS) and load env via
 [dotenvx](https://dotenvx.com/) from `.env.local`. Prefer running the whole stack
 from the repo root with `yarn dev` / `yarn dev:https`.
 
@@ -49,7 +49,6 @@ Dev env is pulled from Vercel with `yarn workspace electron-client pull` (writes
 | --------------------------------------------- | ------------------------------------------------------------------- |
 | `NODE_ENV`                                    | Toggles dev vs. packaged code paths and binary locations.           |
 | `WEB_CLIENT_DEV_URL`                          | URL of the `web-client` dev server the host loads (set by scripts). |
-| `LOCAL_NETWORK_IP`                            | LAN IP (macOS `ipconfig getifaddr en0`).                            |
 | `VITE_SYNC_SERVER_URL`                        | Optional sync-server URL override in the renderer.                  |
 | `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | macOS code-signing / notarization (packaging only).                 |
 | `REPO_OWNER`, `REPO_NAME`                     | GitHub publish target (packaging only).                             |
