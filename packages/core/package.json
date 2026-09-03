@@ -22,8 +22,8 @@
   "scripts": {
     "lint": "eslint .",
     "build": "vp build",
-    "dev": "VITE_LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" VITE_LOCAL_NETWORK_PROTOCOL=\"http\" vp build --watch",
-    "dev:https": "VITE_LOCAL_NETWORK_IP=\"$(ipconfig getifaddr en0)\" VITE_LOCAL_NETWORK_PROTOCOL=\"https\" vp build --watch",
+    "dev": "vp build --watch",
+    "dev:https": "vp build --watch",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

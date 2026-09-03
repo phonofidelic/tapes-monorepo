@@ -19,11 +19,10 @@ and consumed via its package exports (`.` and `./style.css`).
 
 ```sh
 yarn workspace @tapes-monorepo/core build       # vp build
-yarn workspace @tapes-monorepo/core dev         # vp build --watch (http protocol)
-yarn workspace @tapes-monorepo/core dev:https   # vp build --watch (https protocol)
+yarn workspace @tapes-monorepo/core dev         # vp build --watch
 yarn workspace @tapes-monorepo/core test        # vitest run
 ```
 
-The `dev`/`dev:https` scripts set `VITE_LOCAL_NETWORK_IP` (from macOS
-`ipconfig getifaddr en0`) and `VITE_LOCAL_NETWORK_PROTOCOL`. This is the package
-whose unit tests run in CI.
+`dev:https` is an alias of `dev` — the package builds the same either way; the
+protocol is decided by the shells that consume it. This is the package whose
+unit tests run in CI.
