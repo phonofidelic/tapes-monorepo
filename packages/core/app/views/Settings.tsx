@@ -136,6 +136,7 @@ function SyncSettings() {
   const [tokenDraft, setTokenDraft] = useState(pairingToken ?? '')
   const [importUrl, setImportUrl] = useState<string | null>(null)
   const [importUrlError, setImportUrlError] = useState<string | null>(null)
+  const [importedUrl, setImportedUrl] = useState<string | null>(null)
 
   const resolvedSyncServerMode = syncServerMode ?? 'embedded'
 
@@ -368,7 +369,10 @@ function SyncSettings() {
             type="text"
             name="import-url"
             id="import-url"
-            onChange={(e) => setImportUrl(e.target.value)}
+            onChange={(e) => {
+              setImportUrl(e.target.value)
+              setImportedUrl(null)
+            }}
             validate={(value) => {
               try {
                 const automergeImportUrl = new URL(value).searchParams.get('am')
@@ -394,27 +398,49 @@ function SyncSettings() {
                 setImportUrlError('A host URL is required')
                 return
               }
-              let automergeImportUrl: string | null
+              let parsedImportUrl: URL
 
               try {
-                automergeImportUrl = new URL(importUrl).searchParams.get('am')
+                parsedImportUrl = new URL(importUrl)
               } catch {
                 console.error('Invalid URL')
                 setImportUrlError('Invalid URL')
                 return
               }
 
+              const automergeImportUrl = parsedImportUrl.searchParams.get('am')
               if (!isValidAutomergeUrl(automergeImportUrl)) {
                 console.error('Invalid Automerge URL')
                 setImportUrlError('Invalid Automerge URL')
                 return
               }
+
+              // A pairing link carries the host's token alongside the document
+              // it points at, and that token is what opens the host's sync
+              // socket and its `/blobs`. Pasting the link here used to drop it,
+              // so the import resolved to a document this device had no way to
+              // fetch: keep it, as the guest bootstrap does when the same link
+              // is opened directly.
+              const importedToken = parsedImportUrl.searchParams.get('pt')
+              if (importedToken) {
+                setPairingToken(importedToken)
+              }
+
+              // Written last: the shells key their repo on this url, so this is
+              // the write that reconnects them to the imported document.
               setAutomergeUrl(automergeImportUrl)
+              setImportedUrl(automergeImportUrl)
             }}
           >
             <MdOutlineFileUpload />
           </Button>
         </div>
+        {importedUrl && importedUrl === automergeUrl && (
+          <p className="text-xs text-zinc-500" role="status" aria-live="polite">
+            Imported. This device now reads the library from that device — open
+            Library to see it.
+          </p>
+        )}
       </div>
     </div>
   )
