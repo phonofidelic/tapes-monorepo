@@ -85,9 +85,8 @@ declared explicitly in `index.html`, so no browser falls back to probing
 | Variable               | Purpose                                                                                        |
 | ---------------------- | ---------------------------------------------------------------------------------------------- |
 | `HTTPS`                | When `true`, the Vite dev server serves over TLS (set by `dev:https`).                         |
-| `LOCAL_NETWORK_IP`     | LAN IP, derived from `ipconfig getifaddr en0` (macOS) in the dev scripts.                      |
 | `VITE_SYNC_SERVER_URL` | Optional build-time override for the sync-server URL (e.g. a Vercel deploy).                   |
-| `VITE_SERVED_BY_HOST`  | Set by electron-client's `stage-web-client`: the host serves this bundle, so no PWA packaging.  |
+| `VITE_SERVED_BY_HOST`  | Set by electron-client's `stage-web-client`: the host serves this bundle, so no PWA packaging. |
 
 Env values are pulled from Vercel with `yarn workspace web-client pull` (writes
 `.env.local`). See [`.env.example`](./.env.example) for the documented set.
