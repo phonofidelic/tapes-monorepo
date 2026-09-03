@@ -561,3 +561,111 @@ describe('electron', () => {
     await waitFor(() => expect(srcText()).toContain('tapes://take-one.wav'))
   })
 })
+
+/**
+ * Exposes the transport itself: the element the provider plays through, the
+ * time the UI would show, and the seek the transport bar calls.
+ */
+function TransportProbe() {
+  const { audioRef, currentTime, seekableDuration, seek } = useAudioPlayer()
+  const [element, setElement] = useState<HTMLAudioElement | null>(null)
+
+  useEffect(() => {
+    setElement(audioRef.current)
+  }, [audioRef])
+
+  useEffect(() => {
+    audioElement = element
+  }, [element])
+
+  return (
+    <>
+      <output data-testid="time">{currentTime}</output>
+      <output data-testid="seekable">{seekableDuration}</output>
+      <button onClick={() => seek(2)}>Seek to 2</button>
+      <button onClick={() => seek(9999)}>Seek past the end</button>
+    </>
+  )
+}
+
+let audioElement: HTMLAudioElement | null = null
+
+/** Read through a call so the reset in `renderTransport` doesn't narrow it. */
+const currentAudioElement = () => audioElement
+
+/** jsdom gives a media element no metadata, so state the length outright. */
+const setDuration = (audio: HTMLAudioElement, duration: number) => {
+  Object.defineProperty(audio, 'duration', {
+    value: duration,
+    configurable: true,
+  })
+  fireEvent(audio, new Event('durationchange'))
+}
+
+const renderTransport = () => {
+  audioElement = null
+  render(
+    <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
+      <BlobProvider endpoints={[]}>
+        <AudioPlayerProvider>
+          <TransportProbe />
+        </AudioPlayerProvider>
+      </BlobProvider>
+    </AppContextProvider>,
+  )
+  const audio = currentAudioElement()
+  if (!audio) {
+    throw new Error('the provider never exposed its audio element')
+  }
+  return audio
+}
+
+describe('seeking', () => {
+  it('moves the element and the transport together', async () => {
+    const audio = renderTransport()
+    setDuration(audio, 10)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seek to 2' }))
+
+    expect(audio.currentTime).toBe(2)
+    await waitFor(() =>
+      expect(screen.getByTestId('time')).toHaveTextContent('2'),
+    )
+  })
+
+  it('clamps a seek past the end', () => {
+    const audio = renderTransport()
+    setDuration(audio, 10)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seek past the end' }))
+
+    expect(audio.currentTime).toBe(10)
+  })
+
+  it('does nothing while the length is unknown', () => {
+    // What a MediaRecorder-written mp4 reports until it has been played
+    // through, and a fraction of it means nothing.
+    const audio = renderTransport()
+    setDuration(audio, Infinity)
+
+    expect(screen.getByTestId('seekable')).toHaveTextContent('0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seek to 2' }))
+
+    expect(audio.currentTime).toBe(0)
+  })
+
+  it('reports the end of a tape where the element actually is', async () => {
+    const audio = renderTransport()
+    setDuration(audio, 10)
+
+    fireEvent(audio, new Event('ended'))
+
+    // The transport used to report 0 here while the element sat at the end, so
+    // the next seek started from somewhere the UI never showed.
+    expect(audio.currentTime).toBe(10)
+    await waitFor(() =>
+      expect(screen.getByTestId('time')).toHaveTextContent('10'),
+    )
+  })
+})
