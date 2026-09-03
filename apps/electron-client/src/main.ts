@@ -13,6 +13,39 @@ import { cacheServer } from './cacheServer'
 import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { getSyncServerCertPem } from './certManager'
+import { filepathFromTapesUrl, hashFromTapesBlobUrl } from './protocolUrls'
+
+// Both custom schemes must be declared before the app is ready — Electron
+// reads this list once, on startup, so it cannot live inside `MainWindow`.
+// `stream` and `supportFetchAPI` are what audio actually needs: chunked
+// responses and range behaviour on the scheme, and `fetch()` against it.
+//
+// `standard` is asked for only where it helps. It buys `tapes-blob` real
+// origin and path parsing, which a hash-shaped authority takes cleanly. On
+// `tapes` it is actively wrong: that scheme carries an absolute filesystem
+// path, and standard parsing rewrites `tapes:///Users/…` to `tapes://Users/…`
+// — first segment promoted to a lowercased host, leading slash gone — leaving
+// a relative path that no longer names a file. Measured, not assumed: with
+// `standard` on, playback of a locally recorded tape fails to load.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'tapes',
+    privileges: {
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+    },
+  },
+  {
+    scheme: 'tapes-blob',
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+    },
+  },
+])
 
 // Not under test: the updater would reach out to GitHub on launch and could
 // swap the very build the e2e suite is driving out from under it.
@@ -175,8 +208,7 @@ export class MainWindow {
 
   private registerCustomProtocols() {
     protocol.handle('tapes', async (request) => {
-      const decodedUrl = decodeURI(request.url)
-      const filepath = decodedUrl.replace('tapes://', '')
+      const filepath = filepathFromTapesUrl(request.url)
 
       const filename = crypto
         .createHash('sha256')
@@ -199,7 +231,7 @@ export class MainWindow {
     // through the port-9000 server: the store already holds the bytes under
     // this exact name, and the name is a hash, so it can never be stale.
     protocol.handle('tapes-blob', async (request) => {
-      const hash = decodeURI(request.url).replace('tapes-blob://', '')
+      const hash = hashFromTapesBlobUrl(request.url)
       const store = getBlobStore()
       if (!store) {
         return new Response('Blob store unavailable', { status: 503 })
