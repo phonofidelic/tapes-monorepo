@@ -90,6 +90,8 @@ typings/
 
 # Electron-Forge
 out/
+# The e2e suite's packaged build (see e2e/electronApp.ts).
+out-e2e/
 
 bin/*
 !bin/.gitkeep

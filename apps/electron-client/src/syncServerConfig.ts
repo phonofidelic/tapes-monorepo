@@ -27,6 +27,23 @@ export const syncStoragePath = () =>
 /** Root of the content-addressed audio store served over `/blobs`. */
 export const blobStoragePath = () => path.join(app.getPath('userData'), 'blobs')
 
+/**
+ * Port the embedded server binds, when something has pinned one.
+ *
+ * Normally there is nothing to decide — the server takes
+ * `DEFAULT_SYNC_SERVER_PORT` and, if that is taken, whatever the OS hands it.
+ * The e2e suite cannot live with either: it starts a *second* copy of this app
+ * on a machine that may already be running the developer's own, and the guest's
+ * dev server proxies `/sync` and `/blobs` to a port chosen before either
+ * process exists. `TAPES_SYNC_SERVER_PORT` is the same variable the
+ * web-client's dev server reads to aim those proxies, so the two agree by
+ * construction.
+ */
+export const syncServerPort = (): number | undefined => {
+  const port = Number(process.env.TAPES_SYNC_SERVER_PORT)
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : undefined
+}
+
 const createPairingToken = () => crypto.randomBytes(32).toString('base64url')
 
 /**
@@ -70,7 +87,8 @@ export function readSyncServerConfig(): SyncServerConfig {
         // persist it so it stays stable across restarts (a token that changed
         // every launch would unpair every guest).
         pairingToken:
-          typeof stored.pairingToken === 'string' && stored.pairingToken.length > 0
+          typeof stored.pairingToken === 'string' &&
+          stored.pairingToken.length > 0
             ? stored.pairingToken
             : createPairingToken(),
       }
