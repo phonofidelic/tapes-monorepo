@@ -50,7 +50,7 @@ export function Settings() {
           <select
             className="flex appearance-none items-center justify-center rounded-sm bg-transparent p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             onChange={(event) => {
-              setAudioChannelCount(event.target.value)
+              setAudioChannelCount(event.target.value as '1' | '2')
             }}
             defaultValue={audioChannelCount || '1'}
           >
@@ -100,7 +100,7 @@ export function Settings() {
                   className="w-fit rounded-full p-2 text-lg"
                   title="Remove storage location"
                   onClick={() => {
-                    setStorageLocation(null)
+                    setStorageLocation(undefined)
                   }}
                 >
                   <MdOutlineRemoveCircleOutline />
@@ -258,7 +258,7 @@ function SyncSettings() {
                   className="w-fit p-2"
                   title="Save pairing token"
                   onClick={() => {
-                    setPairingToken(tokenDraft === '' ? null : tokenDraft)
+                    setPairingToken(tokenDraft === '' ? undefined : tokenDraft)
                   }}
                 >
                   Save
