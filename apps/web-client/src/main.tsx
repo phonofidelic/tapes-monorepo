@@ -162,6 +162,10 @@ if (!window.Worker) {
         setRepo(_repo)
       }
       initialize()
+      // `automergeUrl` changing mid-session (Settings imported a host's
+      // document) needs no rebuild here: the adapters are unchanged, and core
+      // finds the new document through this same repo. Only the desktop shell
+      // rebuilds, because there the url decides which server it talks to.
     }, [automergeUrl, setAutomergeUrl])
 
     return (
