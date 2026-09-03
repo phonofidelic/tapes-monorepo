@@ -40,16 +40,48 @@ yarn workspace electron-client publish            # build and publish a release
 
 Packaging loads env from `.env` (not `.env.local`) via dotenvx.
 
+## End-to-end tests
+
+```sh
+yarn workspace electron-client get-bin   # once: sox and switchaudio-osx
+yarn workspace electron-client e2e
+```
+
+Playwright launches the **packaged** app with `_electron.launch`, records
+through the real renderer, and follows the audio out the far end: into the blob
+store, onto the recording's Automerge document as a `blob` descriptor, and down
+to a browser guest that fetches it by hash. The reverse leg — a guest records,
+the renderer plays it back from its own embedded store — is covered too. See
+[`e2e/renderer.spec.ts`](./e2e/renderer.spec.ts).
+
+Notes on running it:
+
+- **macOS only, and it needs a working audio input.** Recording shells out to
+  `sox`, which no browser flag can fake. Without an input device the suite skips
+  itself with a reason (and fails outright on CI, where a virtual device is set
+  up on purpose).
+- The first run **packages the app**, which takes minutes. The build lands in
+  `out-e2e/` — separate from `out/`, because it re-enables the node inspector
+  fuse that Playwright needs and must never be shipped. Later runs reuse it;
+  delete `out-e2e/` to rebuild.
+- The app under test runs against a throwaway `--user-data-dir`, so it never
+  touches your own library, and binds port `9102` rather than the usual `9001`.
+- It does not run on pull requests. A nightly macOS job
+  ([`e2e-electron.yml`](../../.github/workflows/e2e-electron.yml)) runs it, and
+  it can be triggered by hand from the Actions tab.
+
 ## Environment variables
 
 Dev env is pulled from Vercel with `yarn workspace electron-client pull` (writes
 `.env.local`). See [`.env.example`](./.env.example).
 
-| Variable                                      | Purpose                                                             |
-| --------------------------------------------- | ------------------------------------------------------------------- |
-| `NODE_ENV`                                    | Toggles dev vs. packaged code paths and binary locations.           |
-| `WEB_CLIENT_DEV_URL`                          | URL of the `web-client` dev server the host loads (set by scripts). |
-| `LOCAL_NETWORK_IP`                            | LAN IP (macOS `ipconfig getifaddr en0`).                            |
-| `VITE_SYNC_SERVER_URL`                        | Optional sync-server URL override in the renderer.                  |
-| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | macOS code-signing / notarization (packaging only).                 |
-| `REPO_OWNER`, `REPO_NAME`                     | GitHub publish target (packaging only).                             |
+| Variable                                      | Purpose                                                                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `NODE_ENV`                                    | Toggles dev vs. packaged code paths and binary locations.                                                                |
+| `WEB_CLIENT_DEV_URL`                          | URL of the `web-client` dev server the host loads (set by scripts).                                                      |
+| `LOCAL_NETWORK_IP`                            | LAN IP (macOS `ipconfig getifaddr en0`).                                                                                 |
+| `VITE_SYNC_SERVER_URL`                        | Optional sync-server URL override in the renderer.                                                                       |
+| `TAPES_SYNC_SERVER_PORT`                      | Pins the embedded server's port instead of `9001` (used by the e2e suite).                                               |
+| `TAPES_E2E`                                   | Marks a build/run as the e2e suite's: skips the auto-updater, and makes packaging emit a drivable build into `out-e2e/`. |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | macOS code-signing / notarization (packaging only).                                                                      |
+| `REPO_OWNER`, `REPO_NAME`                     | GitHub publish target (packaging only).                                                                                  |

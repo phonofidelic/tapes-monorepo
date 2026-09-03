@@ -1,0 +1,77 @@
+name: E2E (electron-client)
+
+# Nightly rather than per-PR. This suite packages the desktop app and records
+# through `sox`, which is macOS-only and needs a real audio input — minutes of
+# work on a runner the PR gate does not use, guarding a path that changes far
+# less often than the code the PR gate covers.
+on:
+  schedule:
+    # 04:30 UTC, well clear of the working day in every timezone this is
+    # developed in.
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (electron-client)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v7
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install Dependencies
+        run: yarn --immutable
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+
+      # Chromium is the browser guest. The renderer is Electron's own.
+      - name: Install Chromium
+        run: yarn workspace electron-client exec playwright install --with-deps chromium
+
+      # sox (recording) and switchaudio-osx (input selection), staged into the
+      # packaged app as resources. The latter is built from source, so this
+      # needs the Xcode command line tools the runner image already carries.
+      - name: Fetch native binaries
+        run: yarn workspace electron-client get-bin
+
+      # A macOS runner has no microphone. BlackHole is a virtual audio device:
+      # a null input that captures silence, which is all this suite needs —
+      # the assertions are about a file existing and being addressed by its
+      # hash, not about what is in it.
+      - name: Install a virtual audio input
+        run: |
+          brew install --cask blackhole-2ch
+          sudo killall coreaudiod || true
+          sleep 5
+          apps/electron-client/bin/SwitchAudioSource-1.2.2-macOS -a -t input
+          apps/electron-client/bin/SwitchAudioSource-1.2.2-macOS -t input -s "BlackHole 2ch"
+          apps/electron-client/bin/SwitchAudioSource-1.2.2-macOS -c -t input
+
+      - name: Run e2e
+        run: yarn turbo run e2e --filter=electron-client
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-electron
+          path: apps/electron-client/playwright-report/
+          retention-days: 7

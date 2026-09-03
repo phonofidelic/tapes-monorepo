@@ -14,7 +14,11 @@ import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { getSyncServerCertPem } from './certManager'
 
-updateElectronApp()
+// Not under test: the updater would reach out to GitHub on launch and could
+// swap the very build the e2e suite is driving out from under it.
+if (!process.env.TAPES_E2E) {
+  updateElectronApp()
+}
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
