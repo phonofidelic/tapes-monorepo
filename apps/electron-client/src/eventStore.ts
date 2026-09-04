@@ -83,6 +83,24 @@ export type SweepResult = {
   segments: string[]
   /** Events those segments held. */
   events: number
+  /**
+   * Segments past retention that were left in place because `onSegment` threw.
+   * They are swept on a later pass.
+   */
+  retained: string[]
+}
+
+export type SweepOptions = {
+  /**
+   * Called with a segment's events just before it is unlinked, so anything
+   * derived from them can be preserved first — the frozen aggregate baseline
+   * in `aggregates.ts` is the reason this exists.
+   *
+   * Throwing keeps the segment: whatever the hook was preserving did not get
+   * persisted, and deleting the events now would lose them from both places at
+   * once. Retention slipping by a day is the cheaper failure.
+   */
+  onSegment?: (name: string, events: StoredEvent[]) => Promise<void>
 }
 
 export type EventStore = ReturnType<typeof createEventStore>
@@ -310,9 +328,11 @@ export function createEventStore(root: string) {
   async function sweep(
     maxAgeMs = DEFAULT_EVENT_MAX_AGE_MS,
     now = Date.now(),
+    options: SweepOptions = {},
   ): Promise<SweepResult> {
     const cutoff = now - maxAgeMs
     const removed: string[] = []
+    const retained: string[] = []
     let events = 0
 
     for (const name of await segments()) {
@@ -320,26 +340,42 @@ export function createEventStore(root: string) {
       if (end === null || end > cutoff) {
         continue
       }
-      // Read before unlinking: the ids in this segment are the only ones the
-      // index may safely forget, and after the `rm` they are unknowable.
-      const keys: string[] = []
+      // Read before unlinking: these events are the only ones the hook can be
+      // given and the only ids the index may safely forget, and after the `rm`
+      // both are unknowable.
+      const expiring: StoredEvent[] = []
       try {
         for await (const event of readSegment(name)) {
-          keys.push(dedupeKey(event))
+          expiring.push(event)
         }
       } catch {
         // Unreadable segments are swept anyway; they are past retention and
         // nothing can derive an aggregate from them.
       }
+
+      if (options.onSegment) {
+        try {
+          await options.onSegment(name, expiring)
+        } catch (error) {
+          console.error(
+            `Event log: keeping expired segment ${name}; ` +
+              `folding it failed:`,
+            error,
+          )
+          retained.push(name)
+          continue
+        }
+      }
+
       await rm(path.join(logDir, name), { force: true })
-      for (const key of keys) {
-        seen.delete(key)
+      for (const event of expiring) {
+        seen.delete(dedupeKey(event))
       }
       removed.push(name)
-      events += keys.length
+      events += expiring.length
     }
 
-    return { segments: removed, events }
+    return { segments: removed, events, retained }
   }
 
   /** Events currently deduped against, for logging and tests. */
@@ -347,5 +383,17 @@ export function createEventStore(root: string) {
     return seen.size
   }
 
-  return { open, has, append, replay, sweep, size }
+  return {
+    open,
+    has,
+    append,
+    replay,
+    // Segment-at-a-time reading, for a reader that has to *skip* one:
+    // `aggregates.ts` replays the log around segments already folded into its
+    // frozen baseline, which a whole-log `replay` cannot express.
+    listSegments: segments,
+    replaySegment: readSegment,
+    sweep,
+    size,
+  }
 }

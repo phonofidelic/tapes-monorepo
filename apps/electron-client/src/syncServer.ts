@@ -20,6 +20,7 @@ import {
   DEFAULT_EVENT_MAX_AGE_MS,
   type EventStore,
 } from './eventStore'
+import { createAggregateStore, type AggregateStore } from './aggregates'
 import { createBlobRequestHandler } from './blobHttp'
 import { isAuthorized } from './tokenAuth'
 
@@ -100,6 +101,7 @@ type RunningSyncServer = {
   server: http.Server
   blobStore?: BlobStore
   eventStore?: EventStore
+  aggregateStore?: AggregateStore
 }
 
 let current: RunningSyncServer | null = null
@@ -149,6 +151,19 @@ export function getSyncRepo(): Repo | undefined {
  */
 export function getEventStore(): EventStore | undefined {
   return current?.eventStore
+}
+
+/**
+ * Per-recording plays and average completion, derived from that log.
+ *
+ * Carries the same caveat as `getEventStore`, and more visibly: these numbers
+ * only ever describe the events *this* device accepted. A device that is a
+ * guest of another host flushes its plays there, so a read path that answers
+ * the renderer from here unconditionally will report zeros for a library whose
+ * events all went elsewhere.
+ */
+export function getAggregateStore(): AggregateStore | undefined {
+  return current?.aggregateStore
 }
 
 export function getLocalNetworkIp(): string | undefined {
@@ -332,22 +347,51 @@ export async function startSyncServer(
   // already on disk would be taken a second time. A store that cannot open is
   // left out entirely rather than served empty, for the same reason.
   let eventStore: EventStore | undefined
+  let aggregateStore: AggregateStore | undefined
   if (eventStorePath) {
     const store = createEventStore(eventStorePath)
     try {
       const indexed = await store.open()
       eventStore = store
+      // Aggregates open with the log, not lazily on first read: the rollup is
+      // derived by replaying the log, and doing that on the first request would
+      // put a full 90-day read on a path that is meant to be a map lookup.
+      const aggregates = createAggregateStore(eventStorePath, store)
+      try {
+        const recordings = await aggregates.open()
+        aggregateStore = aggregates
+        console.info(
+          `Playback aggregates: ${recordings} recording(s) from ` +
+            `${indexed} event(s).`,
+        )
+      } catch (error) {
+        // The log is still servable without them; reads answer undefined and a
+        // later `rebuild` can recover, which is the point of deriving.
+        console.error('Playback aggregates failed to open:', error)
+      }
       // Retention rides the same startup moment as the tmp sweep rather than
       // getting a timer of its own; a host that never restarts for 90 days is
       // not a case this app has.
-      void store
+      //
+      // It goes through the aggregate store when there is one: expiring events
+      // have to be folded into the frozen baseline *before* they are unlinked,
+      // or an old tape's lifetime play count would decay as its events aged
+      // out. Without one, the raw sweep still runs — a log that grows forever
+      // is the worse failure — and those plays are simply lost.
+      void (aggregateStore ?? store)
         .sweep(DEFAULT_EVENT_MAX_AGE_MS)
-        .then(({ segments, events }) => {
+        .then(({ segments, events, retained }) => {
           if (segments.length > 0) {
             console.info(
               `Event log: swept ${events} event(s) past retention in ` +
                 `${segments.length} segment(s); ${store.size()} of ${indexed} ` +
                 `remain.`,
+            )
+          }
+          if (retained.length > 0) {
+            console.warn(
+              `Event log: kept ${retained.length} expired segment(s) that ` +
+                `could not be folded into the aggregate baseline.`,
             )
           }
         })
@@ -441,6 +485,7 @@ export async function startSyncServer(
     server,
     blobStore,
     eventStore,
+    aggregateStore,
   }
 
   console.log(`Sync server listening on ${wsScheme}://${host}:${port}`)
