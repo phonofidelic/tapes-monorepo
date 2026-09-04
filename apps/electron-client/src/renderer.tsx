@@ -188,6 +188,21 @@ function ElectronAppRoot() {
       setError(null)
       setRepo(result.repo)
 
+      // Tell the host which library this is. It has no other way to know: the
+      // url lives in this renderer's localStorage, and every other doc url the
+      // host sees over IPC names a single recording. Without it the blob GC
+      // cannot tell a referenced object from an orphan. Best-effort, and
+      // `send` can throw synchronously when there is no ipcRenderer at all.
+      try {
+        void appContextValue.ipc
+          .send('library:announce', { data: { url: result.handle.url } })
+          .catch((error) =>
+            console.info('Could not announce the library to the host', error),
+          )
+      } catch (error) {
+        console.info('Could not announce the library to the host', error)
+      }
+
       // Close the superseded sockets only once the new repo is in place, so
       // the swap never leaves the app with no peer at all.
       if (previous) {

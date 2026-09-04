@@ -1,3 +1,4 @@
+import { AnnounceLibraryChannel } from './channels/AnnounceLibraryChannel'
 import { CacheBlobChannel } from './channels/CacheBlobChannel'
 import { CreateRecordingChannel } from './channels/CreateRecordingChannel'
 import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
@@ -25,4 +26,5 @@ new MainWindow().init([
   new PutBlobChannel(),
   new HasBlobChannel(),
   new CacheBlobChannel(),
+  new AnnounceLibraryChannel(),
 ])

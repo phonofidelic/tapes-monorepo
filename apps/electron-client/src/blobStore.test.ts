@@ -209,6 +209,61 @@ describe('housekeeping', () => {
   })
 })
 
+describe('listObjects', () => {
+  it('reports every object with its hardlink count', async () => {
+    const store = createBlobStore(root)
+    const filepath = await writeRecording('kept.wav', 'hardlinked bytes')
+    const { meta } = await store.ingestFile(filepath, { docUrl: DOC_A })
+    await store.ingestStream(Readable.from(['uploaded bytes']), {
+      mimeType: 'audio/mp4',
+      docUrl: DOC_B,
+    })
+
+    const objects = await store.listObjects()
+
+    expect(objects).toHaveLength(2)
+    const hardlinked = objects.find((object) => object.hash === meta.hash)
+    // The user's own copy shares the inode, so unlinking the store's link
+    // would not free these bytes.
+    expect(hardlinked?.nlink).toBe(2)
+    expect(hardlinked?.size).toBe('hardlinked bytes'.length)
+    const uploaded = objects.find((object) => object.hash !== meta.hash)
+    expect(uploaded?.nlink).toBe(1)
+  })
+
+  it('is empty for a store that has never been written to', async () => {
+    expect(await createBlobStore(root).listObjects()).toEqual([])
+  })
+})
+
+describe('remove', () => {
+  it('unlinks an object the refcount could never free', async () => {
+    const store = createBlobStore(root)
+    const { meta } = await store.ingestStream(Readable.from(['orphaned']), {
+      mimeType: 'audio/mp4',
+      docUrl: DOC_A,
+    })
+
+    // Still owned: `releaseRef` would refuse, which is the whole reason this
+    // exists.
+    expect(await store.remove(meta.hash)).toBe(true)
+
+    expect(await store.has(meta.hash)).toBe(false)
+    expect(await store.stat(meta.hash)).toBeNull()
+    expect(await store.refs(meta.hash)).toEqual([])
+  })
+
+  it('reports nothing removed for a hash the store does not hold', async () => {
+    const store = createBlobStore(root)
+    expect(await store.remove(sha256('never stored'))).toBe(false)
+  })
+
+  it('ignores a malformed hash rather than touching the filesystem', async () => {
+    const store = createBlobStore(root)
+    expect(await store.remove('../../etc/passwd')).toBe(false)
+  })
+})
+
 async function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of stream) {

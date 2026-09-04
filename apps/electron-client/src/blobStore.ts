@@ -42,6 +42,15 @@ export type BlobMeta = {
   createdAt: string
 }
 
+export type StoredObject = {
+  hash: string
+  size: number
+  /** Hardlink count. >1 means the user's own copy shares this inode. */
+  nlink: number
+  /** When the store took the object. See `listObjects` on why not mtime. */
+  ctimeMs: number
+}
+
 export type IngestResult = {
   meta: BlobMeta
   /** True when the bytes were already in the store; only a ref was added. */
@@ -215,6 +224,15 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     })
   }
 
+  /** Unlinks all three files for a hash. Callers hold the per-hash lock. */
+  async function unlinkAll(hash: string): Promise<void> {
+    await Promise.all([
+      rm(objectPath(hash), { force: true }),
+      rm(metaPath(hash), { force: true }),
+      rm(refsPath(hash), { force: true }),
+    ])
+  }
+
   /**
    * Drops one owner. When the last owner goes the bytes are unlinked — this is
    * what makes deleting a recording actually reclaim space, which embedding
@@ -234,12 +252,29 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
         await writeJsonAtomic(refsPath(hash), { refs: next })
         return { removed: false, refs: next }
       }
-      await Promise.all([
-        rm(objectPath(hash), { force: true }),
-        rm(metaPath(hash), { force: true }),
-        rm(refsPath(hash), { force: true }),
-      ])
+      await unlinkAll(hash)
       return { removed: true, refs: [] }
+    })
+  }
+
+  /**
+   * Unlinks an object and its sidecars regardless of what its refs file says.
+   *
+   * `releaseRef` can only reclaim an object whose owners all announced
+   * themselves; this is the escape hatch for objects the refcount can never
+   * free — bytes written before a crash took the process out ahead of the ref
+   * record, or a ref naming a doc that no longer references the hash. Deciding
+   * *which* objects those are needs the doc graph, so it is not decided here:
+   * see `blobGc.ts`.
+   */
+  async function remove(hash: string): Promise<boolean> {
+    if (!isValidBlobHash(hash)) {
+      return false
+    }
+    return withLock(hash, async () => {
+      const existed = await has(hash)
+      await unlinkAll(hash)
+      return existed
     })
   }
 
@@ -433,6 +468,56 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     return total
   }
 
+  /**
+   * Every object currently held, for a caller that can decide which of them
+   * are still reachable.
+   *
+   * `ctimeMs` rather than `mtimeMs` is deliberate: `ingestFile` *hardlinks* the
+   * user's recording into the store, so the object shares that file's mtime,
+   * which is whenever the audio was recorded and can be arbitrarily old. Any
+   * grace period keyed on mtime would therefore be no grace period at all.
+   * Linking sets the inode's ctime, so ctime is when the store took the object.
+   *
+   * `nlink` is reported because it is what makes "how much did this reclaim"
+   * answerable: dropping the store's link to an object the user still has in
+   * their recordings folder frees nothing.
+   */
+  async function listObjects(): Promise<StoredObject[]> {
+    const objectsRoot = path.join(root, 'objects')
+    const objects: StoredObject[] = []
+    let shards: string[]
+    try {
+      shards = await readdir(objectsRoot)
+    } catch {
+      return objects
+    }
+    for (const dir of shards) {
+      let entries: string[]
+      try {
+        entries = await readdir(path.join(objectsRoot, dir))
+      } catch {
+        continue
+      }
+      for (const entry of entries) {
+        if (!isValidBlobHash(entry)) {
+          continue
+        }
+        try {
+          const stats = await stat(path.join(objectsRoot, dir, entry))
+          objects.push({
+            hash: entry,
+            size: stats.size,
+            nlink: stats.nlink,
+            ctimeMs: stats.ctimeMs,
+          })
+        } catch {
+          // Raced with a delete; nothing to report.
+        }
+      }
+    }
+    return objects
+  }
+
   /** Clears uploads abandoned mid-stream. Run at startup. */
   async function sweepTmp(maxAgeMs: number): Promise<number> {
     let entries: string[]
@@ -467,6 +552,8 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     ingestStream,
     ingestFile,
     totalBytes,
+    listObjects,
+    remove,
     sweepTmp,
   }
 }
