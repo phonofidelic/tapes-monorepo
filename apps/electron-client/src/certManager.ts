@@ -55,7 +55,11 @@ export function ensureSyncServerCert(lanIp: string | undefined): TlsMaterial {
   mkdirSync(certDir(), { recursive: true })
 
   const meta = readMeta()
-  if (existsSync(keyPath()) && existsSync(certPath()) && meta?.lanIp === lanIp) {
+  if (
+    existsSync(keyPath()) &&
+    existsSync(certPath()) &&
+    meta?.lanIp === lanIp
+  ) {
     return {
       key: readFileSync(keyPath(), 'utf-8'),
       cert: readFileSync(certPath(), 'utf-8'),

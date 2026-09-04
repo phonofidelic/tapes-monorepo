@@ -6,7 +6,10 @@ import wasm from 'vite-plugin-wasm'
 import topLevelAwait from 'vite-plugin-top-level-await'
 import { peerDependencies, dependencies } from './package.json'
 
-const external = [...Object.keys(peerDependencies), ...Object.keys(dependencies)]
+const external = [
+  ...Object.keys(peerDependencies),
+  ...Object.keys(dependencies),
+]
 
 export default defineConfig({
   plugins: [

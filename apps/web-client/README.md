@@ -59,16 +59,16 @@ Everything in `public/` is exported from the **Tapes App Icons** Figma document
 ([file `GiDQCS5RTxysuqxluAV9Xs`](https://www.figma.com/design/GiDQCS5RTxysuqxluAV9Xs/Tapes-App-Icons)),
 one frame per file:
 
-| File                            | Figma frame                |
-| ------------------------------- | -------------------------- |
-| `icon.svg`                      | `pwa-512x512` (as vector)  |
-| `pwa-512x512.png`               | `pwa-512x512`              |
-| `maskable-icon-512x512.png`     | `maskable-icon-512x512`    |
-| `pwa-192x192.png`               | `pwa-192x192`              |
-| `pwa-64x64.png`                 | `pwa-64x64`                |
-| `apple-touch-icon-180x180.png`  | `apple-touch-icon-180x180` |
-| `favicon-32.png`                | `favicon-32`               |
-| `favicon-16.png`                | `favicon-16`               |
+| File                           | Figma frame                |
+| ------------------------------ | -------------------------- |
+| `icon.svg`                     | `pwa-512x512` (as vector)  |
+| `pwa-512x512.png`              | `pwa-512x512`              |
+| `maskable-icon-512x512.png`    | `maskable-icon-512x512`    |
+| `pwa-192x192.png`              | `pwa-192x192`              |
+| `pwa-64x64.png`                | `pwa-64x64`                |
+| `apple-touch-icon-180x180.png` | `apple-touch-icon-180x180` |
+| `favicon-32.png`               | `favicon-32`               |
+| `favicon-16.png`               | `favicon-16`               |
 
 Re-export from Figma when the artwork changes — **don't** regenerate the PNGs
 from `icon.svg`. The sizes are tuned individually in the design file, and the

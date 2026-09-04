@@ -4,7 +4,10 @@ import react from '@vitejs/plugin-react'
 import dts from 'vite-plugin-dts'
 import { peerDependencies, dependencies } from './package.json'
 
-const external = [...Object.keys(peerDependencies), ...Object.keys(dependencies)]
+const external = [
+  ...Object.keys(peerDependencies),
+  ...Object.keys(dependencies),
+]
 
 export default defineConfig({
   plugins: [

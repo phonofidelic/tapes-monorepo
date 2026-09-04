@@ -90,13 +90,12 @@ export function AudioInputSelector({ className }: { className?: string }) {
 
         if (appContext.type === 'electron-client') {
           try {
-
             const setAudioInputDeviceResponse =
               await appContext.ipc.send<IpcResponse>(
                 'settings:set-default-audio-input-device',
                 {
                   data: {
-                    deviceName: parsedMediaDeviceInfo.label
+                    deviceName: parsedMediaDeviceInfo.label,
                   },
                 },
               )
@@ -109,14 +108,17 @@ export function AudioInputSelector({ className }: { className?: string }) {
         }
         setAudioInputDeviceId(parsedMediaDeviceInfo.deviceId)
       }}
-      defaultValue={JSON.stringify(audioInputDevices.find(device => device.deviceId === audioInputDeviceId)) ?? ''}
+      defaultValue={
+        JSON.stringify(
+          audioInputDevices.find(
+            (device) => device.deviceId === audioInputDeviceId,
+          ),
+        ) ?? ''
+      }
     >
       <option value="">Select an audio input device</option>
       {audioInputDevices.map((device) => (
-        <option
-          key={device.deviceId}
-          value={JSON.stringify(device)}
-        >
+        <option key={device.deviceId} value={JSON.stringify(device)}>
           {device.label}
         </option>
       ))}
@@ -125,11 +127,10 @@ export function AudioInputSelector({ className }: { className?: string }) {
 }
 
 const isValidMediaDeviceInfo = (parsed: unknown): parsed is MediaDeviceInfo =>
-  typeof parsed === 'object' 
-  && parsed !== null 
-  && 'deviceId' in parsed
-  && typeof parsed.deviceId === 'string'
-  && parsed.deviceId.length > 0
-  && 'label' in parsed
-  && typeof parsed.label === 'string'
-  
+  typeof parsed === 'object' &&
+  parsed !== null &&
+  'deviceId' in parsed &&
+  typeof parsed.deviceId === 'string' &&
+  parsed.deviceId.length > 0 &&
+  'label' in parsed &&
+  typeof parsed.label === 'string'

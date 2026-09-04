@@ -145,10 +145,16 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
   }
 
   it('finds a library the server holds, without any renderer storage', async () => {
-    const url = await seedLibrary(new NodeFSStorageAdapter(await serverStorage()))
+    const url = await seedLibrary(
+      new NodeFSStorageAdapter(await serverStorage()),
+    )
     const info = await startServer()
 
-    const result = await bootstrap(url, { localUrl: info.url }, noRendererStorage)
+    const result = await bootstrap(
+      url,
+      { localUrl: info.url },
+      noRendererStorage,
+    )
 
     expect(result.status).toBe('ready')
     if (result.status !== 'ready') return
@@ -161,7 +167,11 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
   it('creates a library when none is stored, and the server persists it', async () => {
     const info = await startServer()
 
-    const result = await bootstrap(null, { localUrl: info.url }, noRendererStorage)
+    const result = await bootstrap(
+      null,
+      { localUrl: info.url },
+      noRendererStorage,
+    )
 
     expect(result.status).toBe('ready')
     if (result.status !== 'ready') return

@@ -78,11 +78,11 @@ const plugins = [
       ],
       screenshots: [
         {
-            src: 'tapes-mobile-ui.webp',
-            sizes: '1002x1772',
-            type: 'image/webp'
-        }
-    ]
+          src: 'tapes-mobile-ui.webp',
+          sizes: '1002x1772',
+          type: 'image/webp',
+        },
+      ],
     },
     workbox: {
       // Both of these are load-bearing for offline boot. Automerge's wasm is a
