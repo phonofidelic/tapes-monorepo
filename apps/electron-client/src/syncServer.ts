@@ -15,6 +15,11 @@ import { automergeWasmBase64 } from '@automerge/automerge/automerge.wasm.base64'
 import { WebSocketServerAdapter } from '@automerge/automerge-repo-network-websocket'
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
 import { createBlobStore, type BlobStore } from './blobStore'
+import {
+  createEventStore,
+  DEFAULT_EVENT_MAX_AGE_MS,
+  type EventStore,
+} from './eventStore'
 import { createBlobRequestHandler } from './blobHttp'
 import { isAuthorized } from './tokenAuth'
 
@@ -76,6 +81,12 @@ export type SyncServerOptions = {
    */
   blobStorePath?: string
   /**
+   * Root of the append-only playback-event log. Omitted by tests that have no
+   * interest in events; the ingest route answers 503 without one, exactly as
+   * `/blobs` does without a blob store.
+   */
+  eventStorePath?: string
+  /**
    * Bearer token guarding `/blobs` and the sync socket's upgrade. Omitted only
    * by tests that exercise the unauthenticated shape; the app always has one.
    */
@@ -88,6 +99,7 @@ type RunningSyncServer = {
   wss: WebSocketServer
   server: http.Server
   blobStore?: BlobStore
+  eventStore?: EventStore
 }
 
 let current: RunningSyncServer | null = null
@@ -120,6 +132,23 @@ export function getBlobStore(): BlobStore | undefined {
  */
 export function getSyncRepo(): Repo | undefined {
   return current?.repo
+}
+
+/**
+ * The running host's playback-event log, for the ingest route and for deriving
+ * aggregates. Undefined until `startSyncServer` has opened it — a store whose
+ * dedupe index has not loaded would re-admit events already on disk.
+ *
+ * **This is only ever *this device's own* log**, exactly as `getBlobStore` is
+ * only its own store. A device can be a host and a guest of another host at the
+ * same time (`SyncServerUrls` in `rendererRepo.ts` syncs a remote server *in
+ * addition to* the local one), and its own plays are flushed to whichever host
+ * it is synced with — which may not be this one. A read path that answers the
+ * renderer from here unconditionally will report zeros for a library whose
+ * events all went elsewhere: the same failure mode TAP-74 fixed for blobs.
+ */
+export function getEventStore(): EventStore | undefined {
+  return current?.eventStore
 }
 
 export function getLocalNetworkIp(): string | undefined {
@@ -285,6 +314,7 @@ export async function startSyncServer(
     tls,
     webAppDevUrl,
     blobStorePath,
+    eventStorePath,
     pairingToken,
   } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
@@ -295,6 +325,36 @@ export async function startSyncServer(
     void blobStore
       .sweepTmp(TMP_SWEEP_MAX_AGE_MS)
       .catch((error) => console.error('Blob tmp sweep failed:', error))
+  }
+
+  // Opening the log is awaited, unlike the sweeps around it: the dedupe index
+  // has to be loaded before the first ingest can be answered, or events
+  // already on disk would be taken a second time. A store that cannot open is
+  // left out entirely rather than served empty, for the same reason.
+  let eventStore: EventStore | undefined
+  if (eventStorePath) {
+    const store = createEventStore(eventStorePath)
+    try {
+      const indexed = await store.open()
+      eventStore = store
+      // Retention rides the same startup moment as the tmp sweep rather than
+      // getting a timer of its own; a host that never restarts for 90 days is
+      // not a case this app has.
+      void store
+        .sweep(DEFAULT_EVENT_MAX_AGE_MS)
+        .then(({ segments, events }) => {
+          if (segments.length > 0) {
+            console.info(
+              `Event log: swept ${events} event(s) past retention in ` +
+                `${segments.length} segment(s); ${store.size()} of ${indexed} ` +
+                `remain.`,
+            )
+          }
+        })
+        .catch((error) => console.error('Event log sweep failed:', error))
+    } catch (error) {
+      console.error('Event log failed to open:', error)
+    }
   }
 
   const handleBlobRequest = blobStore
@@ -380,6 +440,7 @@ export async function startSyncServer(
     wss,
     server,
     blobStore,
+    eventStore,
   }
 
   console.log(`Sync server listening on ${wsScheme}://${host}:${port}`)
