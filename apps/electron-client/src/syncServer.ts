@@ -2,7 +2,7 @@ import http from 'http'
 import https from 'https'
 import os from 'os'
 import path from 'path'
-import { readFile } from 'fs/promises'
+import { access, readFile } from 'fs/promises'
 import { WebSocketServer } from 'ws'
 // The slim entrypoints + base64 WASM keep the Automerge core inside the
 // bundled JS, so nothing has to resolve .wasm files from inside the asar.
@@ -22,6 +22,7 @@ import {
 } from './eventStore'
 import { createAggregateStore, type AggregateStore } from './aggregates'
 import { createBlobRequestHandler } from './blobHttp'
+import { createEventRequestHandler } from './eventHttp'
 import { isAuthorized } from './tokenAuth'
 
 export const DEFAULT_SYNC_SERVER_PORT = 9001
@@ -201,16 +202,22 @@ const STATIC_MIME_TYPES: Record<string, string> = {
 }
 
 /**
+ * An API route: answers the request and returns true, or declines it with
+ * false so the next one (and ultimately the static handler) gets a look.
+ */
+type RouteHandler = (
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+) => Promise<boolean>
+
+/**
  * Builds the HTTP request handler. When `webClientPath` is set it serves the
  * built web-client bundle (with an SPA fallback to index.html so deep links
  * like `/?am=<url>` work); otherwise it responds with a plain health check.
  */
 function createRequestHandler(
   webClientPath?: string,
-  handleBlobRequest?: (
-    request: http.IncomingMessage,
-    response: http.ServerResponse,
-  ) => Promise<boolean>,
+  routes: RouteHandler[] = [],
 ) {
   return async (
     request: http.IncomingMessage,
@@ -218,12 +225,15 @@ function createRequestHandler(
   ) => {
     // Ahead of everything, including the health check below: the static
     // branch's SPA fallback answers any unmatched path with index.html and a
-    // 200, so a blob route mounted after it would return HTML to an <audio>
-    // element rather than a 404. The health-check branch returns early, so
-    // this must also precede it or blobs would break whenever no web-client
-    // bundle is staged (which is how both server test harnesses run).
-    if (handleBlobRequest && (await handleBlobRequest(request, response))) {
-      return
+    // 200, so an API route mounted after it would return HTML to an <audio>
+    // element (or to a flushing event queue) rather than a 404. The
+    // health-check branch returns early, so this must also precede it or the
+    // routes would break whenever no web-client bundle is staged (which is how
+    // both server test harnesses run).
+    for (const route of routes) {
+      if (await route(request, response)) {
+        return
+      }
     }
 
     if (!webClientPath) {
@@ -287,6 +297,62 @@ async function unavailableBlobRequestHandler(
   response.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' })
   response.end(JSON.stringify({ error: 'Blob store not configured' }))
   return true
+}
+
+/**
+ * The same stand-in for `/events`, and for the same reason: the path has to be
+ * claimed even when there is no log behind it, or a flushing client would read
+ * the SPA fallback's 200 as "accepted" and clear its queue.
+ */
+async function unavailableEventRequestHandler(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+): Promise<boolean> {
+  if (new URL(request.url ?? '/', 'http://localhost').pathname !== '/events') {
+    return false
+  }
+  request.resume()
+  response.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' })
+  response.end(JSON.stringify({ error: 'Event store not configured' }))
+  return true
+}
+
+/**
+ * Whether this host holds the document a reported play names, read straight
+ * off `NodeFSStorageAdapter`'s layout — the first two characters of the id
+ * name a directory holding the rest, the same layout `blobGc.ts` walks.
+ *
+ * A `stat` rather than a `repo.find`: the check runs per event of every
+ * ingest, and resolving a document would mean loading and merging it. This
+ * answers the only question the route actually asks — is this a recording this
+ * host has ever heard of, or a fabricated id.
+ *
+ * Only positives are cached. A document that is present stays present for the
+ * life of the process, but a miss is frequently temporary: a guest that played
+ * offline can reach `/events` before its recording has finished syncing here,
+ * which is why the route treats that rejection as retryable.
+ */
+function createKnownRecordingCheck(storagePath: string) {
+  const known = new Set<string>()
+
+  return async function isKnownRecording(recordingUrl: string) {
+    if (known.has(recordingUrl)) {
+      return true
+    }
+    const documentId = recordingUrl.slice('automerge:'.length)
+    if (documentId.length < 3) {
+      return false
+    }
+    try {
+      await access(
+        path.join(storagePath, documentId.slice(0, 2), documentId.slice(2)),
+      )
+    } catch {
+      return false
+    }
+    known.add(recordingUrl)
+    return true
+  }
 }
 
 function listen(server: http.Server, host: string, port: number) {
@@ -405,7 +471,18 @@ export async function startSyncServer(
     ? createBlobRequestHandler({ store: blobStore, token: pairingToken })
     : unavailableBlobRequestHandler
 
-  const handler = createRequestHandler(webClientPath, handleBlobRequest)
+  const handleEventRequest = eventStore
+    ? createEventRequestHandler({
+        store: eventStore,
+        token: pairingToken,
+        isKnownRecording: createKnownRecordingCheck(storagePath),
+      })
+    : unavailableEventRequestHandler
+
+  const handler = createRequestHandler(webClientPath, [
+    handleBlobRequest,
+    handleEventRequest,
+  ])
   const server = tls
     ? https.createServer({ key: tls.key, cert: tls.cert }, handler)
     : http.createServer(handler)
