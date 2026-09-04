@@ -35,6 +35,15 @@ export const syncStoragePath = () =>
 export const blobStoragePath = () => path.join(app.getPath('userData'), 'blobs')
 
 /**
+ * Root of the append-only playback-event log. A sibling of the blob store
+ * rather than a directory inside it: the two have different lifetimes — audio
+ * lives as long as its recording, events for 90 days — and a retention sweep
+ * that could reach into `blobs/` is a sweep that could unlink audio.
+ */
+export const eventStoragePath = () =>
+  path.join(app.getPath('userData'), 'events')
+
+/**
  * Port the embedded server binds, when something has pinned one.
  *
  * Normally there is nothing to decide — the server takes

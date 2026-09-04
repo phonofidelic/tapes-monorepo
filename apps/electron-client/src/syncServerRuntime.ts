@@ -6,6 +6,7 @@ import {
 } from './syncServer'
 import {
   blobStoragePath,
+  eventStoragePath,
   readSyncServerConfig,
   syncServerPort,
   syncStoragePath,
@@ -48,6 +49,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     webAppDevUrl: devWebAppUrl,
     tls,
     blobStorePath: blobStoragePath(),
+    eventStorePath: eventStoragePath(),
     pairingToken: config.pairingToken,
   })
 }
