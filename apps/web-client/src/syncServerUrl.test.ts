@@ -60,8 +60,14 @@ describe('resolveSyncServerUrl', () => {
 
   // A value Automerge could only fail to connect to must not win the chain.
   it.each([
-    ['a non-websocket protocol', JSON.stringify({ remoteSyncServerUrl: 'https://nope' })],
-    ['an unparseable URL', JSON.stringify({ remoteSyncServerUrl: 'not a url' })],
+    [
+      'a non-websocket protocol',
+      JSON.stringify({ remoteSyncServerUrl: 'https://nope' }),
+    ],
+    [
+      'an unparseable URL',
+      JSON.stringify({ remoteSyncServerUrl: 'not a url' }),
+    ],
     ['a non-string value', JSON.stringify({ remoteSyncServerUrl: 1234 })],
     ['an absent key', JSON.stringify({ audioFormat: 'wav' })],
     ['malformed settings JSON', '{ not json'],

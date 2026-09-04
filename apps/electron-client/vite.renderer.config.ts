@@ -11,7 +11,10 @@ function devCspAllowInlineStyles(): Plugin {
     name: 'dev-csp-allow-inline-styles',
     apply: 'serve',
     transformIndexHtml(html) {
-      return html.replace("style-src 'self'", "style-src 'self' 'unsafe-inline'")
+      return html.replace(
+        "style-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+      )
     },
   }
 }
