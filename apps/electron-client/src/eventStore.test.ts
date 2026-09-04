@@ -351,6 +351,7 @@ describe('sweep', () => {
     expect(await store.sweep(DEFAULT_EVENT_MAX_AGE_MS, NOW)).toEqual({
       segments: [],
       events: 0,
+      retained: [],
     })
   })
 })
