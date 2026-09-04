@@ -16,6 +16,13 @@ export type SyncServerConfig = {
   // library. Rotating it unpairs every guest at once; there is no per-device
   // revocation.
   pairingToken: string
+  /**
+   * Library roots this host has been told about, so the blob GC can mark
+   * against them. Persisted because the root url otherwise lives only in the
+   * renderer's localStorage, and a sweep that forgot a library would treat all
+   * of its audio as unreferenced.
+   */
+  knownRoots?: string[]
 }
 
 const configFilePath = () =>
@@ -91,6 +98,11 @@ export function readSyncServerConfig(): SyncServerConfig {
           stored.pairingToken.length > 0
             ? stored.pairingToken
             : createPairingToken(),
+        knownRoots: Array.isArray(stored.knownRoots)
+          ? stored.knownRoots.filter(
+              (root): root is string => typeof root === 'string',
+            )
+          : undefined,
       }
       if (config.pairingToken !== stored.pairingToken) {
         writeSyncServerConfig(config)
@@ -109,6 +121,22 @@ export function readSyncServerConfig(): SyncServerConfig {
   }
   writeSyncServerConfig(config)
   return config
+}
+
+/**
+ * Records a library root, returning every root known afterwards. Roots
+ * accumulate rather than replace: this host may serve several libraries at
+ * once, and the blob store is shared across all of them.
+ */
+export function rememberLibraryRoot(url: string): string[] {
+  const config = readSyncServerConfig()
+  const knownRoots = config.knownRoots ?? []
+  if (knownRoots.includes(url)) {
+    return knownRoots
+  }
+  const next = [...knownRoots, url]
+  writeSyncServerConfig({ ...config, knownRoots: next })
+  return next
 }
 
 export function writeSyncServerConfig(config: SyncServerConfig) {

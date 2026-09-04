@@ -24,6 +24,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'blob:put-file': true,
   'blob:has': true,
   'blob:cache-put': true,
+  'library:announce': true,
 }
 
 const validChannels = Object.keys(CHANNEL_ALLOWLIST) as ValidIpcChanel[]

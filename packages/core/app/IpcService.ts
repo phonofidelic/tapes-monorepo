@@ -25,6 +25,7 @@ export type ValidIpcChanel =
   | 'blob:put-file'
   | 'blob:has'
   | 'blob:cache-put'
+  | 'library:announce'
 
 export type SyncServerInfo = {
   running: boolean
@@ -165,6 +166,7 @@ type IpcSendArgs =
       IpcRequest & { data: { filepath: string; docUrl: string } },
     ]
   | ['blob:has', IpcRequest & { data: { hash: string } }]
+  | ['library:announce', IpcRequest & { data: { url: string } }]
   | [
       'blob:cache-put',
       IpcRequest & {

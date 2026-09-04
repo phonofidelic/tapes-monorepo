@@ -111,6 +111,17 @@ export function getBlobStore(): BlobStore | undefined {
   return current?.blobStore
 }
 
+/**
+ * The running host's repo, for the blob GC's walk over the library graph.
+ *
+ * Nothing else on the host reads document contents — the server otherwise only
+ * relays and persists — so this stays deliberately narrow rather than becoming
+ * a general seam for interpreting docs in the main process.
+ */
+export function getSyncRepo(): Repo | undefined {
+  return current?.repo
+}
+
 export function getLocalNetworkIp(): string | undefined {
   const interfaces = os.networkInterfaces()
   for (const addresses of Object.values(interfaces)) {
