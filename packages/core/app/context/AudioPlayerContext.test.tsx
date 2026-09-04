@@ -10,7 +10,11 @@ import {
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import { AppContextProvider, type AppContextValue } from './AppContext'
 import { BlobProvider } from './BlobContext'
-import { AudioPlayerProvider, useAudioPlayer } from './AudioPlayerContext'
+import {
+  AudioPlayerProvider,
+  useAudioPlayer,
+  type PlaySession,
+} from './AudioPlayerContext'
 import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
 import type { RecordingData } from '@/types'
@@ -667,5 +671,209 @@ describe('seeking', () => {
     await waitFor(() =>
       expect(screen.getByTestId('time')).toHaveTextContent('10'),
     )
+  })
+})
+
+/**
+ * Drives a play session end to end: what starts and stops playback, and the
+ * seeks that must not read as listening.
+ */
+function SessionProbe({ url = RECORDING_URL }: { url?: AutomergeUrl }) {
+  const { audioRef, setCurrentSource, setCurrentUrl, setIsPlaying, seek } =
+    useAudioPlayer()
+
+  useEffect(() => {
+    audioElement = audioRef.current
+  }, [audioRef])
+
+  useEffect(() => {
+    setCurrentSource(base.filepath)
+    setCurrentUrl(url)
+  }, [url, setCurrentSource, setCurrentUrl])
+
+  return (
+    <>
+      <button onClick={() => setIsPlaying(true)}>Play</button>
+      <button onClick={() => setIsPlaying(false)}>Pause</button>
+      <button onClick={() => seek(0)}>Seek to start</button>
+      <button onClick={() => seek(9)}>Seek near the end</button>
+    </>
+  )
+}
+
+const sessionTree = (
+  onPlaySession: (session: PlaySession) => void,
+  url: AutomergeUrl,
+) => (
+  <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
+    <BlobProvider endpoints={[]}>
+      <AudioPlayerProvider onPlaySession={onPlaySession}>
+        <SessionProbe url={url} />
+      </AudioPlayerProvider>
+    </BlobProvider>
+  </AppContextProvider>
+)
+
+const renderSession = (
+  onPlaySession: (session: PlaySession) => void,
+  url: AutomergeUrl = RECORDING_URL,
+) => {
+  audioElement = null
+  const view = render(sessionTree(onPlaySession, url))
+  const audio = currentAudioElement()
+  if (!audio) {
+    throw new Error('the provider never exposed its audio element')
+  }
+  return { ...view, audio }
+}
+
+const click = (name: string) =>
+  fireEvent.click(screen.getByRole('button', { name }))
+
+/** Plays through `seconds`, one `timeupdate` per second as an element would. */
+const playThrough = (audio: HTMLAudioElement, ...seconds: number[]) => {
+  for (const second of seconds) {
+    audio.currentTime = second
+    fireEvent(audio, new Event('timeupdate'))
+  }
+}
+
+/** The session the player reported, which every test here asserts on. */
+const reported = (onPlaySession: ReturnType<typeof vi.fn>): PlaySession =>
+  onPlaySession.mock.calls[0][0] as PlaySession
+
+describe('play sessions', () => {
+  beforeEach(() => {
+    // The embedded-audio path resolves without a worker or a host, so these
+    // tests are about the measurement and nothing else.
+    recording = { ...base, audio: new Uint8Array([1, 2, 3]) }
+    recordings = {}
+  })
+
+  it('reports the furthest point reached once a play passes five seconds', async () => {
+    const onPlaySession = vi.fn()
+    const { audio } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    click('Play')
+    playThrough(audio, 1, 2, 3, 4, 5, 6)
+    click('Pause')
+
+    await waitFor(() => expect(onPlaySession).toHaveBeenCalledTimes(1))
+    expect(reported(onPlaySession).recordingUrl).toBe(RECORDING_URL)
+    expect(reported(onPlaySession).completion).toBeCloseTo(0.6)
+    expect(Date.parse(reported(onPlaySession).occurredAt)).not.toBeNaN()
+  })
+
+  it('ignores a play too short to be listening', async () => {
+    const onPlaySession = vi.fn()
+    const { audio } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    // A mis-tap, a preview, a few seconds of a tape: counting these inflates
+    // the play count for exactly the recordings nobody sat through.
+    click('Play')
+    playThrough(audio, 1, 2, 3)
+    click('Pause')
+
+    await waitFor(() => expect(screen.getByText('Play')).toBeInTheDocument())
+    expect(onPlaySession).not.toHaveBeenCalled()
+  })
+
+  it('does not count a seek across the tape as listening', async () => {
+    const onPlaySession = vi.fn()
+    const { audio } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    click('Play')
+    playThrough(audio, 1)
+    // Eight seconds of transport in one step, and none of it heard.
+    click('Seek near the end')
+    playThrough(audio, 9.5)
+    click('Pause')
+
+    await waitFor(() => expect(screen.getByText('Play')).toBeInTheDocument())
+    expect(onPlaySession).not.toHaveBeenCalled()
+  })
+
+  it('takes the maximum progress reached, not the time listened', async () => {
+    const onPlaySession = vi.fn()
+    const { audio } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    click('Play')
+    playThrough(audio, 1, 2, 3, 4, 5, 6)
+    // Re-listening to the opening is nine seconds of playback in total, which
+    // as a fraction of a ten-second tape would read as 90% of it heard.
+    click('Seek to start')
+    playThrough(audio, 1, 2, 3)
+    click('Pause')
+
+    await waitFor(() => expect(onPlaySession).toHaveBeenCalledTimes(1))
+    expect(reported(onPlaySession).completion).toBeCloseTo(0.6)
+  })
+
+  it('reads a tape played out as complete', async () => {
+    const onPlaySession = vi.fn()
+    const { audio } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    click('Play')
+    playThrough(audio, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9.8)
+    // The last `timeupdate` always lands short of the end.
+    fireEvent(audio, new Event('ended'))
+
+    await waitFor(() => expect(onPlaySession).toHaveBeenCalledTimes(1))
+    expect(reported(onPlaySession).completion).toBe(1)
+  })
+
+  it('drops a session when no finite length is addressable', async () => {
+    const onPlaySession = vi.fn()
+    const { audio } = renderSession(onPlaySession)
+    // What a MediaRecorder-written mp4 reports until it has been played
+    // through. A percentage of it would be invented, and an invented number is
+    // worse than a missing play.
+    setDuration(audio, Infinity)
+
+    click('Play')
+    playThrough(audio, 1, 2, 3, 4, 5, 6)
+    click('Pause')
+
+    await waitFor(() => expect(screen.getByText('Play')).toBeInTheDocument())
+    expect(onPlaySession).not.toHaveBeenCalled()
+  })
+
+  it('flushes the session when the player unmounts', async () => {
+    const onPlaySession = vi.fn()
+    const { audio, unmount } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    click('Play')
+    playThrough(audio, 1, 2, 3, 4, 5, 6)
+    // How most plays end: the user navigates away mid-tape.
+    unmount()
+
+    await waitFor(() => expect(onPlaySession).toHaveBeenCalledTimes(1))
+    expect(reported(onPlaySession).completion).toBeCloseTo(0.6)
+  })
+
+  it('flushes the session when the recording changes', async () => {
+    const OTHER_URL = 'automerge:other' as AutomergeUrl
+    recordings = {
+      [RECORDING_URL]: recording,
+      [OTHER_URL]: { ...recording, url: OTHER_URL, id: 'take-two' },
+    }
+    const onPlaySession = vi.fn()
+    const { audio, rerender } = renderSession(onPlaySession)
+    setDuration(audio, 10)
+
+    click('Play')
+    playThrough(audio, 1, 2, 3, 4, 5, 6)
+
+    rerender(sessionTree(onPlaySession, OTHER_URL))
+
+    await waitFor(() => expect(onPlaySession).toHaveBeenCalledTimes(1))
+    expect(reported(onPlaySession).recordingUrl).toBe(RECORDING_URL)
+    expect(reported(onPlaySession).completion).toBeCloseTo(0.6)
   })
 })
