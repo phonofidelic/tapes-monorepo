@@ -133,6 +133,54 @@ describe('append', () => {
     expect(await readdir(logDir())).toEqual(['2026-09-04.ndjson'])
   })
 
+  it('takes the same id from two different devices', async () => {
+    const store = await openStore()
+
+    const result = await store.append(
+      [
+        event({ id: 'event-1', deviceId: 'phone' }),
+        event({ id: 'event-1', deviceId: 'laptop' }),
+      ],
+      NOW,
+    )
+
+    // Nothing forces a guest to mint a UUID; two devices on the same naive
+    // scheme must not have one swallow the other's plays.
+    expect(result.accepted).toHaveLength(2)
+    expect(result.duplicates).toEqual([])
+  })
+
+  it('still deduplicates a repeat from the same device', async () => {
+    const store = await openStore()
+    await store.append([event({ id: 'event-1', deviceId: 'phone' })], NOW)
+
+    const result = await store.append(
+      [event({ id: 'event-1', deviceId: 'phone' })],
+      NOW,
+    )
+
+    expect(result.accepted).toEqual([])
+    expect(result.duplicates).toEqual(['event-1'])
+  })
+
+  it('does not let a device id collide with another device plus an id', async () => {
+    const store = await openStore()
+
+    const result = await store.append(
+      [
+        event({ id: 'b', deviceId: 'a' }),
+        event({ id: 'ab', deviceId: undefined }),
+        event({ id: '', deviceId: 'ab' }),
+      ],
+      NOW,
+    )
+
+    // 'a' + 'b' must not key the same as 'ab'; the empty id is dropped
+    // outright, as it could never be deduped at all.
+    expect(result.accepted.map((e) => e.id)).toEqual(['b', 'ab'])
+    expect(result.duplicates).toEqual([])
+  })
+
   it('keeps concurrent batches from interleaving their lines', async () => {
     const store = await openStore()
 
@@ -156,10 +204,25 @@ describe('durability', () => {
     const second = await openStore()
 
     expect(second.size()).toBe(2)
-    expect(second.has('a')).toBe(true)
+    expect(second.has({ id: 'a' })).toBe(true)
     const result = await second.append([event({ id: 'a' })], NOW)
     expect(result.accepted).toEqual([])
     expect(result.duplicates).toEqual(['a'])
+  })
+
+  it('rebuilds the index with device scoping intact', async () => {
+    const first = await openStore()
+    await first.append([event({ id: 'event-1', deviceId: 'phone' })], NOW)
+
+    const second = await openStore()
+
+    expect(second.has({ id: 'event-1', deviceId: 'phone' })).toBe(true)
+    expect(second.has({ id: 'event-1', deviceId: 'laptop' })).toBe(false)
+    const result = await second.append(
+      [event({ id: 'event-1', deviceId: 'laptop' })],
+      NOW,
+    )
+    expect(result.accepted).toHaveLength(1)
   })
 
   it('replays every segment in chronological order', async () => {
@@ -184,7 +247,7 @@ describe('durability', () => {
     const reopened = await openStore()
 
     expect((await drain(reopened.replay())).map((e) => e.id)).toEqual(['a'])
-    expect(reopened.has('b')).toBe(false)
+    expect(reopened.has({ id: 'b' })).toBe(false)
     // The good line before it is still readable, and still appendable after.
     const result = await reopened.append([event({ id: 'c' })], NOW)
     expect(result.accepted.map((e) => e.id)).toEqual(['c'])
@@ -251,8 +314,22 @@ describe('sweep', () => {
     await store.sweep(DEFAULT_EVENT_MAX_AGE_MS, NOW)
 
     expect(store.size()).toBe(1)
-    expect(store.has('stale')).toBe(false)
-    expect(store.has('fresh')).toBe(true)
+    expect(store.has({ id: 'stale' })).toBe(false)
+    expect(store.has({ id: 'fresh' })).toBe(true)
+  })
+
+  it('forgets a swept device+id pair, not every event sharing that id', async () => {
+    const store = await openStore()
+    await store.append(
+      [event({ id: 'event-1', deviceId: 'phone' })],
+      NOW - 95 * DAY_MS,
+    )
+    await store.append([event({ id: 'event-1', deviceId: 'laptop' })], NOW)
+
+    await store.sweep(DEFAULT_EVENT_MAX_AGE_MS, NOW)
+
+    expect(store.has({ id: 'event-1', deviceId: 'phone' })).toBe(false)
+    expect(store.has({ id: 'event-1', deviceId: 'laptop' })).toBe(true)
   })
 
   it('leaves files that are not segments alone', async () => {

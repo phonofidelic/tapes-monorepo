@@ -17,10 +17,11 @@ import { createInterface } from 'readline'
  *   of a day segment. An unclean quit can therefore only ever leave a torn
  *   *last line*, which every reader skips, and no reader can observe a
  *   half-updated store the way it could with a rewritten JSON blob.
- * - **Dedupe from memory, not from disk.** The set of event ids is built once
- *   when the store opens and kept in memory afterwards, so answering "have I
- *   seen this id?" for every event of every ingest costs nothing. `POST
- *   /events` retries after a lost response, so this runs on the hot path.
+ * - **Dedupe from memory, not from disk.** The set of seen events is built
+ *   once when the store opens and kept in memory afterwards, so answering
+ *   "have I seen this one?" for every event of every ingest costs nothing.
+ *   `POST /events` retries after a lost response, so this runs on the hot
+ *   path. Identity is per device, not a bare id — see `dedupeKey`.
  * - **Retention by whole segments.** Sweeping means unlinking day files, never
  *   editing one in place — same failure mode as the blob store's `tmp` sweep,
  *   and for the same reason.
@@ -70,7 +71,10 @@ export type StoredEvent = PlaybackEvent & {
 export type AppendResult = {
   /** Events written, in the order they were given. */
   accepted: StoredEvent[]
-  /** Ids already in the log; the caller may clear them from its queue. */
+  /**
+   * Ids this device had already sent; the caller may clear them from its
+   * queue. Bare ids, not dedupe keys — a client speaks only its own.
+   */
   duplicates: string[]
 }
 
@@ -117,6 +121,26 @@ function isStoredEvent(value: unknown): value is StoredEvent {
     Number.isFinite(event.completion) &&
     typeof event.receivedAt === 'string'
   )
+}
+
+/** What the dedupe index is keyed on. See `dedupeKey`. */
+type EventIdentity = Pick<PlaybackEvent, 'id' | 'deviceId'>
+
+/**
+ * Ids are minted per device, so they are only unique *within* one.
+ *
+ * Nothing forces a guest to use a UUID, and a host on a LAN takes events from
+ * every device that holds the pairing token; two of them arriving at the same
+ * naive scheme would otherwise have the second device's plays silently
+ * swallowed as duplicates of the first's. Scoping by device costs a string
+ * concatenation and removes the failure mode entirely.
+ *
+ * Events with no device fall into one shared bucket, which is the old
+ * behaviour and is still correct — it only means they dedupe against each
+ * other.
+ */
+function dedupeKey(event: EventIdentity): string {
+  return `${event.deviceId ?? 'unknown'}\u0000${event.id}`
 }
 
 export function createEventStore(root: string) {
@@ -192,15 +216,19 @@ export function createEventStore(root: string) {
     await mkdir(logDir, { recursive: true })
     for (const name of await segments()) {
       for await (const event of readSegment(name)) {
-        seen.add(event.id)
+        seen.add(dedupeKey(event))
       }
     }
     opened = true
     return seen.size
   }
 
-  function has(id: string): boolean {
-    return seen.has(id)
+  /**
+   * Whether this device's event is already held. Takes the event rather than a
+   * bare id because the id alone does not identify one — see `dedupeKey`.
+   */
+  function has(event: EventIdentity): boolean {
+    return seen.has(dedupeKey(event))
   }
 
   /**
@@ -225,11 +253,14 @@ export function createEventStore(root: string) {
         }
         // Also catches a batch that repeats an id inside itself, since the
         // index is updated as we go rather than after the write.
-        if (seen.has(event.id)) {
+        const key = dedupeKey(event)
+        if (seen.has(key)) {
+          // Reported as the bare id: that is the vocabulary the client queue
+          // speaks, and a client only ever sees its own device.
           duplicates.push(event.id)
           continue
         }
-        seen.add(event.id)
+        seen.add(key)
         accepted.push({ ...event, receivedAt })
       }
 
@@ -248,7 +279,7 @@ export function createEventStore(root: string) {
         // The ids never reached disk, so they must not stay in the index — the
         // client will retry the flush and has to be able to get them in.
         for (const event of accepted) {
-          seen.delete(event.id)
+          seen.delete(dedupeKey(event))
         }
         throw error
       }
@@ -291,27 +322,27 @@ export function createEventStore(root: string) {
       }
       // Read before unlinking: the ids in this segment are the only ones the
       // index may safely forget, and after the `rm` they are unknowable.
-      const ids: string[] = []
+      const keys: string[] = []
       try {
         for await (const event of readSegment(name)) {
-          ids.push(event.id)
+          keys.push(dedupeKey(event))
         }
       } catch {
         // Unreadable segments are swept anyway; they are past retention and
         // nothing can derive an aggregate from them.
       }
       await rm(path.join(logDir, name), { force: true })
-      for (const id of ids) {
-        seen.delete(id)
+      for (const key of keys) {
+        seen.delete(key)
       }
       removed.push(name)
-      events += ids.length
+      events += keys.length
     }
 
     return { segments: removed, events }
   }
 
-  /** Ids currently deduped against, for logging and tests. */
+  /** Events currently deduped against, for logging and tests. */
   function size(): number {
     return seen.size
   }

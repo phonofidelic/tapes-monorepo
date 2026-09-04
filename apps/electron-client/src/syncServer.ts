@@ -138,6 +138,14 @@ export function getSyncRepo(): Repo | undefined {
  * The running host's playback-event log, for the ingest route and for deriving
  * aggregates. Undefined until `startSyncServer` has opened it — a store whose
  * dedupe index has not loaded would re-admit events already on disk.
+ *
+ * **This is only ever *this device's own* log**, exactly as `getBlobStore` is
+ * only its own store. A device can be a host and a guest of another host at the
+ * same time (`SyncServerUrls` in `rendererRepo.ts` syncs a remote server *in
+ * addition to* the local one), and its own plays are flushed to whichever host
+ * it is synced with — which may not be this one. A read path that answers the
+ * renderer from here unconditionally will report zeros for a library whose
+ * events all went elsewhere: the same failure mode TAP-74 fixed for blobs.
  */
 export function getEventStore(): EventStore | undefined {
   return current?.eventStore
