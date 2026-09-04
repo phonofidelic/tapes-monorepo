@@ -2,6 +2,7 @@ import type http from 'http'
 import { pipeline } from 'stream/promises'
 import { BlobTooLargeError, isValidBlobHash, type BlobStore } from './blobStore'
 import { isAuthorized } from './tokenAuth'
+import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
 
 /**
  * The `/blobs` HTTP surface, served from the same origin and port as the sync
@@ -23,17 +24,6 @@ export const DEFAULT_MAX_BLOB_BYTES = 512 * 1024 * 1024
 /** Whole-store ceiling, so a paired peer cannot fill the host's disk. */
 export const DEFAULT_MAX_STORE_BYTES = 32 * 1024 * 1024 * 1024
 
-const CORS_HEADERS: Record<string, string> = {
-  // Safe as a wildcard only because authorization is a bearer token and never
-  // a cookie: a hostile page can send the request but cannot mint the token.
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,HEAD,POST,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization,content-type,range',
-  'Access-Control-Expose-Headers':
-    'content-length,content-range,accept-ranges,etag',
-  'Access-Control-Max-Age': '86400',
-}
-
 export type BlobHandlerOptions = {
   store: BlobStore
   /**
@@ -44,25 +34,6 @@ export type BlobHandlerOptions = {
   token?: string
   maxBlobBytes?: number
   maxStoreBytes?: number
-}
-
-function sendJson(
-  response: http.ServerResponse,
-  status: number,
-  body: unknown,
-) {
-  const payload = JSON.stringify(body)
-  response.writeHead(status, {
-    ...CORS_HEADERS,
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(payload),
-  })
-  response.end(payload)
-}
-
-function sendStatus(response: http.ServerResponse, status: number) {
-  response.writeHead(status, CORS_HEADERS)
-  response.end()
 }
 
 type ParsedRange =
