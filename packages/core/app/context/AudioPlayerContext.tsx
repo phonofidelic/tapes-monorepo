@@ -42,6 +42,53 @@ export type PlaybackFailure =
   /** The recording's bytes never reached a host, so there is nobody to ask. */
   | 'not-uploaded'
 
+/**
+ * One play of one recording, as measured by the transport.
+ *
+ * Shaped to the host's `PlaybackEvent`: the queue that carries these to the
+ * host mints the event id and stamps the device, so the measurement itself
+ * reports only what it can actually observe.
+ */
+export type PlaySession = {
+  /** Automerge url of the recording that was played. */
+  recordingUrl: AutomergeUrl
+  /**
+   * The furthest point reached in this session, as a fraction of the
+   * recording's length, clamped to `[0, 1]`. The high-water mark of
+   * `currentTime` and not accumulated listening time: seeking back and playing
+   * a passage twice must not push a play past 100%.
+   */
+  completion: number
+  /** When the session started, on this device's clock. */
+  occurredAt: string
+}
+
+/**
+ * Below this much actual playback a session is a scrub, a mis-tap or a
+ * preview, and counting it would inflate the play count for exactly the
+ * recordings nobody listened to.
+ */
+const MIN_PLAY_SECONDS = 5
+
+/**
+ * The largest forward step in `currentTime` that can be playback rather than a
+ * seek. Seeks reset the baseline where we can see them, so this only catches
+ * the ones we can't — a media-key scrub, or an element that moved without
+ * saying so. Generous enough to survive a throttled background tab, which
+ * fires `timeupdate` about once a second.
+ */
+const MAX_PLAYBACK_STEP = 2
+
+/** The in-flight session, kept in refs so measuring never re-renders. */
+type OpenSession = {
+  recordingUrl: AutomergeUrl
+  startedAt: number
+  /** Seconds of actual playback, seeks excluded. */
+  played: number
+  /** Furthest `currentTime` reached. */
+  maxTime: number
+}
+
 type AudioPlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement>
   currentTime: number
@@ -88,8 +135,15 @@ const isOpfsName = (filepath: string): boolean =>
 
 export const AudioPlayerProvider = ({
   children,
+  onPlaySession,
 }: {
   children: React.ReactNode
+  /**
+   * Called once per play session that cleared `MIN_PLAY_SECONDS`, when the
+   * session closes. Optional: nothing about playback depends on anyone
+   * listening, so a host that does not count plays simply omits it.
+   */
+  onPlaySession?: (session: PlaySession) => void
 }) => {
   const appContext = useAppContext()
   const blobEndpoints = useBlobEndpoints()
@@ -117,6 +171,17 @@ export const AudioPlayerProvider = ({
   // How far the element reports it can seek, for the sources whose `duration`
   // never resolves to a finite number.
   const [seekableEnd, setSeekableEnd] = useState(0)
+  // Declared up here because the play-session helpers below read the length
+  // through it; kept in step with `seekableDuration` further down.
+  const seekableDurationRef = useRef(0)
+  const sessionRef = useRef<OpenSession | null>(null)
+  // Where `currentTime` was when we last looked, so playback can be told from
+  // a jump.
+  const lastTimeRef = useRef(0)
+  const onPlaySessionRef = useRef(onPlaySession)
+  useEffect(() => {
+    onPlaySessionRef.current = onPlaySession
+  }, [onPlaySession])
 
   useEffect(() => {
     // Detach whatever the player is holding before resolving anything.
@@ -334,6 +399,50 @@ export const AudioPlayerProvider = ({
     recordingDoc?.blob,
   ])
 
+  /**
+   * Fold the transport's new position into the open session: how much of the
+   * step was playback, and whether it is the furthest we have been.
+   */
+  const trackPlayback = useCallback((time: number) => {
+    const session = sessionRef.current
+    if (!session || !Number.isFinite(time)) {
+      return
+    }
+    const step = time - lastTimeRef.current
+    lastTimeRef.current = time
+    if (step > 0 && step <= MAX_PLAYBACK_STEP) {
+      session.played += step
+    }
+    if (time > session.maxTime) {
+      session.maxTime = time
+    }
+  }, [])
+
+  /** Baseline the next step against `time` without counting the gap. */
+  const rebaseline = useCallback((time: number) => {
+    if (Number.isFinite(time)) {
+      lastTimeRef.current = time
+    }
+  }, [])
+
+  const closePlaySession = useCallback((session: OpenSession) => {
+    if (session.played < MIN_PLAY_SECONDS) {
+      return
+    }
+    const length = seekableDurationRef.current
+    // A fraction of a length nothing can address is meaningless — that is the
+    // `Infinity` duration case — and a made-up percentage is worse than a
+    // missing play, so drop the session rather than guess.
+    if (!Number.isFinite(length) || length <= 0) {
+      return
+    }
+    onPlaySessionRef.current?.({
+      recordingUrl: session.recordingUrl,
+      completion: Math.min(Math.max(session.maxTime / length, 0), 1),
+      occurredAt: new Date(session.startedAt).toISOString(),
+    })
+  }, [])
+
   useEffect(() => {
     const audio = audioRef.current
     audio.load()
@@ -369,7 +478,14 @@ export const AudioPlayerProvider = ({
 
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime)
+      trackPlayback(audio.currentTime)
       readSeekableEnd()
+    }
+
+    // A seek is not listening. The element also fires `timeupdate` for one, so
+    // the baseline has to move before that arrives.
+    const onSeeking = () => {
+      rebaseline(audio.currentTime)
     }
 
     const onProgress = () => {
@@ -387,6 +503,9 @@ export const AudioPlayerProvider = ({
         : audio.currentTime
       audio.currentTime = end
       setCurrentTime(end)
+      // Playing a tape out is the one way to genuinely reach the end, and the
+      // last `timeupdate` always lands short of it.
+      trackPlayback(end)
     }
 
     const onError = () => {
@@ -397,6 +516,7 @@ export const AudioPlayerProvider = ({
     audio.addEventListener('durationchange', onDurationChange)
     audio.addEventListener('canplay', onCanPlay)
     audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('seeking', onSeeking)
     audio.addEventListener('progress', onProgress)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
@@ -406,32 +526,64 @@ export const AudioPlayerProvider = ({
       audio.removeEventListener('durationchange', onDurationChange)
       audio.removeEventListener('canplay', onCanPlay)
       audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('seeking', onSeeking)
       audio.removeEventListener('progress', onProgress)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [isPlaying])
+  }, [isPlaying, trackPlayback, rebaseline])
+
+  /**
+   * A session runs for as long as one recording is playing. Closing it from
+   * the cleanup covers every way it can end with one path: a pause or a
+   * natural end (both of which clear `isPlaying`), a change of recording, and
+   * the provider unmounting — which is how most plays end, the user navigating
+   * away mid-tape.
+   */
+  useEffect(() => {
+    if (!isPlaying || !currentUrl) {
+      return
+    }
+    const session: OpenSession = {
+      recordingUrl: currentUrl,
+      startedAt: Date.now(),
+      played: 0,
+      maxTime: audioRef.current.currentTime,
+    }
+    sessionRef.current = session
+    lastTimeRef.current = audioRef.current.currentTime
+
+    return () => {
+      sessionRef.current = null
+      closePlaySession(session)
+    }
+  }, [isPlaying, currentUrl, closePlaySession])
 
   const seekableDuration =
     Number.isFinite(duration) && duration > 0 ? duration : seekableEnd
   // `seek` is handed to pointer and key handlers that re-bind on every move,
   // so keep it stable and read the bound through a ref rather than a dep.
-  const seekableDurationRef = useRef(0)
   useEffect(() => {
     seekableDurationRef.current = seekableDuration
   }, [seekableDuration])
 
-  const seek = useCallback((time: number) => {
-    const limit = seekableDurationRef.current
-    if (!Number.isFinite(time) || limit <= 0) {
-      return
-    }
-    const next = Math.min(Math.max(time, 0), limit)
-    audioRef.current.currentTime = next
-    // The element emits `timeupdate` at its own cadence, so move the transport
-    // now rather than a frame or two later.
-    setCurrentTime(next)
-  }, [])
+  const seek = useCallback(
+    (time: number) => {
+      const limit = seekableDurationRef.current
+      if (!Number.isFinite(time) || limit <= 0) {
+        return
+      }
+      const next = Math.min(Math.max(time, 0), limit)
+      audioRef.current.currentTime = next
+      // The element emits `timeupdate` at its own cadence, so move the transport
+      // now rather than a frame or two later.
+      setCurrentTime(next)
+      // jsdom, and any element that seeks without announcing it, never fires
+      // `seeking`; without this the jump would be counted as listening.
+      rebaseline(next)
+    },
+    [rebaseline],
+  )
 
   return (
     <AudioPlayerContext.Provider
