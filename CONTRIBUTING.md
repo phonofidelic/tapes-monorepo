@@ -19,7 +19,8 @@ yarn            # install dependencies
 
 1. Branch off `main`.
 2. Make your changes. Run the app with `yarn dev`. Use `yarn dev:https` for the
-   LAN recording flow.
+   LAN recording flow. If a file you edit has a module header, re-read the
+   header. Update it if your change makes it wrong.
 3. Run the same checks CI runs before you push:
 
    ```sh
