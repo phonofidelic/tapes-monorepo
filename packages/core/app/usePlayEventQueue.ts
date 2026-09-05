@@ -14,12 +14,11 @@ import {
 
 /**
  * Wires measured play sessions to the durable queue, and drains that queue
- * whenever a host might be listening.
- *
- * Flushing is opportunistic rather than periodic: the moments worth trying are
- * the ones where something changed — the device came back online, the app came
- * back to the foreground, a host was paired, a play just finished. The backoff
- * timer is the fallback for the case none of those fire, not the main clock.
+ * whenever a host might be listening. Flushing is opportunistic rather than
+ * periodic. The moments worth trying are the ones where something changed:
+ * the device came back online, the app came to the foreground, a host was
+ * paired, a play just finished. The backoff timer is only the fallback for
+ * when none of those fire.
  */
 export function usePlayEventQueue({
   storage = localStorage,
@@ -50,9 +49,9 @@ export function usePlayEventQueue({
     async (endpoint: BlobEndpoint) => {
       const key = edgeKey(endpoint)
       // One request per host at a time. Two overlapping flushes would send the
-      // same batch twice; the host would dedupe it, but the second answer is
+      // same batch twice. The host would dedupe it, but the second answer is
       // then written against a queue the first has already cleared. A flush
-      // asked for meanwhile is remembered, not dropped — the usual case is a
+      // asked for meanwhile is remembered, not dropped. The usual case is a
       // play finishing while the flush from app start is still open, and
       // forgetting it would leave that play waiting for the next reconnect.
       if (inFlightRef.current.has(key)) {
@@ -82,9 +81,9 @@ export function usePlayEventQueue({
         timers.delete(key)
       }
 
-      // Anything still queued after the host answered is a retryable rejection
-      // — an event whose recording has not synced here yet — so it backs off
-      // like an unreachable host rather than being retried immediately.
+      // Anything still queued after the host answered is a retryable
+      // rejection, such as an event whose recording has not synced there yet.
+      // It backs off like an unreachable host rather than retrying at once.
       const settled =
         outcome.status === 'empty' ||
         (outcome.status === 'flushed' && outcome.remaining === 0)

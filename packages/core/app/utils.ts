@@ -17,11 +17,10 @@ const isOverconstrained = (error: unknown) =>
 export const getAudioStream = async (selectedMediaDeviceId: string) => {
   try {
     return await navigator.mediaDevices.getUserMedia({
-      // `exact` matters: a bare `deviceId` is only an *ideal* hint, and
-      // Chromium ignores it — it hands back the system default microphone no
-      // matter which device was selected, so the app silently recorded from
-      // the wrong input. Fall back to `true` (the default device) when no
-      // device has been chosen yet, rather than sending an empty constraint.
+      // `exact` matters. A bare device id is only an ideal hint, and Chromium
+      // ignores it and returns the system default microphone. The app then
+      // records from the wrong input. When no device has been chosen yet,
+      // pass `true` for the default device rather than an empty constraint.
       audio: selectedMediaDeviceId
         ? { deviceId: { exact: selectedMediaDeviceId } }
         : true,
@@ -42,13 +41,11 @@ export const getAudioStream = async (selectedMediaDeviceId: string) => {
 const AUTOMERGE_URL_KEY = 'automergeUrl'
 
 /**
- * The document url lives in `localStorage` rather than in React state because
- * the shells read it while building their repo, above the tree that writes it
- * — the same seam as `subscribeToSettingsChange` in `SettingsContext`. Storage
- * on its own doesn't re-render anything though, so a write is published here
- * too: importing a host's url used to change nothing on screen until the next
- * launch, because every reader re-read storage during render and nothing ever
- * told them to render again.
+ * The document url lives in `localStorage` rather than React state, because
+ * the shells read it while building their repo, above the tree that writes
+ * it. This is the same seam as the settings change subscription. Storage on
+ * its own re-renders nothing, so every write is also published to these
+ * listeners.
  */
 const automergeUrlListeners = new Set<() => void>()
 
@@ -69,19 +66,20 @@ function readAutomergeUrl() {
 export function setAutomergeUrl(url: string) {
   localStorage.setItem(AUTOMERGE_URL_KEY, url)
 
-  // `am` is a bootstrap seed a pairing link drops in, and `readAutomergeUrl`
-  // lets it win over storage — so a guest opened from a QR code would keep
-  // resolving to the host's original document and this write would be
-  // invisible. Once a url has been chosen explicitly the seed has served its
-  // purpose: drop it, as the shell already does with the `pt` token.
+  // `am` is a bootstrap seed that a pairing link adds, and it wins over
+  // storage when the url is read. Without this a guest opened from a QR code
+  // would keep resolving to the host's original document, and this write
+  // would be invisible. Once a url has been chosen the seed has done its job.
+  // The shell drops the `pt` token the same way.
   const location = new URL(window.location.href)
   if (location.searchParams.has('am')) {
     location.searchParams.delete('am')
     window.history.replaceState({}, '', location)
   }
 
-  // Iterate a copy: a listener that unsubscribes in response would otherwise
-  // mutate the set mid-iteration.
+  // Readers re-read storage during render, so without this an imported host
+  // url would not show until the next launch. Iterate a copy: a listener that
+  // unsubscribes in response would otherwise mutate the set mid-iteration.
   for (const listener of [...automergeUrlListeners]) {
     try {
       listener()

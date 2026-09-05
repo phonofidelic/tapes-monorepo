@@ -20,10 +20,11 @@ export type Settings = {
 export type SettingKey = keyof Settings
 
 /**
- * The shells read this blob straight out of storage to resolve which sync
- * server to build their repo against (`rendererRepo.ts`, `syncServerUrl.ts`),
- * so its shape is a contract: one flat object of string values, with unset
- * keys absent rather than present-and-null.
+ * The shells read this blob straight out of storage to decide which sync
+ * server to build their repo against. The electron renderer's repo builder
+ * and the web client's sync-url resolver both do this. Its shape is therefore
+ * a contract: one flat object of string values, with unset keys absent rather
+ * than present and null.
  */
 const STORAGE_KEY = 'settings'
 
@@ -33,13 +34,13 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
 }
 
 /**
- * Settings live in a React context inside `App`, but the shells that build the
- * Automerge `Repo` sit above it — and some of these settings (which sync server
- * to use, whether the embedded one speaks HTTPS) decide what that repo is
- * connected to. This is the seam between the two: every write publishes the key
- * that changed, so a shell can re-resolve and rebuild its repo live instead of
- * reloading the window. Module-level rather than context, because the listener
- * is above the provider.
+ * Publishes each settings write to the shells. Settings live in a context
+ * inside the app, but the shells that build the Automerge repo sit above it.
+ * Some settings, such as which sync server to use and whether the embedded
+ * one speaks HTTPS, decide what that repo connects to. Publishing the changed
+ * key lets a shell rebuild its repo live instead of reloading the window.
+ * Module-level rather than context, because the listener is above the
+ * provider.
  */
 const settingsListeners = new Set<(key: SettingKey) => void>()
 
@@ -65,11 +66,11 @@ export const SettingsProvider = ({
   const [settings, setSettings] = useState<Partial<Settings>>(readSettings)
 
   /**
-   * React state is the source of truth and the whole object is persisted on
-   * every write, so storage can never hold a key that state has dropped. The
-   * ref is what makes two writes in the same tick compose: `settings` is a
-   * render-scoped snapshot, and the second write would otherwise spread the
-   * value the first one had already replaced.
+   * React state is the source of truth, and the whole object is persisted on
+   * every write, so storage never holds a key that state has dropped. The ref
+   * makes two writes in the same tick compose. `settings` is a render-scoped
+   * snapshot, and the second write would otherwise spread the value the first
+   * one had already replaced.
    */
   const latestSettings = useRef(settings)
 
@@ -148,14 +149,14 @@ function readSettings(): Partial<Settings> {
       throw new Error('Stored settings are not an object')
     }
 
-    // A merge, not an early return: a missing default must not cost the user
-    // the keys that *are* stored — a storage location, or the pairing a guest
-    // device syncs through.
+    // A merge, not an early return. A missing default must not cost the user
+    // the keys that are stored, such as a storage location or the pairing a
+    // guest device syncs through.
     return { ...DEFAULT_SETTINGS, ...(storedSettings as Partial<Settings>) }
   } catch (error) {
-    // Corrupt JSON, or no storage at all (SSR, a locked-down browser). Losing
-    // settings is recoverable; throwing here takes down the whole app from
-    // inside a `useState` initializer, which is not.
+    // Corrupt JSON, or no storage at all, as in SSR or a locked-down browser.
+    // Losing settings is recoverable. Throwing here takes down the whole app
+    // from inside a `useState` initializer, which is not.
     console.warn('Could not read settings, falling back to defaults', error)
     return { ...DEFAULT_SETTINGS }
   }

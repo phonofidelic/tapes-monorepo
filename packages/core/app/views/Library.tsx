@@ -94,9 +94,9 @@ function LibraryListItem({
   const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
   const blobEndpoints = useBlobEndpoints()
   // Pinning is only meaningful for bytes that live somewhere other than this
-  // device's own disk. On the desktop app that is usually nowhere — its
-  // embedded host already keeps every fetchable blob permanently — but a
-  // desktop paired with a remote server has a real reason to keep a copy.
+  // device's own disk. On the desktop app that is usually nowhere, since its
+  // embedded host already keeps every fetchable blob permanently. A desktop
+  // paired with a remote server has a real reason to keep a copy.
   const canPin = blobEndpoints.some((endpoint) => !endpoint.local)
   const { pinState: readPinState, pin, unpin } = usePins()
   const pinState = readPinState(automergeUrl)
@@ -273,11 +273,11 @@ function LibraryListItem({
                         }
                         if (recording.blob) {
                           // Release the claim on every host that is not this
-                          // device's own store — the electron delete above
+                          // device's own store. The electron delete above
                           // reaches only the embedded one, and a desktop in
                           // remote mode can be holding a claim on a second
                           // host. A guest deliberately cannot delete the host
-                          // user's own audio file; the host unlinks the bytes
+                          // user's own audio file. The host unlinks the bytes
                           // once no document references them.
                           await deleteBlobEverywhere(
                             blobEndpoints.filter((endpoint) => !endpoint.local),
