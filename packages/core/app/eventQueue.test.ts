@@ -258,15 +258,13 @@ describe('backoffDelay', () => {
 
 describe('flushQueue', () => {
   it('sends the whole queue as one batch, bearing the pairing token', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse(200, {
-          accepted: ['a', 'b'],
-          duplicates: [],
-          rejected: [],
-        }),
-      )
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        accepted: ['a', 'b'],
+        duplicates: [],
+        rejected: [],
+      }),
+    )
     vi.stubGlobal('fetch', fetchMock)
     writeQueue(storage, REMOTE, [event({ id: 'a' }), event({ id: 'b' })])
 
@@ -396,6 +394,25 @@ describe('flushQueue', () => {
     expect(readQueue(storage, REMOTE)).toEqual([])
     expect(error).toHaveBeenCalled()
     error.mockRestore()
+  })
+
+  it('keeps the queue when the host has no events route', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(404, { error: 'Not found' })),
+    )
+    writeQueue(storage, REMOTE, [event({ id: 'a' })])
+
+    await expect(flushQueue(storage, REMOTE)).resolves.toEqual({
+      status: 'deferred',
+    })
+    expect(readQueue(storage, REMOTE)).toHaveLength(1)
+  })
+
+  it('recovers from a stored array instead of losing every enqueue', () => {
+    storage.setItem('tapes.eventQueue', '[]')
+    enqueueEvent(storage, REMOTE, event({ id: 'a' }))
+    expect(readQueue(storage, REMOTE)).toHaveLength(1)
   })
 
   it('sends no Authorization when the host is unguarded', async () => {

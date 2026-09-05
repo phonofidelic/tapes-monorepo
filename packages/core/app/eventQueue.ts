@@ -1,19 +1,14 @@
 import type { AutomergeUrl } from '@automerge/automerge-repo'
-import type { BlobEndpoint } from './blobClient'
+import { authHeaders, type BlobEndpoint } from './blobClient'
 import type { PlaySession } from './context/AudioPlayerContext'
 
 /**
  * The durable outbox for playback events.
  *
- * A play is measured on the device that played it, but it is counted on the
- * host, and the two are frequently not in touch: the phone that wandered off
- * the LAN mid-listen is exactly the play the host most wants counted. So a
- * session is not sent, it is *queued*, and the queue survives being closed,
- * backgrounded and reloaded until a host takes it.
- *
- * Per device, never in the Automerge doc — the same reasoning as pins. An
- * unsent local queue is not a fact about the library; syncing it would put one
- * phone's pending sends on every peer.
+ * A play is measured on the device that played it and counted on the host.
+ * The two are often not connected, so a finished session is queued in device
+ * storage and flushed when a host is reachable. The queue is kept per device,
+ * never in the Automerge doc: an unsent queue is not a fact about the library.
  */
 
 /** Shaped to the host's `PlaybackEvent`, which is what `/events` validates. */
@@ -57,11 +52,9 @@ export const DEFAULT_MAX_QUEUED_EVENTS = 500
 /**
  * A v4 uuid, from `crypto.randomUUID` where it exists.
  *
- * The fallback is not belt-and-braces: `randomUUID` is restricted to secure
- * contexts, and the plain-HTTP LAN mode the host can be configured into is
- * exactly such a context — the same restriction that keeps `crypto.subtle` out
- * of `blobClient`. `getRandomValues` carries no such restriction, so the ids
- * stay random rather than falling back to something guessable.
+ * The fallback is needed. `randomUUID` requires a secure context, and the
+ * plain-HTTP LAN mode the host can run in is not one. `getRandomValues` has no
+ * such restriction, so ids stay random instead of guessable.
  */
 export function randomId(): string {
   if (typeof crypto.randomUUID === 'function') {
@@ -99,7 +92,9 @@ type Queues = Record<string, PlaybackEvent[]>
 function readQueues(storage: Storage): Queues {
   try {
     const parsed = JSON.parse(storage.getItem(QUEUE_KEY) ?? '{}')
-    return typeof parsed === 'object' && parsed !== null
+    return typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed)
       ? (parsed as Queues)
       : {}
   } catch {
@@ -277,9 +272,7 @@ export async function flushQueue(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(endpoint.token
-          ? { Authorization: `Bearer ${endpoint.token}` }
-          : {}),
+        ...authHeaders(endpoint),
       },
       body: JSON.stringify({ events: batch }),
     })
@@ -287,28 +280,28 @@ export async function flushQueue(
     return { status: 'deferred' }
   }
 
-  // 401: reachable, but no longer paired. Keep the events — re-pairing is
-  // something the user can actually do, and the plays are still worth sending
-  // afterwards. 429 and 5xx are the host asking for later, in as many words.
+  // 400, 413 and 415 mean this host will never read these bytes. Every event
+  // is judged individually, so a whole-batch refusal is a fault in how the
+  // batch is encoded. Keeping it would wedge the queue permanently, so drop it
+  // and make the fault loud.
   if (
-    response.status === 401 ||
-    response.status === 429 ||
-    response.status >= 500
+    response.status === 400 ||
+    response.status === 413 ||
+    response.status === 415
   ) {
-    return { status: 'deferred' }
-  }
-
-  if (!response.ok) {
-    // 400/413/415 mean this host will never read these bytes, and since every
-    // event is judged individually a whole-batch refusal can only be a fault in
-    // how we encode the batch. Dropping it loses plays; keeping it wedges the
-    // head of the queue and starves every play that comes after, permanently.
-    // Drop, and make the fault loud rather than silent.
     console.error(
       `Host refused an event batch (${response.status}); dropping ${batch.length} queued events.`,
     )
     writeQueue(storage, endpoint, [])
     return { status: 'flushed', remaining: 0 }
+  }
+
+  // Anything else that is not a 200 is a host to try again later. 401 means no
+  // longer paired, and re-pairing is something the user can do. 429 and 5xx
+  // ask for later outright. 404 and 405 mean this host has no events route
+  // yet, which is not a reason to lose the plays.
+  if (!response.ok) {
+    return { status: 'deferred' }
   }
 
   let answer: IngestResponse

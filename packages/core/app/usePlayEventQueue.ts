@@ -148,9 +148,11 @@ export function usePlayEventQueue({
     [flushEndpoint, storage],
   )
 
-  // Flush on mount and whenever the set of known hosts changes — pairing with a
-  // host is exactly when a queue that has been waiting can finally go.
-  const endpointKeys = endpoints.map(edgeKey).join('\n')
+  // Flush on mount and whenever a host or its token changes. Pairing with a
+  // host, or re-pairing after a 401, is when a waiting queue can finally go.
+  const endpointKeys = endpoints
+    .map((endpoint) => `${edgeKey(endpoint)} ${endpoint.token ?? ''}`)
+    .join('\n')
   useEffect(() => {
     flushAll()
   }, [flushAll, endpointKeys])
