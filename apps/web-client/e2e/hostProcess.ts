@@ -37,11 +37,17 @@ type Command =
       withBytes: boolean
     }
   | { id: number; type: 'objects' }
+  | { id: number; type: 'recordings' }
   | { id: number; type: 'stop' }
   | { id: number; type: 'restart' }
   | { id: number; type: 'dispose' }
 
-type Paths = { root: string; blobRoot: string; storageRoot: string }
+type Paths = {
+  root: string
+  blobRoot: string
+  storageRoot: string
+  eventRoot: string
+}
 
 let disposing = false
 let paths: Paths | undefined
@@ -74,6 +80,9 @@ async function listen(where: Paths) {
     port: HOST_PORT,
     peerId: 'e2e-host',
     blobStorePath: where.blobRoot,
+    // Without this the server claims `/events` and answers 503, and a guest's
+    // queue never clears. The desktop app always passes it.
+    eventStorePath: where.eventRoot,
     pairingToken: PAIRING_TOKEN,
   })
   if (info.port !== HOST_PORT) {
@@ -95,9 +104,11 @@ async function start() {
     root,
     blobRoot: path.join(root, 'blobs'),
     storageRoot: path.join(root, 'automerge'),
+    eventRoot: path.join(root, 'events'),
   }
   await mkdir(paths.blobRoot, { recursive: true })
   await mkdir(paths.storageRoot, { recursive: true })
+  await mkdir(paths.eventRoot, { recursive: true })
 
   const info = await listen(paths)
 
@@ -184,6 +195,22 @@ async function upload(
     throw new Error(`Seeding a blob failed: ${response.status}`)
   }
   return (await response.json()) as BlobDescriptor
+}
+
+/**
+ * The library's recordings, by name and url. A guest's own recording gets its
+ * url on this device, so a test that made one on the browser has no other way
+ * to name it when asking the host for its count.
+ */
+async function recordings(): Promise<{ url: string; name: string }[]> {
+  const repo = await connectAsPeer()
+  const library = await repo.find<RecordingRepoState>(libraryUrl!)
+  const found: { url: string; name: string }[] = []
+  for (const url of library.doc().recordings) {
+    const recording = await repo.find<RecordingData>(url)
+    found.push({ url, name: recording.doc().name })
+  }
+  return found
 }
 
 /** Every object the host is holding, by hash. */
@@ -279,6 +306,8 @@ async function run(command: Command): Promise<unknown> {
       return seed(command)
     case 'objects':
       return objects()
+    case 'recordings':
+      return recordings()
     case 'stop':
       return stopSyncServer()
     case 'restart':
@@ -317,12 +346,16 @@ process.on('uncaughtException', (error) => {
   process.exit(1)
 })
 
-// stdout is the protocol. The sync server logs the address it bound to, and
-// anything else reaching this stream would arrive at `host.ts` as a line that
-// is not JSON, so the app's own logging goes to stderr with everything else.
-console.log = (...args: unknown[]) => {
+// stdout is the protocol. The sync server logs the address it bound to and the
+// event log logs what it indexed, and anything else reaching this stream would
+// arrive at `host.ts` as a line that is not JSON. So the app's own logging goes
+// to stderr with everything else. `console.warn` and `console.error` are
+// already there.
+const toStderr = (...args: unknown[]) => {
   process.stderr.write(`${args.join(' ')}\n`)
 }
+console.log = toStderr
+console.info = toStderr
 
 const input = createInterface({ input: process.stdin })
 input.on('line', (line) => {

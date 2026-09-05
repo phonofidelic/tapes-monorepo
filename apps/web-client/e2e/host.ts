@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
-import type { BlobDescriptor } from '@tapes-monorepo/core'
+import type { BlobDescriptor, RecordingAggregate } from '@tapes-monorepo/core'
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
 /**
@@ -137,6 +137,38 @@ export function seedRecording(options: {
 /** Every object the host is holding, by hash. */
 export function hostObjects(): Promise<{ hash: string; size: number }[]> {
   return send<{ hash: string; size: number }[]>({ type: 'objects' })
+}
+
+/** The library's recordings, by name and url, as the host has them. */
+export function hostRecordings(): Promise<{ url: string; name: string }[]> {
+  return send<{ url: string; name: string }[]>({ type: 'recordings' })
+}
+
+/**
+ * What the host counts, read over the route the app reads.
+ *
+ * Straight HTTP rather than another stdio command. These numbers are only
+ * worth asserting as a client can actually obtain them, and the token goes in
+ * the query string for the reason `tokenAuth.ts` gives.
+ */
+export async function hostAggregates(): Promise<RecordingAggregate[]> {
+  const response = await fetch(
+    `${HOST_ORIGIN}/events/aggregates?t=${PAIRING_TOKEN}`,
+  )
+  if (!response.ok) {
+    throw new Error(`Reading aggregates failed: ${response.status}`)
+  }
+  const body = (await response.json()) as { aggregates: RecordingAggregate[] }
+  return body.aggregates
+}
+
+/** One recording's numbers, or undefined while the host has counted no play. */
+export async function hostPlays(
+  recordingUrl: string,
+): Promise<RecordingAggregate | undefined> {
+  return (await hostAggregates()).find(
+    (aggregate) => aggregate.recordingUrl === recordingUrl,
+  )
 }
 
 /** Takes the host off the network, leaving its storage in place. */
