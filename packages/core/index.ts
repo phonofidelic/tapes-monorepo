@@ -10,7 +10,8 @@ export * from './app/blobUpload'
 export { useAutomergeUrl } from './app/utils'
 export {
   useAggregates,
-  useRecordingAggregate,
+  useRecordingPlayback,
+  type RecordingPlayback,
   type AggregatesState,
 } from './app/context/AggregatesContext'
 export {

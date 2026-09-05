@@ -8,6 +8,7 @@ import { PinProvider } from '@/context/PinContext'
 import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
 import type { RecordingData, RecordingRepoState } from '@/types'
+import { AggregatesProvider } from '@/context/AggregatesContext'
 import { Library } from './Library'
 
 const REPO_URL = 'automerge:repo' as AutomergeUrl
@@ -322,5 +323,57 @@ describe('deleting', () => {
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toContain(`https://sync.example.com/blobs/${HASH}`)
     expect(init.method).toBe('DELETE')
+  })
+})
+
+describe('playback numbers on a row', () => {
+  beforeEach(() => {
+    cleanup()
+    recording = baseRecording
+    vi.unstubAllGlobals()
+  })
+
+  const renderWithHost = (fetchImpl: () => Promise<Response>) => {
+    vi.stubGlobal('fetch', fetchImpl)
+    return render(
+      <AppContextProvider value={webContext}>
+        <BlobProvider endpoints={[]}>
+          <PinProvider>
+            <AggregatesProvider
+              target={{ kind: 'http', baseUrl: 'http://127.0.0.1:9001' }}
+            >
+              <Library />
+            </AggregatesProvider>
+          </PinProvider>
+        </BlobProvider>
+      </AppContextProvider>,
+    )
+  }
+
+  const answering = (plays: number, averageCompletion: number) => () =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          aggregates: [
+            { recordingUrl: RECORDING_URL, plays, averageCompletion },
+          ],
+          generatedAt: '2026-09-05T10:00:00.000Z',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+  it('shows the numbers next to the duration once the host answers', async () => {
+    renderWithHost(answering(12, 0.625))
+
+    expect(
+      await screen.findByText('12 plays · 63% complete on average'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows nothing rather than a zero when no host has answered', () => {
+    renderLibrary()
+
+    expect(screen.getByText('Plays unknown')).toBeInTheDocument()
   })
 })
