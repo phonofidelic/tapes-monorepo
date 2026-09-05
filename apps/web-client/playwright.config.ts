@@ -53,8 +53,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      // These two have servers of their own.
-      testIgnore: [/pwa\.spec\.ts/, /two-device\.spec\.ts/],
+      // These have servers of their own.
+      testIgnore: [
+        /pwa\.spec\.ts/,
+        /two-device\.spec\.ts/,
+        /playback-events\.spec\.ts/,
+      ],
       use: {
         browserName: 'chromium',
         launchOptions: {
@@ -72,7 +76,7 @@ export default defineConfig({
     },
     {
       name: 'two-device',
-      testMatch: /two-device\.spec\.ts/,
+      testMatch: /(two-device|playback-events)\.spec\.ts/,
       use: {
         browserName: 'chromium',
         baseURL: GUEST_URL,
