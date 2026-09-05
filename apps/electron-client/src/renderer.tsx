@@ -5,9 +5,12 @@ import {
   IpcService,
   SyncServerInfo,
   resolveBlobEndpoints,
+  resolveEventTarget,
+  sameEventTarget,
   subscribeToSettingsChange,
   useAutomergeUrl,
   type BlobEndpoint,
+  type EventHost,
 } from '@tapes-monorepo/core'
 import './index.css'
 import { DocHandle, isValidAutomergeUrl, Repo } from '@automerge/automerge-repo'
@@ -40,6 +43,7 @@ function ElectronAppRoot() {
     null,
   )
   const [blobEndpoints, setBlobEndpoints] = useState<BlobEndpoint[]>([])
+  const [eventTarget, setEventTarget] = useState<EventHost | undefined>()
   const [repo, setRepo] = useState<Repo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const handleRef = useRef<DocHandle<unknown> | null>(null)
@@ -95,6 +99,18 @@ function ElectronAppRoot() {
         })
         setBlobEndpoints((current) =>
           sameBlobEndpoints(current, endpoints) ? current : endpoints,
+        )
+        // Playback numbers resolve to one host, not a list. In remote mode
+        // that is the server this app is a guest of — reading its own embedded
+        // store instead would report zeros for a library whose plays all went
+        // elsewhere, which is TAP-74's failure in a second place.
+        const target = resolveEventTarget({
+          syncServerInfo: info,
+          remoteSyncServerUrl: urls.remoteUrl,
+          token: settings.pairingToken,
+        })
+        setEventTarget((current) =>
+          sameEventTarget(current, target) ? current : target,
         )
       } catch (ipcError) {
         console.error('Failed to reach the embedded sync server', ipcError)
@@ -225,6 +241,7 @@ function ElectronAppRoot() {
       appContextValue={appContextValue}
       repoContextValue={repo}
       blobEndpoints={blobEndpoints}
+      eventTarget={eventTarget}
     />
   )
 }

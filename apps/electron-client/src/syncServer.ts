@@ -308,7 +308,12 @@ async function unavailableEventRequestHandler(
   request: http.IncomingMessage,
   response: http.ServerResponse,
 ): Promise<boolean> {
-  if (new URL(request.url ?? '/', 'http://localhost').pathname !== '/events') {
+  const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+  // The read path is answered here too. Without it `/events/aggregates` falls
+  // through to the static handler, whose SPA fallback returns a page of HTML
+  // with a 200 — which a client parses as a broken response rather than as the
+  // "this host has no event store" that it is.
+  if (pathname !== '/events' && pathname !== '/events/aggregates') {
     return false
   }
   request.resume()
@@ -474,6 +479,10 @@ export async function startSyncServer(
   const handleEventRequest = eventStore
     ? createEventRequestHandler({
         store: eventStore,
+        // Undefined when the rollup failed to open: reads then answer 503
+        // rather than an empty library, which would read as "nobody has played
+        // anything" instead of "these numbers are unavailable".
+        aggregates: aggregateStore,
         token: pairingToken,
         isKnownRecording: createKnownRecordingCheck(storagePath),
       })

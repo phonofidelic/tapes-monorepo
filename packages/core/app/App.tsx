@@ -13,6 +13,7 @@ import { useAudioPlayer } from './context/AudioPlayerContext'
 import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
 import type { BlobEndpoint } from './blobClient'
+import type { EventHost } from './eventTarget'
 
 /**
  * The shared app tree. Each shell builds its own `Repo` and passes it in: the
@@ -25,15 +26,23 @@ import type { BlobEndpoint } from './blobClient'
  * the order to try them, resolved by the shell for the same reason. Leaving
  * them out is a supported mode: a standalone web client has no host, so its
  * recordings stay on the device.
+ *
+ * `eventTarget` is the single host that owns this library's playback numbers,
+ * resolved by the shell through `resolveEventTarget`. One host and not a list:
+ * bytes are content addressed so any host holding them will do, but a play
+ * count is held by one host and asking a second would return the wrong number
+ * rather than none.
  */
 export function App({
   appContextValue,
   repoContextValue,
   blobEndpoints,
+  eventTarget,
 }: {
   appContextValue: AppContextValue
   repoContextValue: Repo | null
   blobEndpoints?: readonly BlobEndpoint[]
+  eventTarget?: EventHost
 }) {
   const mainRef = useRef<HTMLDivElement | null>(null)
 
@@ -47,6 +56,7 @@ export function App({
         appContext: appContextValue,
         repoContext: repoContextValue,
         blobEndpoints,
+        eventTarget,
       }}
     >
       <Main mainRef={mainRef} />

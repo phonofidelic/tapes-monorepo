@@ -25,6 +25,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'blob:has': true,
   'blob:cache-put': true,
   'library:announce': true,
+  'events:get-aggregates': true,
 }
 
 const validChannels = Object.keys(CHANNEL_ALLOWLIST) as ValidIpcChanel[]

@@ -5,7 +5,11 @@ import { tmpdir } from 'os'
 import { afterEach, describe, expect, it } from 'vitest'
 import { startSyncServer, stopSyncServer } from './syncServer'
 import { createEventStore } from './eventStore'
-import { createEventRequestHandler, type IngestResponse } from './eventHttp'
+import {
+  createEventRequestHandler,
+  type AggregatesResponse,
+  type IngestResponse,
+} from './eventHttp'
 
 const TOKEN = 'test-event-token'
 /** Shaped like a real Automerge url; the route validates the shape. */
@@ -507,5 +511,143 @@ describe('ingest limits', () => {
 
     expect(denied.status).toBe(401)
     expect(allowed.status).toBe(200)
+  })
+})
+
+describe('aggregate reads', () => {
+  function getAggregates(
+    origin: string,
+    init: { token?: string | null; etag?: string; method?: string } = {},
+  ) {
+    const { token = TOKEN, etag, method = 'GET' } = init
+    return fetch(`${origin}/events/aggregates`, {
+      method,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(etag ? { 'If-None-Match': etag } : {}),
+      },
+    })
+  }
+
+  it('rejects a read with no token', async () => {
+    const { origin } = await startHost()
+
+    expect((await getAggregates(origin, { token: null })).status).toBe(401)
+  })
+
+  it('answers an empty library with an empty list, not an error', async () => {
+    const { origin } = await startHost()
+
+    const response = await getAggregates(origin)
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as AggregatesResponse
+    expect(body.aggregates).toEqual([])
+    expect(Date.parse(body.generatedAt)).not.toBeNaN()
+  })
+
+  // The whole point of the route: one request covers the library. A per-row
+  // route would make a hundred-tape list a hundred round trips.
+  it('returns every played recording in one response', async () => {
+    const { origin, storagePath } = await startHost()
+    await seedRecording(storagePath, OTHER_RECORDING)
+
+    await post(origin, {
+      events: [
+        event({ id: 'a', completion: 1 }),
+        event({ id: 'b', completion: 0.5 }),
+        event({ id: 'c', recordingUrl: OTHER_RECORDING, completion: 0.25 }),
+      ],
+    })
+
+    const body = (await (
+      await getAggregates(origin)
+    ).json()) as AggregatesResponse
+    // Sorted by recording url, which is what makes the entity tag stable
+    // across a restart: the rollup's own iteration order follows whether the
+    // host replayed the log or folded events in as they arrived.
+    expect(body.aggregates).toEqual([
+      { recordingUrl: RECORDING, plays: 2, averageCompletion: 0.75 },
+      { recordingUrl: OTHER_RECORDING, plays: 1, averageCompletion: 0.25 },
+    ])
+  })
+
+  // Ingest folds into the rollup rather than leaving it to a later replay: a
+  // client that flushes a play and then renders the Library has to see it.
+  it('reflects a play flushed a moment earlier', async () => {
+    const { origin } = await startHost()
+
+    const before = (await (
+      await getAggregates(origin)
+    ).json()) as AggregatesResponse
+    await post(origin, { events: [event({ id: 'a', completion: 1 })] })
+    const after = (await (
+      await getAggregates(origin)
+    ).json()) as AggregatesResponse
+
+    expect(before.aggregates).toEqual([])
+    expect(after.aggregates).toEqual([
+      { recordingUrl: RECORDING, plays: 1, averageCompletion: 1 },
+    ])
+  })
+
+  // A duplicate is dropped by the log, so it must not reach the rollup either:
+  // a retried flush that counted twice is exactly what dedupe exists to stop.
+  it('does not count a re-sent event twice', async () => {
+    const { origin } = await startHost()
+
+    await post(origin, { events: [event({ id: 'a', completion: 1 })] })
+    await post(origin, { events: [event({ id: 'a', completion: 1 })] })
+
+    const body = (await (
+      await getAggregates(origin)
+    ).json()) as AggregatesResponse
+    expect(body.aggregates).toEqual([
+      { recordingUrl: RECORDING, plays: 1, averageCompletion: 1 },
+    ])
+  })
+
+  it('revalidates with an entity tag instead of resending the list', async () => {
+    const { origin } = await startHost()
+    await post(origin, { events: [event({ id: 'a' })] })
+
+    const first = await getAggregates(origin)
+    const etag = first.headers.get('etag')
+    expect(etag).toBeTruthy()
+
+    const second = await getAggregates(origin, { etag: etag ?? undefined })
+
+    expect(second.status).toBe(304)
+    await expect(second.text()).resolves.toBe('')
+  })
+
+  it('issues a new tag once the numbers move', async () => {
+    const { origin } = await startHost()
+    await post(origin, { events: [event({ id: 'a' })] })
+    const etag = (await getAggregates(origin)).headers.get('etag') ?? undefined
+
+    await post(origin, { events: [event({ id: 'b' })] })
+    const response = await getAggregates(origin, { etag })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('etag')).not.toBe(etag)
+  })
+
+  it('refuses a write to the read path', async () => {
+    const { origin } = await startHost()
+
+    expect((await getAggregates(origin, { method: 'POST' })).status).toBe(405)
+  })
+
+  // Without its own route the read path falls through to the SPA fallback,
+  // which answers 200 with a page of HTML — a client would read that as a
+  // broken host rather than as one with no event store.
+  it('answers 503 rather than the SPA shell when there is no event store', async () => {
+    const { origin } = await startHost({ withStore: false, withBundle: true })
+
+    const response = await getAggregates(origin, { token: null })
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('content-type')).toContain('application/json')
   })
 })

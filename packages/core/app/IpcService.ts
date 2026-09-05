@@ -26,6 +26,7 @@ export type ValidIpcChanel =
   | 'blob:has'
   | 'blob:cache-put'
   | 'library:announce'
+  | 'events:get-aggregates'
 
 export type SyncServerInfo = {
   running: boolean
@@ -127,6 +128,32 @@ export type HasBlobResponse =
       error: never
     }
 
+/**
+ * The host's own playback numbers, read straight off its aggregate store.
+ *
+ * `success: false` is how "this host has no aggregates" arrives, and it is not
+ * the same answer as an empty list: one means the numbers are unavailable, the
+ * other that nothing has been played.
+ */
+export type GetAggregatesResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: {
+        aggregates: {
+          recordingUrl: string
+          plays: number
+          averageCompletion: number
+        }[]
+        generatedAt: string
+      }
+      error: never
+    }
+
 type IpcSendArgs =
   | [
       'settings:set-default-audio-input-device',
@@ -167,6 +194,7 @@ type IpcSendArgs =
     ]
   | ['blob:has', IpcRequest & { data: { hash: string } }]
   | ['library:announce', IpcRequest & { data: { url: string } }]
+  | ['events:get-aggregates']
   | [
       'blob:cache-put',
       IpcRequest & {
