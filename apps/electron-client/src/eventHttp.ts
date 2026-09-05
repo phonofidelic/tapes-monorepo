@@ -1,5 +1,7 @@
+import { createHash } from 'crypto'
 import type http from 'http'
-import type { EventStore, PlaybackEvent } from './eventStore'
+import type { RecordingAggregate } from './aggregates'
+import type { EventStore, PlaybackEvent, StoredEvent } from './eventStore'
 import { isAuthorized } from './tokenAuth'
 import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
 
@@ -12,6 +14,10 @@ import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
  * further to configure. Like the blob routes it must be mounted *ahead* of the
  * static handler, whose SPA fallback answers any unmatched path with a 200 and
  * a page of HTML.
+ *
+ * **Two routes.** Posting to `/events` stores what a guest played. Getting
+ * `/events/aggregates` returns the totals per recording. They share this file
+ * because they share the log, the token and the origin.
  *
  * **A flush is a batch.** The client queues events while offline and sends
  * what it has in one request, so the interesting case is not one event but a
@@ -26,6 +32,14 @@ import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
  */
 
 export const EVENTS_PATH = '/events'
+
+/**
+ * Returns every recording's numbers in one response.
+ *
+ * Whole-library and never per-recording. The Library renders every row at once,
+ * so a per-recording route would mean a hundred requests for one screen.
+ */
+export const AGGREGATES_PATH = '/events/aggregates'
 
 /** Events per request. A flush of more than this is a bug or an attack. */
 export const DEFAULT_MAX_BATCH_EVENTS = 500
@@ -82,8 +96,40 @@ export type IngestResponse = {
   rejected: Rejection[]
 }
 
+/**
+ * What these routes need from the aggregate store, and no more. Kept narrow so
+ * a request can never trigger a rebuild or a retention sweep.
+ */
+export type Aggregates = {
+  all(): RecordingAggregate[]
+  /**
+   * Called with the events the log accepted, so a read straight after a flush
+   * is current. Duplicates are dropped before this point, so a retried flush
+   * cannot count twice.
+   */
+  record(accepted: StoredEvent[]): void
+}
+
+/**
+ * The read route's answer.
+ *
+ * `generatedAt` records when the response was built, which is what dates a
+ * client's cached copy. Recordings with no plays are absent rather than sent
+ * as zeros.
+ */
+export type AggregatesResponse = {
+  aggregates: RecordingAggregate[]
+  generatedAt: string
+}
+
 export type EventHandlerOptions = {
   store: EventStore
+  /**
+   * Totals derived from that log. Absent when they failed to open. Reads then
+   * answer 503 and ingest carries on, since the totals can be rebuilt from the
+   * log later.
+   */
+  aggregates?: Aggregates
   /**
    * Shared secret from `sync-server.json`, as for `/blobs`. Absent only in
    * tests that exercise the unguarded shape.
@@ -235,6 +281,7 @@ function createRateLimiter(
 export function createEventRequestHandler(options: EventHandlerOptions) {
   const {
     store,
+    aggregates,
     token,
     isKnownRecording,
     maxBatchEvents = DEFAULT_MAX_BATCH_EVENTS,
@@ -330,6 +377,11 @@ export function createEventRequestHandler(options: EventHandlerOptions) {
 
     const { accepted, duplicates } = await store.append(valid)
 
+    // Folded in here rather than recomputed on the next read. Without this, a
+    // client that flushes a play and renders the Library sees the old number
+    // until the host restarts and replays the log.
+    aggregates?.record(accepted)
+
     const answer: IngestResponse = {
       accepted: accepted.map((event) => event.id),
       duplicates,
@@ -343,6 +395,63 @@ export function createEventRequestHandler(options: EventHandlerOptions) {
   }
 
   /**
+   * Serves the totals, with an entity tag so a reconnecting client can ask
+   * whether anything changed.
+   *
+   * The list is sorted by recording url to keep that tag stable. Iteration
+   * order otherwise depends on whether the host replayed its log or folded
+   * events in as they arrived, so the tag would change on every restart.
+   */
+  function handleAggregates(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ) {
+    if (!aggregates) {
+      sendJson(response, 503, {
+        error: 'Playback aggregates are not available',
+      })
+      return
+    }
+
+    const sorted = [...aggregates.all()].sort((a, b) =>
+      a.recordingUrl < b.recordingUrl
+        ? -1
+        : a.recordingUrl > b.recordingUrl
+          ? 1
+          : 0,
+    )
+    const etag = `"${createHash('sha256')
+      .update(JSON.stringify(sorted))
+      .digest('hex')
+      .slice(0, 32)}"`
+
+    // The client sends back the tag it was given, so an equality test is
+    // enough.
+    if (request.headers['if-none-match'] === etag) {
+      response.writeHead(304, { ...CORS_HEADERS, ETag: etag })
+      response.end()
+      return
+    }
+
+    const body: AggregatesResponse = {
+      aggregates: sorted,
+      generatedAt: new Date(now()).toISOString(),
+    }
+    const payload = JSON.stringify(body)
+    response.writeHead(200, {
+      ...CORS_HEADERS,
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(payload),
+      ETag: etag,
+      // The client does its own caching. This stops anything in between from
+      // holding a copy for longer.
+      'Cache-Control': 'no-cache',
+    })
+    // HEAD returns the headers alone, so a client can check the tag cheaply.
+    response.end(request.method === 'HEAD' ? undefined : payload)
+  }
+
+  /**
    * Returns true when the request was an events request and has been answered,
    * so the caller knows not to fall through to the static handler.
    */
@@ -351,7 +460,8 @@ export function createEventRequestHandler(options: EventHandlerOptions) {
     response: http.ServerResponse,
   ): Promise<boolean> {
     const url = new URL(request.url ?? '/', 'http://localhost')
-    if (url.pathname !== EVENTS_PATH) {
+    const isAggregates = url.pathname === AGGREGATES_PATH
+    if (!isAggregates && url.pathname !== EVENTS_PATH) {
       return false
     }
 
@@ -367,14 +477,18 @@ export function createEventRequestHandler(options: EventHandlerOptions) {
       return true
     }
 
-    if (method !== 'POST') {
+    const allowed = isAggregates
+      ? method === 'GET' || method === 'HEAD'
+      : method === 'POST'
+    if (!allowed) {
       sendJson(response, 405, { error: 'Method not allowed' })
       return true
     }
 
     // After the token check, so an unauthorized caller cannot spend a paired
-    // guest's budget, and before the body is read, so a refused request costs
-    // neither parsing nor disk.
+    // guest's budget. Before the body is read, so a refused request costs no
+    // parsing or disk. Reads share the same budget, since a client looping on
+    // a read is the same problem as one looping on a flush.
     if (!take(request.socket)) {
       request.resume()
       // Written by hand rather than through `sendJson` for the `Retry-After`:
@@ -391,12 +505,22 @@ export function createEventRequestHandler(options: EventHandlerOptions) {
     }
 
     try {
-      await handleIngest(request, response)
+      if (isAggregates) {
+        request.resume()
+        handleAggregates(request, response)
+      } else {
+        await handleIngest(request, response)
+      }
       return true
     } catch (error) {
-      console.error('Event ingest failed:', error)
+      console.error(
+        isAggregates ? 'Aggregate read failed:' : 'Event ingest failed:',
+        error,
+      )
       if (!response.headersSent) {
-        sendJson(response, 500, { error: 'Event ingest failed' })
+        sendJson(response, 500, {
+          error: isAggregates ? 'Aggregate read failed' : 'Event ingest failed',
+        })
       } else {
         response.destroy()
       }
