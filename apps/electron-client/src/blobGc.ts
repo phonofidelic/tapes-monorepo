@@ -7,17 +7,12 @@ import type { BlobStore, StoredObject } from './blobStore'
 /**
  * Mark-and-sweep for the blob store.
  *
- * The store reclaims space by refcount, which only works when every owner
- * announces itself. Three things defeat that: a crash between writing the
- * object and writing its ref record, a peer that deletes a recording while
- * offline and never reaches `DELETE /blobs/:hash?doc=`, and uploads abandoned
- * outside `tmp/`. None of those can ever be released, so the only way to find
- * them is to ask the doc graph what is still referenced and unlink the rest.
- *
- * This lives outside `blobStore.ts` on purpose. The store imports nothing from
- * Automerge or Electron — that is what lets the HTTP surface be tested against
- * a real server in a plain node process — so the knowledge of what a recording
- * document looks like is composed in here instead of reaching into it.
+ * Refcounts miss objects whose owner never announced itself: a crash between
+ * writing an object and its ref record, a peer that deleted a recording while
+ * offline, or an upload abandoned outside `tmp/`. This walks every library
+ * document the host holds and unlinks objects none of them reference.
+ * Kept out of `blobStore.ts` so the store stays free of Automerge and Electron
+ * imports and can be tested in a plain node process.
  */
 
 /** Objects younger than this are never swept. See `collectOrphanedBlobs`. */
@@ -40,7 +35,7 @@ export type BlobGcResult = {
   skippedYoung: number
   /**
    * Bytes whose last link was dropped. Objects still hardlinked from the
-   * user's recordings folder are excluded — unlinking those frees nothing.
+   * user's recordings folder are excluded. Unlinking those frees nothing.
    */
   reclaimedBytes: number
   /** Swept objects the user still holds a copy of. */
@@ -48,7 +43,7 @@ export type BlobGcResult = {
   roots: AutomergeUrl[]
   /**
    * Set when the mark phase could not be completed. The sweep is abandoned
-   * whole rather than run on a partial set — see `collectOrphanedBlobs`.
+   * whole rather than run on a partial set. See `collectOrphanedBlobs`.
    */
   abortedReason?: string
 }
@@ -101,28 +96,21 @@ async function storedDocumentUrls(
 /**
  * A document is a library root when it carries a `recordings` array.
  *
- * Every root on disk counts, not just this device's own: the store is shared
- * across every library this host has served, and a guest can arrive with its
- * own library (`?am=` in `utils.ts`) and upload blobs against it. Sweeping
- * against one library's reachable set would delete another's audio.
+ * Every root on disk counts, not only this device's own. A guest can arrive
+ * with its own library through the `?am=` query and upload blobs against it.
+ * Sweeping against one library's reachable set would delete another's audio.
  */
 function isRootDoc(doc: Doc | undefined): doc is Doc & RecordingRepoState {
   return Array.isArray(doc?.recordings)
 }
 
 /**
- * Walks the live doc graph and unlinks objects it cannot reach.
+ * Walks the live document graph and unlinks objects it cannot reach.
  *
- * Two rules keep this from eating live audio:
- *
- * - **A document that will not resolve abandons the whole sweep.** A partial
- *   mark set is indistinguishable from a smaller library, so "I could not read
- *   this" must never be allowed to read as "nothing references those bytes".
- * - **Objects younger than `graceMs` are left alone.** A recording is uploaded
- *   before — and independently of — its document reaching this host, and a
- *   queued upload carries no hash at all (`blobUpload.ts` holds a `docUrl` and
- *   a filepath), so a just-arrived object is legitimately unreachable for a
- *   while.
+ * A document that will not resolve abandons the whole sweep. A partial mark
+ * set looks the same as a smaller library, and would read as "nothing
+ * references these bytes". Objects younger than `graceMs` are left alone; the
+ * reason is at the grace check below.
  */
 export async function collectOrphanedBlobs({
   repo,
@@ -229,6 +217,10 @@ export async function collectOrphanedBlobs({
     if (live.has(object.hash)) {
       continue
     }
+    // A recording is uploaded before, and independently of, its document
+    // reaching this host. The queued upload in core's `blobUpload.ts` carries a
+    // document url and a file path, not a hash. So a fresh object is
+    // legitimately unreachable for a while. ctime is when the store took it.
     if (now - object.ctimeMs < graceMs) {
       skippedYoung += 1
       continue

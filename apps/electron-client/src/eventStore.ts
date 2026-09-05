@@ -6,29 +6,12 @@ import { createInterface } from 'readline'
 /**
  * A durable, append-only log of playback events, owned by the sync host.
  *
- * Aggregates are *derived* from this log rather than kept as merged counters,
- * which is the whole reason the raw events have to survive a restart: a counter
- * that two peers increment concurrently cannot be repaired, but a log can be
- * replayed. `deriveAggregates` reads this back from scratch.
- *
- * Three properties do the real work here:
- *
- * - **Append-only, never rewritten.** Every write is an `appendFile` to the end
- *   of a day segment. An unclean quit can therefore only ever leave a torn
- *   *last line*, which every reader skips, and no reader can observe a
- *   half-updated store the way it could with a rewritten JSON blob.
- * - **Dedupe from memory, not from disk.** The set of seen events is built
- *   once when the store opens and kept in memory afterwards, so answering
- *   "have I seen this one?" for every event of every ingest costs nothing.
- *   `POST /events` retries after a lost response, so this runs on the hot
- *   path. Identity is per device, not a bare id — see `dedupeKey`.
- * - **Retention by whole segments.** Sweeping means unlinking day files, never
- *   editing one in place — same failure mode as the blob store's `tmp` sweep,
- *   and for the same reason.
- *
- * Deliberately free of any `electron` import, like `blobStore.ts`: path
- * resolution lives in `syncServerConfig`, so this can be tested in a plain node
- * process against a real directory.
+ * Aggregates are derived from this log, never kept as merged counters. Two
+ * peers cannot repair a counter they both incremented, but a log can be
+ * replayed. Every write appends to a day segment, no file is ever rewritten,
+ * and retention unlinks whole segments.
+ * Do not import `electron` here. Path resolution lives in `syncServerConfig`,
+ * so this can be tested in a plain node process.
  */
 
 /** Raw events are kept for 90 days; the aggregates derived from them are not. */
@@ -41,9 +24,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /**
  * One playback of one recording, as reported by a guest.
  *
- * `id` is minted client-side and is the only thing that makes a flush safely
- * retryable — a queue that resent a batch after a lost response would otherwise
- * double every count in it.
+ * `id` is minted by the client. It is what makes a retried flush safe: without
+ * it, a batch resent after a lost response would double every count in it.
  */
 export type PlaybackEvent = {
   id: string
@@ -60,10 +42,10 @@ export type PlaybackEvent = {
 
 export type StoredEvent = PlaybackEvent & {
   /**
-   * Host clock, stamped on acceptance. Retention keys on this and not on
-   * `occurredAt`: a guest whose clock is years fast would otherwise hold its
-   * events past every sweep, and one running years slow would have them
-   * collected before they were ever counted.
+   * Host clock, stamped on acceptance. Retention keys on this, not on
+   * `occurredAt`. A guest clock running years fast would otherwise hold its
+   * events past every sweep. One running years slow would have them collected
+   * before they were ever counted.
    */
   receivedAt: string
 }
@@ -72,8 +54,8 @@ export type AppendResult = {
   /** Events written, in the order they were given. */
   accepted: StoredEvent[]
   /**
-   * Ids this device had already sent; the caller may clear them from its
-   * queue. Bare ids, not dedupe keys — a client speaks only its own.
+   * Ids this device had already sent. The caller may clear them from its
+   * queue. Bare ids, not dedupe keys, because a client only knows its own.
    */
   duplicates: string[]
 }
@@ -92,13 +74,12 @@ export type SweepResult = {
 
 export type SweepOptions = {
   /**
-   * Called with a segment's events just before it is unlinked, so anything
-   * derived from them can be preserved first — the frozen aggregate baseline
-   * in `aggregates.ts` is the reason this exists.
+   * Called with a segment's events just before it is unlinked, so the frozen
+   * aggregate baseline in `aggregates.ts` can absorb them first.
    *
-   * Throwing keeps the segment: whatever the hook was preserving did not get
-   * persisted, and deleting the events now would lose them from both places at
-   * once. Retention slipping by a day is the cheaper failure.
+   * Throwing keeps the segment. The hook did not persist what it derived, and
+   * deleting the events now would lose them from both places. Retention
+   * slipping by a day is the cheaper failure.
    */
   onSegment?: (name: string, events: StoredEvent[]) => Promise<void>
 }
@@ -145,17 +126,12 @@ function isStoredEvent(value: unknown): value is StoredEvent {
 type EventIdentity = Pick<PlaybackEvent, 'id' | 'deviceId'>
 
 /**
- * Ids are minted per device, so they are only unique *within* one.
+ * Ids are minted per device, so they are unique only within one.
  *
- * Nothing forces a guest to use a UUID, and a host on a LAN takes events from
- * every device that holds the pairing token; two of them arriving at the same
- * naive scheme would otherwise have the second device's plays silently
- * swallowed as duplicates of the first's. Scoping by device costs a string
- * concatenation and removes the failure mode entirely.
- *
- * Events with no device fall into one shared bucket, which is the old
- * behaviour and is still correct — it only means they dedupe against each
- * other.
+ * Nothing forces a guest to use a UUID. Two devices with the same naive id
+ * scheme would otherwise have the second one's plays dropped as duplicates.
+ * Events with no device share one bucket and dedupe against each other, which
+ * is the old behaviour and still correct.
  */
 function dedupeKey(event: EventIdentity): string {
   return `${event.deviceId ?? 'unknown'}\u0000${event.id}`
@@ -194,9 +170,8 @@ export function createEventStore(root: string) {
   /**
    * Yields every event in a segment, skipping anything unreadable.
    *
-   * A line that will not parse is a write the process did not finish — the
-   * torn tail of an unclean quit. Skipping it loses that one event, which is
-   * the correct trade against refusing to read the 90 days in front of it.
+   * A line that will not parse is the torn tail of an unclean quit. Skipping it
+   * loses one event rather than refusing to read the 90 days in front of it.
    */
   async function* readSegment(name: string): AsyncGenerator<StoredEvent> {
     const stream = createReadStream(path.join(logDir, name), 'utf-8')
@@ -223,9 +198,10 @@ export function createEventStore(root: string) {
   }
 
   /**
-   * Loads the dedupe index. Every other method assumes this has run: accepting
-   * an ingest against an empty index would re-admit events already in the log
-   * and double their counts.
+   * Loads the dedupe index into memory. Every other method assumes this has
+   * run: an ingest against an empty index would re-admit events already in the
+   * log and double their counts. The index stays in memory because the ingest
+   * route is retried after lost responses, so dedupe is on the hot path.
    */
   async function open(): Promise<number> {
     if (opened) {
@@ -243,7 +219,7 @@ export function createEventStore(root: string) {
 
   /**
    * Whether this device's event is already held. Takes the event rather than a
-   * bare id because the id alone does not identify one — see `dedupeKey`.
+   * bare id because the id alone does not identify one. See `dedupeKey`.
    */
   function has(event: EventIdentity): boolean {
     return seen.has(dedupeKey(event))
@@ -252,9 +228,9 @@ export function createEventStore(root: string) {
   /**
    * Appends the events this store has not already taken.
    *
-   * Shape validation belongs to the ingest route, which has to answer a guest
-   * about *which* of its events were rejected; the store only guards what it
-   * cannot store meaningfully — an event with no id could never be deduped.
+   * Shape validation belongs to the ingest route, which must tell a guest which
+   * events were rejected. The store only skips an event with no id, since it
+   * could never be deduped.
    */
   async function append(
     events: PlaybackEvent[],
@@ -294,7 +270,7 @@ export function createEventStore(root: string) {
         // lines, and a crash mid-write can only truncate the final one.
         await appendFile(target, payload)
       } catch (error) {
-        // The ids never reached disk, so they must not stay in the index — the
+        // The ids never reached disk, so they must not stay in the index. The
         // client will retry the flush and has to be able to get them in.
         for (const event of accepted) {
           seen.delete(dedupeKey(event))
@@ -321,9 +297,8 @@ export function createEventStore(root: string) {
    * Drops whole day segments once every event they could hold is past the
    * cutoff, and forgets their ids so the index does not grow without bound.
    *
-   * Day granularity means an event can outlive the retention window by up to a
-   * day. That is the price of never rewriting a file the appender may be
-   * holding open, which is what keeps an unclean quit from corrupting the log.
+   * Day granularity means an event can outlive retention by up to a day. That
+   * is the cost of never rewriting a file the appender may hold open.
    */
   async function sweep(
     maxAgeMs = DEFAULT_EVENT_MAX_AGE_MS,

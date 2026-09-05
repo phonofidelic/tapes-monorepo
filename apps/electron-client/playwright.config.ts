@@ -4,11 +4,10 @@ import { GUEST_PORT, GUEST_URL, SYNC_PORT } from './e2e/ports'
 /**
  * The desktop app's own e2e suite.
  *
- * Separate from `apps/web-client/playwright.config.ts` on purpose. That one
- * runs on every PR against a Linux runner; this one launches a *packaged*
- * Electron app and records through `sox`, which is macOS-only and needs a real
- * audio input — so it runs nightly on a macOS runner (see
- * `.github/workflows/e2e-electron.yml`) rather than blocking every PR.
+ * Separate from the web-client suite, which runs on every PR on Linux. This
+ * one launches a packaged Electron app and records through sox, which is
+ * macOS-only and needs a real audio input. It runs nightly on a macOS runner
+ * through `.github/workflows/e2e-electron.yml` instead of gating PRs.
  */
 
 export default defineConfig({
@@ -20,11 +19,10 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  // One retry on CI, none locally. Both shells capture from a real audio device
-  // here, and the browser guest's `MediaRecorder` intermittently yields an empty
-  // file — measured failing roughly one run in five, and the same on the
-  // web-client suite, which retries twice for the same reason. One is enough to
-  // keep a nightly honest without hiding a test that fails consistently.
+  // One retry on CI, none locally. The browser guest's MediaRecorder yields an
+  // empty file roughly one run in five, and the web-client suite retries twice
+  // for the same reason. One retry keeps a nightly honest without hiding a
+  // test that fails consistently.
   retries: process.env.CI ? 1 : 0,
   // Each test records for ~4s and then waits on a descriptor reaching a peer;
   // the first test in a run also waits out the app's launch.
@@ -53,7 +51,7 @@ export default defineConfig({
         launchOptions: {
           args: [
             // For the guest, which records in the browser. The renderer's own
-            // recording goes through `sox` and no flag can fake it — see
+            // recording goes through sox and no flag can fake it. See
             // `e2e/capture.ts`.
             '--use-fake-device-for-media-capture',
             '--use-fake-ui-for-media-stream',
@@ -65,11 +63,10 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // The web-client's own dev server, run from this workspace as the guest.
-      // `VITE_SYNC_SERVER_URL` is blank on purpose: it is the first link in the
-      // app's precedence chain, and a value here would stop it ever reaching
-      // the dev-server case that resolves sync to same-origin `/sync` — which
-      // is then proxied to the app under test.
+      // The web-client's dev server, run as the guest. `VITE_SYNC_SERVER_URL`
+      // is blank on purpose. It is the first link in the sync url precedence
+      // chain, and any value would stop the dev-server case that resolves sync
+      // to same-origin `/sync`, which is then proxied to the app under test.
       command: `yarn vite --port ${GUEST_PORT} --strictPort`,
       cwd: '../web-client',
       url: GUEST_URL,
