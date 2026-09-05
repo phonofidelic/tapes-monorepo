@@ -4,6 +4,7 @@ import {
   App,
   RecordingRepoState,
   resolveBlobEndpoints,
+  resolveEventTarget,
   useAutomergeUrl,
 } from '@tapes-monorepo/core'
 import './index.css'
@@ -76,6 +77,17 @@ const syncServerUrl = resolveSyncServerUrl({
 // recordings simply stay in this device's OPFS. More than one can resolve, in
 // which case they are tried in order.
 const blobEndpoints = resolveBlobEndpoints({
+  origin: window.location.origin,
+  servedByHost,
+  isDev: import.meta.env.DEV,
+  remoteSyncServerUrl: syncServerUrl,
+  token: pairingToken,
+})
+
+// Where this bundle reports plays and reads play counts. One host, not a list.
+// A guest's numbers live on the host it is paired with, and no other host can
+// answer for it.
+const eventTarget = resolveEventTarget({
   origin: window.location.origin,
   servedByHost,
   isDev: import.meta.env.DEV,
@@ -170,6 +182,7 @@ if (!window.Worker) {
         appContextValue={{ type: 'web-client', worker }}
         repoContextValue={repo}
         blobEndpoints={blobEndpoints}
+        eventTarget={eventTarget}
       />
     )
   }

@@ -8,8 +8,10 @@ import { RepoContext } from '@automerge/automerge-repo-react-hooks'
 import { RecordingStateProvider } from './RecordingContext'
 import { BlobProvider } from './BlobContext'
 import { PinProvider } from './PinContext'
+import { AggregatesProvider } from './AggregatesContext'
 import { usePlayEventQueue } from '@/usePlayEventQueue'
 import type { BlobEndpoint } from '@/blobClient'
+import type { EventHost } from '@/eventTarget'
 
 /**
  * The player, with its measured play sessions going to the event queue.
@@ -36,6 +38,7 @@ export default function Providers({
     appContext: AppContextValue
     repoContext: Repo
     blobEndpoints?: readonly BlobEndpoint[]
+    eventTarget?: EventHost
   }
   children: React.ReactNode
 }) {
@@ -49,7 +52,12 @@ export default function Providers({
                   know what it must not evict. */}
               <BlobProvider endpoints={values.blobEndpoints}>
                 <PinProvider>
-                  <CountedPlayback>{children}</CountedPlayback>
+                  {/* Inside the app context, which supplies the electron ipc
+                      service. Around the player, so a finished play can ask
+                      for the numbers again. */}
+                  <AggregatesProvider target={values.eventTarget}>
+                    <CountedPlayback>{children}</CountedPlayback>
+                  </AggregatesProvider>
                 </PinProvider>
               </BlobProvider>
             </ViewProvider>

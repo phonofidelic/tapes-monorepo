@@ -3,6 +3,7 @@ import { CacheBlobChannel } from './channels/CacheBlobChannel'
 import { CreateRecordingChannel } from './channels/CreateRecordingChannel'
 import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
 import { EditRecordingChannel } from './channels/EditRecordingChannel'
+import { GetAggregatesChannel } from './channels/GetAggregatesChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { HasBlobChannel } from './channels/HasBlobChannel'
 import { PutBlobChannel } from './channels/PutBlobChannel'
@@ -27,4 +28,5 @@ new MainWindow().init([
   new HasBlobChannel(),
   new CacheBlobChannel(),
   new AnnounceLibraryChannel(),
+  new GetAggregatesChannel(),
 ])
