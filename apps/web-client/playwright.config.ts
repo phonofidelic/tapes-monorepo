@@ -9,7 +9,7 @@ const BASE_URL = `http://localhost:${PORT}`
 // The service worker is disabled in dev (see vite.config.ts), so the PWA specs
 // need a real built bundle. `localhost` is a secure context even over plain
 // http, so the worker registers here without TLS.
-// Not 4174, Vite's own `preview` default — that one collides with any stray
+// Not 4174, Vite's own `preview` default. That one collides with any stray
 // `vite preview` a sibling checkout left running, and --strictPort turns the
 // collision into a failed run.
 const PREVIEW_PORT = 4175
@@ -37,11 +37,11 @@ export default defineConfig({
     : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: BASE_URL,
-    // The app renders at every width since TAP-67, so this is no longer a
-    // requirement — it is the default the recording specs were written against
-    // and the layout most of them care about. Specs that need desktop widths
-    // call setViewportSize themselves. A plain narrow viewport rather than a
-    // device preset, so touch emulation doesn't change click behaviour.
+    // The app renders at every width, so this is not a requirement. It is the
+    // default the recording specs were written against and the layout most of
+    // them care about. Specs that need desktop widths call setViewportSize
+    // themselves. A plain narrow viewport rather than a device preset, so touch
+    // emulation does not change click behaviour.
     viewport: { width: 390, height: 844 },
     // AudioInputSelector reads navigator.permissions.query once on mount and
     // never re-checks, so the grant has to be in place before the first load.
@@ -79,8 +79,8 @@ export default defineConfig({
         launchOptions: {
           args: [
             // The guest records in one of these tests, same as the
-            // single-device suite — and on Linux still needs CI's PulseAudio
-            // virtual sources for a capture *device* to exist at all.
+            // single-device suite, and on Linux still needs CI's PulseAudio
+            // virtual sources for a capture device to exist at all.
             '--use-fake-device-for-media-capture',
             '--use-fake-ui-for-media-stream',
             '--autoplay-policy=no-user-gesture-required',
@@ -132,7 +132,7 @@ export default defineConfig({
       // The guest of the two-device suite. `VITE_SYNC_SERVER_URL` is blank on
       // purpose: it is the first link in the app's precedence chain, and a
       // value here would stop it ever reaching the dev-server case that
-      // resolves sync to same-origin `/sync` — the whole path under test.
+      // resolves sync to same-origin `/sync`, which is the path under test.
       command: `yarn vite --port ${GUEST_PORT} --strictPort`,
       url: GUEST_URL,
       env: {
