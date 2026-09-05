@@ -21,21 +21,16 @@ import { useBlobEndpoints } from './BlobContext'
 
 /**
  * `loading` covers fetching a recording's audio from the host on first play,
- * which can take a moment for a long tape; `error` means it could not be
- * resolved at all, which previously just cleared the player with no
- * explanation.
+ * which can take a moment for a long tape. `error` means it could not be
+ * resolved at all.
  */
 export type PlaybackState = 'idle' | 'loading' | 'ready' | 'error'
 
 /**
- * Which failure `error` was.
- *
- * Every way playback can fail used to arrive at the player as the same
- * "not available offline", which is only true for one of them: a host that
- * rejected our token, one that never received the audio, and one that is
- * genuinely switched off each need a different thing from the user. Carried
- * alongside `playbackState` rather than folded into it so the state machine
- * itself stays a plain four-value union.
+ * Which failure `error` was. A host that rejected our token, one that never
+ * received the audio, and one that is switched off each need something
+ * different from the user. Carried beside `playbackState` rather than folded
+ * into it, so the state machine stays a plain four-value union.
  */
 export type PlaybackFailure =
   | BlobFailureReason
@@ -43,20 +38,19 @@ export type PlaybackFailure =
   | 'not-uploaded'
 
 /**
- * One play of one recording, as measured by the transport.
- *
- * Shaped to the host's `PlaybackEvent`: the queue that carries these to the
- * host mints the event id and stamps the device, so the measurement itself
- * reports only what it can actually observe.
+ * One play of one recording, as measured by the transport. Shaped to the
+ * host's `PlaybackEvent`. The queue that carries these to the host mints the
+ * event id and stamps the device, so the measurement reports only what it
+ * can observe.
  */
 export type PlaySession = {
   /** Automerge url of the recording that was played. */
   recordingUrl: AutomergeUrl
   /**
    * The furthest point reached in this session, as a fraction of the
-   * recording's length, clamped to `[0, 1]`. The high-water mark of
-   * `currentTime` and not accumulated listening time: seeking back and playing
-   * a passage twice must not push a play past 100%.
+   * recording's length, clamped to 0..1. This is the high-water mark of the
+   * current time, not accumulated listening time. Seeking back and playing a
+   * passage twice must not push a play past 100%.
    */
   completion: number
   /** When the session started, on this device's clock. */
@@ -65,16 +59,16 @@ export type PlaySession = {
 
 /**
  * Below this much actual playback a session is a scrub, a mis-tap or a
- * preview, and counting it would inflate the play count for exactly the
+ * preview. Counting it would inflate the play count for exactly the
  * recordings nobody listened to.
  */
 const MIN_PLAY_SECONDS = 5
 
 /**
- * The largest forward step in `currentTime` that can be playback rather than a
- * seek. Seeks reset the baseline where we can see them, so this only catches
- * the ones we can't — a media-key scrub, or an element that moved without
- * saying so. Generous enough to survive a throttled background tab, which
+ * The largest forward step in current time that counts as playback rather
+ * than a seek. Seeks reset the baseline where we can see them, so this only
+ * catches the ones we cannot: a media-key scrub, or an element that moved
+ * without saying so. Generous enough for a throttled background tab, which
  * fires `timeupdate` about once a second.
  */
 const MAX_PLAYBACK_STEP = 2
@@ -94,11 +88,11 @@ type AudioPlayerContextValue = {
   currentTime: number
   duration: number
   /**
-   * The length the transport can actually address. Normally `duration`, but a
-   * media element commonly reports `Infinity` for a MediaRecorder-written
-   * `audio/mp4` until it has seen the whole stream, and a fraction of that is
-   * meaningless — so fall back to how far the element says it can seek, and to
-   * `0` when it can't seek at all.
+   * The length the transport can address. Normally `duration`. A media
+   * element often reports Infinity for a MediaRecorder-written `audio/mp4`
+   * until it has seen the whole stream, and a fraction of that is
+   * meaningless. Then fall back to how far the element says it can seek, and
+   * to 0 when it cannot seek at all.
    */
   seekableDuration: number
   currentSource: string | undefined
@@ -123,8 +117,8 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue | undefined>(
 
 /**
  * Whether a recording's `filepath` could name a file in this device's OPFS,
- * which holds recordings flat under a uuid. Anything with a path separator (or
- * a relative-path segment) came from an electron host's real filesystem.
+ * which holds recordings flat under a uuid. Anything with a path separator or
+ * a relative-path segment came from an electron host's real filesystem.
  */
 const isOpfsName = (filepath: string): boolean =>
   filepath.length > 0 &&
@@ -140,8 +134,8 @@ export const AudioPlayerProvider = ({
   children: React.ReactNode
   /**
    * Called once per play session that cleared `MIN_PLAY_SECONDS`, when the
-   * session closes. Optional: nothing about playback depends on anyone
-   * listening, so a host that does not count plays simply omits it.
+   * session closes. Optional: a shell that does not count plays omits it, and
+   * nothing about playback depends on anyone listening.
    */
   onPlaySession?: (session: PlaySession) => void
 }) => {
@@ -280,11 +274,10 @@ export const AudioPlayerProvider = ({
       // 4. Fetch from whichever host has it and keep what comes back, so a
       //    guest's storage grows with what it has played rather than with the
       //    whole library. More than one host is in play when this device syncs
-      //    with a remote server as well as its own embedded one: the doc can
-      //    carry a hash the nearest store has never seen.
-      // Nothing local answered. What the user should be told from here on
-      // depends on why, so carry the reason rather than deciding at the end
-      // that everything was "offline".
+      //    with a remote server as well as its own embedded one. The doc can
+      //    then carry a hash the nearest store has never seen.
+      // Nothing local answered. What the user is told depends on why, so carry
+      // the reason rather than reporting everything as offline.
       let failure: PlaybackFailure = descriptor ? 'unpaired' : 'not-uploaded'
 
       if (descriptor && blobEndpoints.length > 0) {
@@ -351,10 +344,10 @@ export const AudioPlayerProvider = ({
           : null
       }
       // OPFS names are flat. A recording made on an electron host carries an
-      // absolute filesystem path, which `getFileHandle` rejects outright with
-      // a TypeError ("Name is not allowed") rather than reporting a miss.
-      // Asking for it is meaningless here anyway — those bytes were never in
-      // this device's OPFS, and the host is asked for them below.
+      // absolute filesystem path, which `getFileHandle` rejects with a
+      // TypeError ("Name is not allowed") rather than reporting a miss. Those
+      // bytes were never in this device's OPFS anyway. The host is asked for
+      // them below.
       if (!isOpfsName(currentSource)) {
         return null
       }
@@ -430,9 +423,9 @@ export const AudioPlayerProvider = ({
       return
     }
     const length = seekableDurationRef.current
-    // A fraction of a length nothing can address is meaningless — that is the
-    // `Infinity` duration case — and a made-up percentage is worse than a
-    // missing play, so drop the session rather than guess.
+    // A fraction of a length nothing can address is meaningless. That is the
+    // Infinity duration case. A made-up percentage is worse than a missing
+    // play, so drop the session rather than guess.
     if (!Number.isFinite(length) || length <= 0) {
       return
     }
@@ -448,7 +441,8 @@ export const AudioPlayerProvider = ({
     audio.load()
 
     const readSeekableEnd = () => {
-      // jsdom — and a source that has buffered nothing — has no seekable range.
+      // jsdom has no seekable range. Neither does a source that has buffered
+      // nothing.
       const seekable = audio.seekable
       if (!seekable || seekable.length === 0) {
         return
@@ -536,9 +530,9 @@ export const AudioPlayerProvider = ({
   /**
    * A session runs for as long as one recording is playing. Closing it from
    * the cleanup covers every way it can end with one path: a pause or a
-   * natural end (both of which clear `isPlaying`), a change of recording, and
-   * the provider unmounting — which is how most plays end, the user navigating
-   * away mid-tape.
+   * natural end, which both clear `isPlaying`, a change of recording, and the
+   * provider unmounting. Unmounting is how most plays end, when the user
+   * navigates away mid-tape.
    */
   useEffect(() => {
     if (!isPlaying || !currentUrl) {

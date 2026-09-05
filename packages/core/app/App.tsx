@@ -16,20 +16,12 @@ import type { BlobEndpoint } from './blobClient'
 import type { EventHost } from './eventTarget'
 
 /**
- * The shared app tree. Each shell builds its own `Repo` and passes it in: the
- * storage and network adapters a repo needs are platform-specific (the web
- * client persists to IndexedDB, the electron renderer delegates persistence to
- * the embedded sync server's filesystem store), and only the shell knows where
- * its sync server lives. `null` means the shell is still bootstrapping.
- *
- * `blobEndpoints` are the hosts recorded audio is sent to and fetched from, in
- * the order to try them, resolved by the shell for the same reason. Leaving
- * them out is a supported mode: a standalone web client has no host, so its
- * recordings stay on the device.
- *
- * `eventTarget` is the one host that owns this library's playback numbers. The
- * shell resolves it. It is a single host rather than a list, because a play
- * count lives on one host and asking another returns a wrong number.
+ * The shared app tree. Each shell builds its own Automerge repo and passes it
+ * in. The storage and network adapters are platform-specific, and only the
+ * shell knows where its sync server lives. The web client persists to
+ * IndexedDB. The electron renderer persists through the embedded sync
+ * server's filesystem store. The shell resolves the blob endpoints and the
+ * event target for the same reason.
  */
 export function App({
   appContextValue,
@@ -38,8 +30,19 @@ export function App({
   eventTarget,
 }: {
   appContextValue: AppContextValue
+  /** `null` while the shell is still bootstrapping. */
   repoContextValue: Repo | null
+  /**
+   * The hosts recorded audio is sent to and fetched from, in the order to try
+   * them. Leaving them out is supported: a standalone web client has no host,
+   * so its recordings stay on the device.
+   */
   blobEndpoints?: readonly BlobEndpoint[]
+  /**
+   * The one host that owns this library's playback numbers. A single host
+   * rather than a list, because a play count lives on one host and asking
+   * another returns a wrong number.
+   */
   eventTarget?: EventHost
 }) {
   const mainRef = useRef<HTMLDivElement | null>(null)
@@ -111,7 +114,7 @@ function Main({
   return (
     // `max-w-3xl` centers `main` itself rather than an inner wrapper, because
     // the Recorder view positions its visualizer and transport `absolute`
-    // against this element — a wrapper would leave them full-bleed. Below
+    // against this element. A wrapper would leave them full-bleed. Below
     // `3xl` the constraint never binds, so the mobile layout is unchanged.
     <main
       ref={mainRef}

@@ -19,16 +19,11 @@ import type { Readable } from 'stream'
 /**
  * A content-addressed store for recorded audio, owned by the sync host.
  *
- * Recordings are addressed by the sha-256 of their bytes rather than by path
- * because the path is not stable: audio files live in a directory the user
- * chose, and `EditRecordingChannel` renames the file on disk whenever the
- * recording is retitled. `ingestFile` therefore hardlinks the user's file into
- * the store, so the object and the user's copy share an inode and a rename
- * cannot break serving.
+ * Objects are addressed by the sha-256 of their bytes, never by path. Path
+ * resolution lives in `syncServerConfig`.
  *
- * Deliberately free of any `electron` import: `syncServer.ts` imports nothing
- * from electron, which is what lets the HTTP surface be tested against a real
- * server in a plain node process. Path resolution lives in `syncServerConfig`.
+ * Do not import `electron` here. The sync server stays free of it so the HTTP
+ * surface can be tested against a real server in a plain node process.
  */
 
 const HASH_PATTERN = /^[0-9a-f]{64}$/
@@ -234,9 +229,8 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
   }
 
   /**
-   * Drops one owner. When the last owner goes the bytes are unlinked — this is
-   * what makes deleting a recording actually reclaim space, which embedding
-   * the audio in the Automerge doc could never do.
+   * Drops one owner. When the last owner goes, the bytes are unlinked. This is
+   * what lets deleting a recording reclaim disk space.
    */
   async function releaseRef(
     hash: string,
@@ -258,14 +252,12 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
   }
 
   /**
-   * Unlinks an object and its sidecars regardless of what its refs file says.
+   * Unlinks an object and its sidecars regardless of its refs file.
    *
-   * `releaseRef` can only reclaim an object whose owners all announced
-   * themselves; this is the escape hatch for objects the refcount can never
-   * free — bytes written before a crash took the process out ahead of the ref
-   * record, or a ref naming a doc that no longer references the hash. Deciding
-   * *which* objects those are needs the doc graph, so it is not decided here:
-   * see `blobGc.ts`.
+   * `releaseRef` can only free an object whose owners all announced themselves.
+   * Some never do: bytes written before a crash reached the ref record, or a
+   * ref naming a document that no longer holds the hash. Deciding which objects
+   * those are needs the document graph, so `blobGc.ts` decides and calls this.
    */
   async function remove(hash: string): Promise<boolean> {
     if (!isValidBlobHash(hash)) {
@@ -303,9 +295,10 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
   }
 
   /**
-   * Streams an upload into the store, hashing as it goes. Hashing on the host
-   * rather than the client keeps a phone from having to read a 50 MB+ file
-   * into memory, and avoids `crypto.subtle`, which is unavailable in the
+   * Streams an upload into the store, hashing as it goes.
+   *
+   * The host hashes rather than the client. A phone would otherwise read a
+   * 50 MB file into memory, and `crypto.subtle` is unavailable in the
    * plain-HTTP LAN mode the host can be configured into.
    */
   async function ingestStream(
@@ -375,10 +368,13 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
   }
 
   /**
-   * Ingests a file already on the host's disk (the electron recording path).
-   * Hardlinks where possible so the bytes are not duplicated; note the
-   * consequence that deleting the file in Finder no longer frees the space
-   * until the store ref is released too.
+   * Ingests a file already on the host's disk. This is how the electron
+   * recorder stores audio.
+   *
+   * The file is hardlinked into the store where possible, so the bytes are not
+   * duplicated. Retitling a recording renames the user's file, and a hardlink
+   * survives that. The cost: deleting the file in Finder frees no space until
+   * the store's ref is released too.
    */
   async function ingestFile(
     filepath: string,
@@ -422,9 +418,9 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
         // Raced with another ingest of the same content; the object is there.
         mode = 'deduped'
       } else if (code === 'EXDEV' || code === 'EPERM' || code === 'ENOTSUP') {
-        // Different filesystem (or one that will not link) — fall back to a
-        // real copy, staged through tmp so a crash cannot leave a partial
-        // object at its content address.
+        // Different filesystem, or one that will not link. Fall back to a real
+        // copy, staged through tmp so a crash cannot leave a partial object at
+        // its content address.
         await mkdir(tmpDir, { recursive: true })
         const scratch = path.join(tmpDir, crypto.randomUUID())
         await copyFile(filepath, scratch)
@@ -469,18 +465,8 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
   }
 
   /**
-   * Every object currently held, for a caller that can decide which of them
-   * are still reachable.
-   *
-   * `ctimeMs` rather than `mtimeMs` is deliberate: `ingestFile` *hardlinks* the
-   * user's recording into the store, so the object shares that file's mtime,
-   * which is whenever the audio was recorded and can be arbitrarily old. Any
-   * grace period keyed on mtime would therefore be no grace period at all.
-   * Linking sets the inode's ctime, so ctime is when the store took the object.
-   *
-   * `nlink` is reported because it is what makes "how much did this reclaim"
-   * answerable: dropping the store's link to an object the user still has in
-   * their recordings folder frees nothing.
+   * Every object currently held, for a caller that decides which of them are
+   * still reachable. See `blobGc.ts`.
    */
   async function listObjects(): Promise<StoredObject[]> {
     const objectsRoot = path.join(root, 'objects')
@@ -504,6 +490,10 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
         }
         try {
           const stats = await stat(path.join(objectsRoot, dir, entry))
+          // ctime, not mtime. A hardlinked object shares the recording's mtime,
+          // which is when the audio was recorded and can be years old. Linking
+          // sets ctime, so ctime is when the store took the object. nlink tells
+          // the sweep whether unlinking the object frees any bytes.
           objects.push({
             hash: entry,
             size: stats.size,

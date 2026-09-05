@@ -18,20 +18,18 @@ import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
 
 /**
- * "Keep offline" pins.
+ * "Keep offline" pins. Playback caches whatever it fetches, but that only
+ * helps for recordings the user has already played. A pin is an explicit
+ * promise that a recording stays playable with the host switched off, so it
+ * pre-fetches immediately and is exempt from cache eviction.
  *
- * Playback caches whatever it fetches, but that only helps for recordings the
- * user has already played. A pin is an explicit promise that a recording stays
- * playable with the host switched off, so it pre-fetches immediately and is
- * exempt from cache eviction.
- *
- * Pins are per-device: which recordings *this* phone should keep is not a fact
- * about the library, so they must not go in the Automerge doc, where they
- * would sync to every peer. They also stay out of the `settings` blob, which
- * is a flat map of strings that three separate readers parse and that gets
- * rewritten whole on every unrelated setting change.
+ * Pins are per device. Which recordings this phone keeps is not a fact about
+ * the library, so they must not go in the Automerge doc, where they would
+ * sync to every peer.
  */
 
+// Not in the `settings` blob either. That is a flat map of strings that three
+// separate readers parse and that is rewritten whole on every setting change.
 const PINS_KEY = 'tapes.pins'
 
 type PinRecord = { hash: string; size: number; pinnedAt: number }
@@ -91,8 +89,8 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
         recordCacheHit(descriptor.hash, descriptor.size, localStorage)
 
         // Without a persistence grant the browser is free to evict OPFS under
-        // storage pressure — including the copy the user explicitly asked to
-        // keep. Ask the first time anything is pinned.
+        // storage pressure, including the copy the user asked to keep. Ask the
+        // first time anything is pinned.
         if (navigator.storage?.persist) {
           void navigator.storage.persist().catch(() => {})
         }

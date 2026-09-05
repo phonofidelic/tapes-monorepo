@@ -10,12 +10,11 @@ import {
 /**
  * Per-recording playback numbers, derived from the event log.
  *
- * Derived, never merged. Nothing here is a counter that two peers increment:
- * every number is a fold over `eventStore`'s log, so a rollup that is lost,
- * stale or corrupt is a rebuild rather than a permanently wrong count. The
- * rollup exists only so that a read does not pay for a replay.
- *
- * The one thing that is *not* reconstructible is the baseline — see below.
+ * Nothing here is a counter that two peers increment. Every number is a fold
+ * over the event log, so a lost or corrupt rollup is rebuilt, not wrong. The
+ * rollup exists only so a read does not pay for a replay. The one exception
+ * is the frozen baseline, which holds totals for events retention has already
+ * deleted. See `BaselineFile`.
  */
 
 /** What a reader gets back. Recordings with no plays are simply absent. */
@@ -25,39 +24,31 @@ export type RecordingAggregate = {
   /**
    * Mean of the per-play completion values, 0..1.
    *
-   * The mean *of the plays*, deliberately, and not total-listened over
-   * `plays × duration`: the two diverge as soon as anyone replays a tape, and
-   * only the per-play mean answers "did people sit through it". Keeping a sum
-   * and a count rather than a running average is what makes that mean
-   * foldable — two averages cannot be combined without their weights, which is
-   * exactly what the baseline fold would need.
+   * This is the mean of the plays, not total listened time over plays times
+   * duration. The two diverge once anyone replays a tape, and only the per-play
+   * mean answers whether people sat through it.
    */
   averageCompletion: number
 }
 
-/** The foldable form: a sum and a count, never a pre-divided average. */
+/**
+ * The foldable form: a sum and a count, never a pre-divided average. Two
+ * averages cannot be combined without their weights, and the baseline fold
+ * needs to combine them.
+ */
 export type Totals = {
   plays: number
   completionSum: number
 }
 
 /**
- * The frozen baseline: totals for events that no longer exist.
+ * The frozen baseline: totals for events retention has deleted.
  *
- * Retention unlinks raw events at 90 days, but a host looking at an old tape
- * wants its *lifetime* play count — and a number that silently decreases over
- * time is worse than no number. So a segment is folded into this baseline
- * before it is unlinked, and every rollup starts from it.
- *
- * This file is therefore the only part of the analytics that cannot be
- * recomputed from anything else. It is written whole to a temp file and
- * renamed, so a crash mid-write leaves the previous version intact rather than
- * a truncated one.
- *
- * `foldedSegments` closes the window between the fold and the unlink. A
- * segment named there is already counted in `recordings`, so a replay must
- * skip it or its plays land twice, and a second fold of it must be a no-op for
- * the same reason. Names leave the list once the file behind them is gone.
+ * Raw events go at 90 days, but a lifetime play count must never decrease. So
+ * a segment is folded in here before it is unlinked, and every rollup starts
+ * from it. This is the only analytics file that cannot be recomputed.
+ * `foldedSegments` names segments already counted but not yet unlinked, so a
+ * replay skips them and a second fold is a no-op.
  */
 type BaselineFile = {
   version: 1
@@ -76,12 +67,10 @@ function emptyTotals(): Totals {
 /**
  * Folds one event into a recording's totals.
  *
- * Completion is clamped rather than trusted. Validating a guest's payload
- * belongs to the ingest route, which has to answer that guest about what it
- * rejected; but this reads back a log written by every earlier version of that
- * route, and a single event carrying `1e9` would otherwise poison a
- * recording's mean for as long as the baseline lives. A non-finite value still
- * counts as a play — it happened — at a completion of zero.
+ * Completion is clamped rather than trusted. The ingest route validates new
+ * payloads, but this reads a log written by every earlier version of it, and
+ * one event carrying `1e9` would poison a mean for as long as the baseline
+ * lives. A non-finite value still counts as a play, at completion zero.
  */
 function fold(totals: Totals, event: StoredEvent): Totals {
   const completion = Number.isFinite(event.completion)
@@ -112,11 +101,9 @@ function toAggregate(recordingUrl: string, totals: Totals): RecordingAggregate {
 }
 
 /**
- * Folds a stream of events onto a seed, which is how a rollup is rebuilt: the
- * frozen baseline seeds it, and the surviving log is replayed over the top.
- *
- * Takes an `AsyncIterable` rather than an array because the log is streamed —
- * 90 days of a busy library is not something to hold in memory at once.
+ * Folds a stream of events onto a seed. The frozen baseline seeds a rebuild
+ * and the surviving log is replayed over it. Takes an `AsyncIterable` because
+ * 90 days of a busy library should not be held in memory at once.
  */
 export async function deriveAggregates(
   events: AsyncIterable<StoredEvent>,
@@ -138,9 +125,9 @@ export async function deriveAggregates(
 export type AggregateStore = ReturnType<typeof createAggregateStore>
 
 /**
- * Aggregates over one event store, sharing its root: `aggregates.json` sits
- * beside `log/`, since the baseline is worthless without the log it continues,
- * and the log's retention is what produces the baseline in the first place.
+ * Aggregates over one event store, sharing its root. The baseline file sits
+ * beside the log directory because it is worthless without the log it
+ * continues, and the log's retention is what produces it.
  */
 export function createAggregateStore(root: string, events: EventStore) {
   const baselinePath = path.join(root, BASELINE_FILE)
@@ -158,10 +145,9 @@ export function createAggregateStore(root: string, events: EventStore) {
     try {
       parsed = JSON.parse(await readFile(baselinePath, 'utf-8'))
     } catch (error) {
-      // A missing file is the normal first run. A corrupt one is not
-      // recoverable — holding what the log no longer can was its whole point —
-      // so it is reported loudly and treated as empty, which undercounts an old
-      // tape rather than refusing to serve any number at all.
+      // A missing file is the normal first run. A corrupt one cannot be
+      // recovered, so it is reported loudly and treated as empty. That
+      // undercounts an old tape rather than refusing to serve any number.
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
         console.error('Aggregate baseline unreadable; starting empty:', error)
       }
@@ -193,7 +179,8 @@ export function createAggregateStore(root: string, events: EventStore) {
     }
   }
 
-  /** Written whole and renamed into place, never edited where a reader sees it. */
+  // Written whole to a temp file and renamed into place, so a crash mid-write
+  // leaves the previous version intact rather than a truncated one.
   async function writeBaseline(): Promise<void> {
     const file: BaselineFile = {
       version: BASELINE_VERSION,
@@ -223,9 +210,8 @@ export function createAggregateStore(root: string, events: EventStore) {
   }
 
   /**
-   * Loads the baseline and derives the rollup once. Every read assumes this has
-   * run; answering from an unopened store would report zeros for a library
-   * whose events are sitting on disk.
+   * Loads the baseline and derives the rollup once. Every read assumes this
+   * has run, or a library with events on disk would report zeros.
    */
   async function open(): Promise<number> {
     if (opened) {
@@ -247,10 +233,9 @@ export function createAggregateStore(root: string, events: EventStore) {
    * Folds newly accepted events into the rollup, so an ingest does not pay for
    * a replay and a read straight after one is not stale.
    *
-   * Only ever called with what the event store *accepted*: duplicates are
-   * dropped before they reach here, which is what keeps a retried flush from
-   * counting twice. Nothing is persisted — these events are in the log, and the
-   * log is what the rollup derives from.
+   * Only called with what the event store accepted. Duplicates are dropped
+   * before this, which keeps a retried flush from counting twice. Nothing is
+   * persisted here, because the log is what the rollup derives from.
    */
   function record(accepted: StoredEvent[]): void {
     for (const event of accepted) {
@@ -264,10 +249,9 @@ export function createAggregateStore(root: string, events: EventStore) {
   /**
    * Retention, driven from this side because the fold has to happen first.
    *
-   * The ordering is the whole point: fold the expiring segment into the
-   * baseline, persist it, and only then let the store unlink the file. A crash
-   * anywhere in that sequence loses nothing — the events are still on disk
-   * until the last step, and `foldedSegments` keeps the replay after it from
+   * Fold the expiring segment into the baseline, persist it, then let the
+   * store unlink the file. A crash anywhere loses nothing: the events stay on
+   * disk until the last step, and `foldedSegments` keeps a replay from
    * counting a segment that is briefly in both places.
    */
   async function sweep(

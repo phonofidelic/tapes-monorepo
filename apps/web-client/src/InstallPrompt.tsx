@@ -10,15 +10,13 @@ import {
 } from './installPromptStore'
 
 /**
- * Offers to install the app.
+ * Offers to install the app. The web client was already installable (manifest,
+ * icons, a service worker that precaches the Automerge wasm), but nothing ever
+ * offered the install, so users had to find it in a browser menu.
  *
- * TAP-66 made the web client installable — manifest, icons and a service worker
- * that precaches the Automerge wasm — but nothing ever offered the install, so
- * the capability was unreachable unless a user went looking in a browser menu.
- *
- * Deliberately shaped like `PwaUpdatePrompt`: same toast, same dark palette
- * (zinc-900/zinc-50 in both themes, not theme-bound), same dismiss-and-accept
- * pair. The two never appear at once — see `ShellPrompts` in main.tsx.
+ * Shaped like PwaUpdatePrompt on purpose: same toast, same dark zinc palette in
+ * both themes, same dismiss-and-accept pair. The two never appear at once; see
+ * ShellPrompts.
  */
 export default function InstallPrompt() {
   const deferredPrompt = useSyncExternalStore(subscribe, getDeferredPrompt)

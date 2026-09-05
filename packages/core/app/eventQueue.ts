@@ -107,11 +107,9 @@ function writeQueues(storage: Storage, queues: Queues) {
 }
 
 /**
- * The stable key for one host's queue.
- *
- * Queues are kept per edge so a reachable host can be flushed while another is
- * away — a device that is both a host and a guest of one is the ordinary case,
- * not an exotic one.
+ * The stable key for one host's queue. Queues are kept per edge so a
+ * reachable host can be flushed while another is away. A device that is both
+ * a host and a guest of one is the ordinary case.
  */
 export function edgeKey(endpoint: BlobEndpoint): string {
   return endpoint.baseUrl
@@ -140,17 +138,12 @@ export function writeQueue(
 }
 
 /**
- * Which host counts this play.
- *
- * The seam the ownership rule lands on. There is no ownership record yet, so
- * this is the interim rule: the remote edge when the device has one, else its
- * own local host. A device holds one library, and a device with a remote edge
- * either got that library from that host or pushes it there — so the remote
- * edge is its owner in every arrangement that exists today.
- *
- * `recordingUrl` is unused by that rule and taken anyway, because ownership is
- * per recording and that is the whole point of the seam: when the ownership
- * lookup lands (TAP-105), only this function changes.
+ * Which host counts this play. There is no ownership record yet, so the
+ * interim rule is the remote edge when the device has one, else its own local
+ * host. A device holds one library, and a device with a remote edge either
+ * got that library from that host or pushes it there. The recording url is
+ * unused by that rule but taken anyway: ownership is per recording, and when
+ * the ownership lookup from TAP-105 lands only this function changes.
  */
 export function resolveEventTarget(
   recordingUrl: AutomergeUrl,
@@ -187,13 +180,11 @@ export function enqueueEvent(
 }
 
 /**
- * What the queue keeps after a host has answered.
- *
- * The host's three lists are the contract: drop what it accepted, drop what it
- * had already taken from this device, drop the rejections it marked
- * non-retryable, and keep the rest. Anything the answer does not mention at
- * all was never taken, so it stays — a truncated or half-read response costs a
- * re-send, which the ids make harmless.
+ * What the queue keeps after a host has answered. The host's three lists are
+ * the contract: drop what it accepted, what it had already taken from this
+ * device, and the rejections it marked non-retryable. Keep the rest. Anything
+ * the answer does not mention was never taken, so it stays. A truncated or
+ * half-read response costs a re-send, which the ids make harmless.
  */
 export function applyIngestResponse(
   batch: readonly PlaybackEvent[],
@@ -219,14 +210,11 @@ export function applyIngestResponse(
 
 /**
  * Backoff between flushes to a host that is not answering: 5s, doubling to a
- * five-minute ceiling, with jitter so several guests coming back onto one LAN
- * do not arrive in step.
- *
- * The host allows a burst of 30 requests refilling at 1/s, and a flush sends
- * the whole queue in one request, so this stays far below what would trip it.
- * Held in memory on purpose — a reload is a fresh chance for the host to be
- * there, and starting a new session inside an old backoff would delay the
- * flush for no reason.
+ * five-minute ceiling, with jitter so several guests returning to one LAN do
+ * not arrive in step. The host allows a burst of 30 requests refilling at one
+ * per second, and a flush is one request, so this stays far below that.
+ * Held in memory on purpose. A reload is a fresh chance for the host to be
+ * there, and starting inside an old backoff would delay the flush for nothing.
  */
 export const INITIAL_BACKOFF_MS = 5_000
 export const MAX_BACKOFF_MS = 5 * 60 * 1000

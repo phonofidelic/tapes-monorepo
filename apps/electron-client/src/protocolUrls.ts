@@ -1,18 +1,17 @@
 /**
  * URL parsing for the app's two custom schemes.
  *
- * Both are registered as privileged (see `registerSchemesAsPrivileged` in
- * `main.ts`), and `tapes-blob` is additionally `standard`, which means Chromium
- * parses and normalises its urls before a handler sees them: the authority is
- * lowercased and an authority-only url picks up a trailing slash. Stripping the
- * `scheme://` prefix by hand no longer round-trips, so both handlers go through
- * `URL` instead.
+ * Both are registered as privileged in `main.ts`. The blob scheme is also
+ * standard, so Chromium normalises its urls before a handler sees them: the
+ * authority is lowercased and an authority-only url gains a trailing slash.
+ * Stripping the scheme prefix by hand no longer round-trips, so both handlers
+ * parse with `URL` instead.
  */
 
 /**
- * Splits a custom-scheme url back into the single opaque target it carries —
- * the authority and path rejoined, with the trailing slash normalisation adds
- * to an authority-only url removed again.
+ * The single opaque target a custom-scheme url carries: the authority and path
+ * rejoined, minus the trailing slash that normalisation adds to an
+ * authority-only url.
  */
 function target(rawUrl: string): string {
   const url = new URL(rawUrl)
@@ -30,11 +29,10 @@ function target(rawUrl: string): string {
 /**
  * The filesystem path in a `tapes://` url.
  *
- * The path is absolute, so the url is `tapes:///Users/…`: an empty authority
- * and the path verbatim. This is why the scheme is deliberately *not*
- * `standard` — standard parsing rewrites that to `tapes://Users/…`, promoting
- * the first segment to a lowercased host and dropping the leading slash, which
- * leaves a relative path no `readFile` can open.
+ * The path is absolute, so the url is `tapes:///Users/...`, with an empty
+ * authority and the path verbatim. This is why the scheme is not standard.
+ * Standard parsing would promote the first segment to a lowercased host and
+ * drop the leading slash, leaving a relative path no file read can open.
  */
 export function filepathFromTapesUrl(rawUrl: string): string {
   return target(rawUrl)
