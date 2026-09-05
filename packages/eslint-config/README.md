@@ -1,11 +1,13 @@
 # @tapes-monorepo/eslint-config
 
-Shared ESLint configurations for the [Tapes](../../README.md) monorepo. Exposed
-as three entry points via the package exports:
+Shared ESLint configurations for the [Tapes](../../README.md) monorepo. Every
+workspace extends one of them from its own flat ESLint config.
 
-- `@tapes-monorepo/eslint-config/base` — base config for any package.
-- `@tapes-monorepo/eslint-config/next-js` — for Next.js apps (`web`, `docs`).
-- `@tapes-monorepo/eslint-config/react-internal` — for internal React libraries.
+Three entry points are exposed through the package exports:
+
+- `@tapes-monorepo/eslint-config/base` is the base config for any package.
+- `@tapes-monorepo/eslint-config/next-js` is for the Next.js apps, web and docs.
+- `@tapes-monorepo/eslint-config/react-internal` is for internal React libraries.
 
 Import the relevant config from a package's flat ESLint config:
 

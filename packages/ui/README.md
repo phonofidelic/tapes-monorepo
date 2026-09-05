@@ -1,10 +1,12 @@
 # @tapes-monorepo/ui
 
-Shared, presentational React component library for [Tapes](../../README.md),
-styled with Tailwind. Consumed by `@tapes-monorepo/core`.
+Shared presentational React components for [Tapes](../../README.md), styled with
+Tailwind. Consumed by core and by the two Next.js sites, web and docs.
 
-Built as a library with [`vite-plus`](https://www.npmjs.com/package/vite-plus);
-components are exposed via the package exports (`.` and `./style.css`).
+It is built as a library with
+[`vite-plus`](https://www.npmjs.com/package/vite-plus). Consumers import it
+through the package exports, `.` for the components and `./style.css` for the
+styles.
 
 ## Scripts
 
