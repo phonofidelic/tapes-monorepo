@@ -1,12 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * The install affordance (TAP-67).
- *
- * Chromium will not fire a real `beforeinstallprompt` for a dev-server origin,
- * and there is no automation hook to force one, so these tests dispatch a
- * synthetic event carrying the same shape the app consumes. That still
- * exercises the real path: the listener is attached at module scope in
+ * The install affordance. Chromium will not fire a real `beforeinstallprompt`
+ * for a dev-server origin and there is no automation hook to force one, so
+ * these tests dispatch a synthetic event with the shape the app consumes. That
+ * still exercises the real path: the listener is attached at module scope in
  * installPromptStore.ts, and the component reads the stored event.
  */
 

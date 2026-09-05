@@ -5,8 +5,8 @@ import { uploadBlob, type BlobEndpoint } from './blobClient'
 import { callWorker } from './workerClient'
 
 /**
- * Getting recorded bytes from the device that captured them to the sync host,
- * which is the durable copy every other device fetches from.
+ * Moves recorded bytes from the device that captured them to the sync host,
+ * which holds the durable copy every other device fetches from.
  *
  * Electron records straight to disk and hands the host a path, so its bytes
  * never travel. A web guest records into its own OPFS and has to upload.
@@ -48,12 +48,10 @@ export function removePendingUpload(storage: Storage, docUrl: string) {
 
 /**
  * Sends a recording's audio to the host and returns the descriptor to write
- * into its doc.
- *
- * On web the OPFS `File` is handed to `fetch` as-is so it streams off disk;
- * neither side ever holds the whole recording in memory. On electron the file
- * is already on the host's own disk, so it is ingested over IPC — hardlinked
- * rather than copied — and nothing crosses the network at all.
+ * into its doc. On web the OPFS file is handed to `fetch` as-is, so it
+ * streams off disk and neither side holds the whole recording in memory. On
+ * electron the file is already on the host's own disk, so it is ingested over
+ * IPC and nothing crosses the network.
  */
 export async function uploadRecordingBlob({
   appContext,
@@ -69,6 +67,7 @@ export async function uploadRecordingBlob({
   mimeType: string
 }): Promise<BlobDescriptor> {
   if (appContext.type === 'electron-client') {
+    // The host hardlinks the file into its store rather than copying it.
     const response = await appContext.ipc.send<PutBlobResponse>(
       'blob:put-file',
       { data: { filepath, docUrl } },

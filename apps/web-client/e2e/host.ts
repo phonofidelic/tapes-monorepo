@@ -7,11 +7,10 @@ import type { BlobDescriptor } from '@tapes-monorepo/core'
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
 /**
- * The test process's handle on the other device.
- *
- * The host itself — the electron client's real embedded sync server — runs in a
- * child process (`hostProcess.ts`, which explains why it has to). Everything
- * here is the near side of a one-JSON-object-per-line conversation with it.
+ * The test process's handle on the other device. The host itself, the electron
+ * client's real embedded sync server, runs in a child process (hostProcess.ts
+ * says why). Everything here is the near side of a one-JSON-object-per-line
+ * conversation with it.
  */
 
 // Re-exported so a spec needs only this module to reach the host.
@@ -119,10 +118,10 @@ export function seedRecording(options: {
   seconds: number
   frequency?: number
   /**
-   * Set false to put the document on the library without ever uploading its
-   * bytes — a recording whose upload never landed. The host answers 404 for
-   * it while remaining perfectly reachable, which a guest has to be able to
-   * tell apart from the host being away.
+   * Set false to put the document on the library without uploading its bytes,
+   * like a recording whose upload never landed. The host answers 404 for it
+   * while staying reachable, which a guest must tell apart from the host being
+   * away.
    */
   withBytes?: boolean
 }): Promise<SeededRecording> {

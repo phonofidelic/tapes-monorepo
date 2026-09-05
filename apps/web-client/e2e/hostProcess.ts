@@ -16,20 +16,14 @@ import type {
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
 /**
- * The other device, as its own process.
+ * The other device, as its own process. It runs the electron client's real
+ * embedded sync server against a temporary storage directory. syncServer.ts
+ * imports no electron APIs, so it runs under plain Node. host.ts drives this
+ * over stdio, one JSON object per line in both directions.
  *
- * It runs the electron client's real embedded sync server — the same
- * `startSyncServer` that `main.ts` boots — against a temporary storage
- * directory, with no Electron around it. `syncServer.ts` imports no electron
- * APIs (its paths arrive as options, composed by `syncServerRuntime.ts` from
- * `app.getPath` and friends), so the server half runs under plain Node.
- *
- * Two reasons this is not simply imported into the Playwright worker. Node has
- * to load these modules as ESM — `apps/electron-client` is not `type: module`,
- * and Playwright's CJS transform reaches Automerge's broken `require` entry for
- * the wasm blob — and a host that can be *killed* while the guest is watching
- * is the point of one of the tests. `host.ts` drives this over stdio; the
- * protocol is one JSON object per line, in both directions.
+ * It is a child process rather than an import into the Playwright worker
+ * because Playwright's CJS transform cannot load Automerge's wasm entry, and
+ * because one test needs a host that can be killed while the guest watches.
  */
 
 type Command =
@@ -163,7 +157,7 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
   })
 
   // The guest is about to be told this recording exists, so it has to be on
-  // the host before the browser opens — not merely sent.
+  // the host before the browser opens, not merely sent.
   await waitForStoredDoc(recording.url)
   return { url: recording.url, descriptor }
 }
@@ -212,14 +206,11 @@ async function objects(): Promise<{ hash: string; size: number }[]> {
 }
 
 /**
- * Waits until the host has written this document to its own storage.
- *
- * A `flush` on the peer would only prove the change left this process. The
- * host's `NodeFSStorageAdapter` writing it is the first moment a guest asking
- * for the document is guaranteed to get an answer.
- *
- * The adapter shards by the first two characters of the document id, so this
- * looks for that exact directory rather than counting what is in the store —
+ * Waits until the host has written this document to its own storage. A `flush`
+ * on the peer would only prove the change left this process. The host's
+ * storage adapter writing it is the first moment a guest is guaranteed an
+ * answer. The adapter shards by the first two characters of the document id,
+ * so this looks for that exact directory rather than counting entries, since
  * two documents whose ids share a prefix share a directory.
  */
 async function waitForStoredDoc(url: AutomergeUrl): Promise<void> {
@@ -307,10 +298,9 @@ async function run(command: Command): Promise<unknown> {
 
 /**
  * Automerge saves sync state on a throttle, so a timer can still be pending
- * when the store is removed — the write then fails with ENOENT and, being a
- * background timer, takes the process down with it before it can answer the
- * dispose. Nothing is left to salvage at that point, so during teardown these
- * are swallowed rather than allowed to strand the suite in `afterAll`.
+ * when the store is removed. That write fails with ENOENT from a background
+ * timer and would take the process down before it answers the dispose. During
+ * teardown these are swallowed so the suite is not stranded in `afterAll`.
  */
 process.on('unhandledRejection', (reason) => {
   if (disposing) {

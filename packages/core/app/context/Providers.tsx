@@ -14,12 +14,11 @@ import type { BlobEndpoint } from '@/blobClient'
 import type { EventHost } from '@/eventTarget'
 
 /**
- * The player, with its measured play sessions going to the event queue.
- *
- * A component of its own because the queue needs the blob endpoints to know
- * which host owns a play, so the hook has to run below `BlobProvider` — and
- * the player takes the callback as a prop rather than reading a context, so
- * that a shell which does not count plays simply leaves it out.
+ * The player, with its measured play sessions going to the event queue. A
+ * component of its own because the queue needs the blob endpoints to know
+ * which host owns a play, so the hook must run below `BlobProvider`. The
+ * player takes the callback as a prop rather than reading a context, so a
+ * shell that does not count plays leaves it out.
  */
 function CountedPlayback({ children }: { children: React.ReactNode }) {
   const recordPlaySession = usePlayEventQueue()

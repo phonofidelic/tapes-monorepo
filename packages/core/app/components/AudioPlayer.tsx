@@ -11,10 +11,9 @@ import { RecordingData } from '@/types'
 import { FormattedTime, formatTime } from './FormattedTime'
 
 /**
- * What each failure asks of the user. Only `unreachable` is the "offline" case
- * this line used to claim for all of them — a host that rejected our token is
- * sitting right there, and a recording that never reached one will not appear
- * however long the user waits.
+ * What each failure asks of the user. Only `unreachable` is an offline case.
+ * A host that rejected our token is reachable, and a recording that never
+ * reached a host will not appear however long the user waits.
  */
 const FAILURE_MESSAGE: Record<PlaybackFailure, string> = {
   unreachable: 'Host unreachable — not available offline',
@@ -73,8 +72,8 @@ export function AudioPlayer() {
       return
     }
     const time = timeFromPointer(event)
-    // Pointer capture so a drag that wanders off a 12px-tall strip — which is
-    // most of them — still tracks.
+    // Pointer capture so a drag that wanders off the 12px-tall strip still
+    // tracks. Most drags do.
     event.currentTarget.setPointerCapture?.(event.pointerId)
     setDragTime(time)
     seek(time)
