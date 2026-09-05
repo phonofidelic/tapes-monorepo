@@ -13,10 +13,10 @@ import type {
 } from '@tapes-monorepo/core'
 
 /**
- * Where the renderer's repo syncs. The renderer holds no storage of its own —
- * the embedded sync server's `NodeFSStorageAdapter` is the disk of record (see
- * syncServer.ts) — so `localUrl` is what makes anything persist at all, and it
- * is kept even when the user has opted into a remote server.
+ * Where the renderer's repo syncs. The renderer holds no storage of its own.
+ * The embedded sync server's disk store is the record, so `localUrl` is what
+ * makes anything persist, and it is kept even when the user has opted into a
+ * remote server.
  */
 export type SyncServerUrls = {
   /** The embedded sync server, i.e. this app's own on-disk store. */
@@ -38,12 +38,12 @@ export type SyncSettings = {
 }
 
 /**
- * Reads the sync-relevant fields out of the settings blob core's
- * SettingsProvider writes to localStorage. Anything unusable — malformed JSON,
- * a non-object, a URL that is not `ws:`/`wss:` — is dropped rather than passed
- * on, so a bad stored value falls through to the next candidate instead of
- * handing Automerge an address that can only produce reconnect noise. Mirrors
- * `readRemoteSyncServerUrl` in web-client's syncServerUrl.ts.
+ * Reads the sync-relevant fields out of the settings blob core writes to
+ * localStorage. Anything unusable is dropped rather than passed on: malformed
+ * JSON, a non-object, or a url that is not `ws:` or `wss:`. A bad stored value
+ * then falls through to the next candidate instead of handing Automerge an
+ * address that only produces reconnect noise. Mirrors the web-client's
+ * `readRemoteSyncServerUrl`.
  */
 export function readSyncSettings(
   storage: Pick<Storage, 'getItem'>,
@@ -159,15 +159,13 @@ export type RendererRepoBootstrap =
   | { status: 'unavailable' }
 
 /**
- * Builds the repo the renderer runs on, and loads (or creates) the library in
- * it.
+ * Builds the repo the renderer runs on, and loads or creates the library in it.
  *
- * The embedded sync server owns persistence — its `NodeFSStorageAdapter` is the
- * disk of record — so the repo normally carries no storage adapter of its own,
- * keeping the desktop library off the renderer's origin quota. Two cases still
- * need the browser-side store, which the caller supplies via `createStorage`:
- * no embedded server (nothing to persist to), and a pre-TAP-69 library the
- * server has never seen.
+ * The embedded sync server owns persistence, so the repo normally carries no
+ * storage adapter of its own. That keeps the desktop library off the renderer's
+ * origin quota. Two cases still need the browser-side store the caller supplies
+ * through `createStorage`: no embedded server, and a library from before the
+ * server owned persistence that it has never seen.
  */
 export async function bootstrapRendererRepo({
   storedUrl,
@@ -224,11 +222,11 @@ export async function bootstrapRendererRepo({
     return result
   }
 
-  // The server doesn't have the library. That's a pre-TAP-69 install, whose only
-  // copy is in the renderer's own storage: run this session on the legacy
-  // store-backed repo, which announces the library to the server so the next
-  // launch finds it on disk. Once this has shipped for a release, the fallback
-  // and the IndexedDB dependency can go.
+  // The server does not have the library. That is an install from before the
+  // server owned persistence, whose only copy is in the renderer's own storage.
+  // Run this session on the legacy store-backed repo, which announces the
+  // library to the server so the next launch finds it on disk. Once this has
+  // shipped for a release, the fallback and the IndexedDB dependency can go.
   await repo.shutdown()
   return load(
     new Repo({ storage: createStorage(), network: createNetwork(urls) }),
@@ -236,14 +234,12 @@ export async function bootstrapRendererRepo({
 }
 
 /**
- * The settings whose values feed `resolveSyncServerUrls`/`resolveBlobEndpoints`
- * above. A write to anything else (an audio format, a storage location) cannot
+ * The settings that feed `resolveSyncServerUrls` above and the blob endpoint
+ * resolution in core. A write to anything else, such as an audio format, cannot
  * change where we sync, so the shell ignores it rather than making an IPC round
- * trip and rebuilding for nothing.
- *
- * The LAN and HTTPS toggles are in here because they change the embedded
- * server's own url: it restarts on a different host or scheme, and the renderer
- * has to reconnect to where it moved to.
+ * trip and rebuilding for nothing. The LAN and HTTPS toggles are here because
+ * they move the embedded server to a different host or scheme, and the
+ * renderer has to reconnect.
  */
 const SYNC_SETTING_KEYS: ReadonlySet<string> = new Set([
   'syncServerMode',

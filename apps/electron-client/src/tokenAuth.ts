@@ -2,11 +2,10 @@ import crypto from 'crypto'
 import type http from 'http'
 
 /**
- * The one bearer-token check shared by every surface the embedded server
- * exposes: the `/blobs` routes (see blobHttp.ts) and the sync socket's upgrade
- * (see syncServer.ts). The token is minted once per install into
- * `sync-server.json` and handed to guests through the QR pairing URL, so both
- * surfaces are gated by the same secret and must compare it the same way.
+ * The one bearer-token check shared by the HTTP routes and the sync socket's
+ * upgrade. The token is minted once per install into the sync-server config
+ * and handed to guests through the QR pairing url. Both surfaces are gated by
+ * the same secret and must compare it the same way.
  */
 
 export function timingSafeMatch(a: string, b: string): boolean {
@@ -20,13 +19,12 @@ export function timingSafeMatch(a: string, b: string): boolean {
 }
 
 /**
- * Accepts the token as an `Authorization: Bearer` header or as `?t=`. The
- * query form is not a convenience: a browser cannot set headers on a
- * `WebSocket` (nor on a plain `<audio src>` streaming a range), so for a guest
- * it is the only form available.
+ * Accepts the token as a bearer header or as the `t` query parameter. The
+ * query form is not a convenience. A browser cannot set headers on a WebSocket
+ * or on an audio element streaming a range, so a guest has no other form.
  *
- * A caller that passes no token is unguarded, which only happens in tests that
- * exercise the unauthenticated shape.
+ * A caller that passes no token is unguarded. Only tests that exercise the
+ * unauthenticated shape do that.
  */
 export function isAuthorized(
   request: Pick<http.IncomingMessage, 'headers'>,

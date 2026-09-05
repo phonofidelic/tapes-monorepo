@@ -53,7 +53,7 @@ const isValidDeleteRecordingRequestData = (
   const hasBlob =
     'hash' in data && typeof data.hash === 'string' && data.hash.length > 0
   // A recording synced from another device has no local filepath, and a doc
-  // predating the blob store has no hash — but one of the two must identify
+  // predating the blob store has no hash. One of the two must identify
   // something to delete.
   return hasFilepath || hasBlob
 }

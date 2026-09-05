@@ -1,12 +1,12 @@
 import type http from 'http'
 
 /**
- * The response shape shared by every route the embedded server exposes —
- * `/blobs` (blobHttp.ts) and `/events` (eventHttp.ts).
+ * Response helpers shared by every route the embedded server exposes: the blob
+ * routes and the event routes.
  *
- * They share an origin, a port and a pairing token, so they must also share a
- * CORS story: a guest that could reach one and not the other would fail in a
- * way no single route's code explains.
+ * They share an origin, a port and a pairing token, so they must also send the
+ * same CORS headers. A guest that could reach one route and not the other
+ * would fail in a way no single route's code explains.
  */
 
 export const CORS_HEADERS: Record<string, string> = {
