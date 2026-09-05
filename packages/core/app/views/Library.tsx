@@ -20,6 +20,7 @@ import { useBlobEndpoints } from '@/context/BlobContext'
 import { usePins } from '@/context/PinContext'
 import { deleteBlobEverywhere } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
+import { PlaybackSummary } from '@/components/PlaybackSummary'
 import { useAutomergeUrl } from '@/utils'
 
 export function Library() {
@@ -144,8 +145,10 @@ function LibraryListItem({
               />
             </Button>
           </span>
-          <p className="flex items-center p-1 text-xs text-zinc-400">
+          <p className="flex items-center gap-2 p-1 text-xs text-zinc-400">
             <FormattedTime time={recording.duration} />
+            <span aria-hidden="true">·</span>
+            <PlaybackSummary recordingUrl={recording.url} />
           </p>
         </div>
         <div className="flex gap-2">

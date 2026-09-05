@@ -35,6 +35,14 @@ export type AggregatesState = {
   byRecording: ReadonlyMap<string, RecordingAggregate>
   /** True while a request is in flight. Never a reason to hold a render. */
   loading: boolean
+  /**
+   * True once a host has answered for the current target.
+   *
+   * This is what separates "nobody has played this" from "nobody has told us
+   * yet". Without it a row cannot honestly show a zero, because an absent
+   * recording and an absent answer look identical in `byRecording`.
+   */
+  answered: boolean
   /** The last failure, for diagnostics rather than for the user. */
   error?: Error
   /** When the held snapshot was built by the host. */
@@ -52,6 +60,7 @@ const EMPTY: ReadonlyMap<string, RecordingAggregate> = new Map()
 const AggregatesContext = createContext<AggregatesState>({
   byRecording: EMPTY,
   loading: false,
+  answered: false,
   refresh: () => {},
 })
 
@@ -183,6 +192,7 @@ export function AggregatesProvider({
           )
         : EMPTY,
       loading,
+      answered: current?.snapshot !== undefined,
       error: current?.error,
       generatedAt: current?.snapshot?.generatedAt,
       refresh,
@@ -202,14 +212,45 @@ export function useAggregates(): AggregatesState {
 }
 
 /**
- * One recording's numbers, or nothing.
+ * What is known about one recording's plays.
  *
- * Nothing covers three cases: never played, no answer yet, and no host to ask.
- * They are deliberately one answer, because all three render the same way.
+ * Three answers, because they mean different things to a host and must not be
+ * shown as one. A recording missing from a snapshot has genuinely never been
+ * played; a missing snapshot means nobody has said. Collapsing those would put
+ * "0 plays" under a tape that was played ten times while the host slept.
  */
-export function useRecordingAggregate(
+export type RecordingPlayback =
+  /** No host, or no answer from the one that holds these numbers. */
+  | { status: 'unknown' }
+  /** The host answered and has counted no plays of this recording. */
+  | { status: 'unplayed' }
+  | {
+      status: 'played'
+      plays: number
+      /** Mean of the per-play completion values, 0..1. */
+      averageCompletion: number
+    }
+
+const UNKNOWN: RecordingPlayback = { status: 'unknown' }
+const UNPLAYED: RecordingPlayback = { status: 'unplayed' }
+
+export function useRecordingPlayback(
   recordingUrl: string | undefined,
-): RecordingAggregate | undefined {
-  const { byRecording } = useAggregates()
-  return recordingUrl ? byRecording.get(recordingUrl) : undefined
+): RecordingPlayback {
+  const { byRecording, answered } = useAggregates()
+  return useMemo(() => {
+    if (!recordingUrl || !answered) {
+      return UNKNOWN
+    }
+    const row = byRecording.get(recordingUrl)
+    // A host that answers without this recording has counted nothing for it.
+    if (!row || row.plays <= 0) {
+      return UNPLAYED
+    }
+    return {
+      status: 'played',
+      plays: row.plays,
+      averageCompletion: row.averageCompletion,
+    }
+  }, [byRecording, answered, recordingUrl])
 }
