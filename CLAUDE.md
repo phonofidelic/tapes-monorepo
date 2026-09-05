@@ -81,6 +81,8 @@ Doc comments follow the same rules, with two additions:
   not a copy of the PR description.
 - Put the reasoning next to the code it explains, as a short comment at that
   line, rather than collecting it all in the header.
+- When you edit a file that has a module header, re-read the header and update
+  it if your change makes it wrong.
 
 Example rewrite, from PR #312:
 
