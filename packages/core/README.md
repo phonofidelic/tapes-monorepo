@@ -1,19 +1,25 @@
 # @tapes-monorepo/core
 
-The **Tapes application** itself — the shared code that runs in both the browser
-(`web-client`) and the desktop host (`electron-client`).
+The Tapes application itself. This is the shared code that both shells mount:
+the browser web-client and the desktop electron-client renderer. The UI lives in
+`app/`, with the root component, views, components and React contexts.
 
-The UI lives in `app/` (`App.tsx`, `views/`, `components/`, `context/`). This
-package owns:
+The package owns:
 
-- **Sync** — the Automerge repo (`@automerge/automerge-repo`) with **IndexedDB**
-  storage in the browser and **WebSocket + BroadcastChannel** networking, exposed
-  to React via `@automerge/automerge-repo-react-hooks`.
-- **LAN pairing** — QR codes (`qrcode.react`) so guest devices can join the host.
-- Communication with the Electron host through `IpcService`.
+- **The app tree.** Each shell builds its own Automerge repo and passes it to
+  `App`, because storage and networking are platform-specific. The web client
+  persists to IndexedDB and the electron renderer delegates persistence to the
+  embedded sync server. Core reads the repo through
+  `@automerge/automerge-repo-react-hooks`.
+- **Blob and event clients.** Recorded audio is sent to and fetched from the
+  hosts the shell resolves. Playback events are queued and flushed to the one
+  host that owns the library's numbers.
+- **LAN pairing.** QR codes from `qrcode.react` let guest devices join the host.
+- **Talking to the Electron host** through `IpcService`.
 
-It's built as a library with [`vite-plus`](https://www.npmjs.com/package/vite-plus)
-and consumed via its package exports (`.` and `./style.css`).
+It is built as a library with
+[`vite-plus`](https://www.npmjs.com/package/vite-plus). Consumers import it
+through the package exports, `.` for the code and `./style.css` for the styles.
 
 ## Scripts
 
@@ -23,6 +29,6 @@ yarn workspace @tapes-monorepo/core dev         # vp build --watch
 yarn workspace @tapes-monorepo/core test        # vitest run
 ```
 
-`dev:https` is an alias of `dev` — the package builds the same either way; the
-protocol is decided by the shells that consume it. This is the package whose
-unit tests run in CI.
+The `dev:https` script is an alias of `dev`. The package builds the same either
+way, and the shells that consume it decide the protocol. The unit tests run in
+CI alongside those of electron-client and web-client.

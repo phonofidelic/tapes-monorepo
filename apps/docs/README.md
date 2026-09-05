@@ -1,11 +1,11 @@
 # docs
 
 The [Tapes](../../README.md) documentation site, built with
-[Next.js](https://nextjs.org).
+[Next.js](https://nextjs.org). It is not part of the recording app.
 
-> This site is currently a starter scaffold. Project documentation presently
-> lives in the root README and the per-app/package READMEs; building this into a
-> full documentation site is a planned follow-up.
+The site is still a starter scaffold. Project documentation lives in the root
+README and the per-workspace READMEs for now. Building this into a full
+documentation site is a planned follow-up.
 
 ## Develop
 
