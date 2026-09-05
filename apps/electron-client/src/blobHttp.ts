@@ -5,20 +5,18 @@ import { isAuthorized } from './tokenAuth'
 import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
 
 /**
- * The `/blobs` HTTP surface, served from the same origin and port as the sync
- * socket so a guest needs no second address (and, over HTTPS, no second cert
- * exception).
+ * The `/blobs` HTTP routes, served from the same origin and port as the sync
+ * socket so a guest needs no second address and, over HTTPS, no second cert
+ * exception.
  *
- * Mounted ahead of everything else in `syncServer`'s request handler. That
- * ordering is load-bearing: the static handler's SPA fallback answers *any*
- * unmatched path with `index.html` and a 200, so a blob route mounted after it
- * would not 404 — it would hand the audio element a page of HTML and fail as a
- * decode error.
+ * Must stay mounted ahead of the static handler in the sync server. Its SPA
+ * fallback answers any unmatched path with index.html and a 200, so a blob
+ * route behind it would hand the audio element HTML and fail as a decode error.
  */
 
 export const BLOB_PATH_PREFIX = '/blobs'
 
-/** Per-upload ceiling. Well above any plausible recording; a stop, not a policy. */
+/** Per-upload ceiling. Well above any plausible recording. A stop, not a policy. */
 export const DEFAULT_MAX_BLOB_BYTES = 512 * 1024 * 1024
 
 /** Whole-store ceiling, so a paired peer cannot fill the host's disk. */

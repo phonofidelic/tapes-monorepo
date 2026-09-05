@@ -84,8 +84,8 @@ export class CreateRecordingChannel implements IpcChannel {
     }
 
     try {
-      // SIGINT (not SIGQUIT) — sox only seeks back to patch the WAV header
-      // with the real data-chunk size when it shuts down cleanly. Killed with
+      // SIGINT, not SIGQUIT. sox only seeks back to patch the WAV header with
+      // the real data-chunk size when it shuts down cleanly. Killed with
       // SIGQUIT it leaves the 0x7FFFF800 placeholder in place, and every
       // recording then reports the same bogus multi-hour duration to players.
       const sox = this.sox

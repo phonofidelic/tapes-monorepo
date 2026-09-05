@@ -63,29 +63,29 @@ export type SyncServerOptions = {
    */
   webClientPath?: string
   /**
-   * Self-signed key+cert. When provided the server runs over HTTPS (and the
-   * sync socket over `wss://`) on the same port, so a guest gets a secure
-   * context — required for both recording and OPFS-backed playback — and the
-   * `wss://` handshake reuses the accepted cert exception (same origin).
+   * Self-signed key and cert. When provided the server runs over HTTPS and the
+   * sync socket over `wss://` on the same port. A guest then gets a secure
+   * context, which recording and OPFS-backed playback both require, and the
+   * socket handshake reuses the cert exception the guest already accepted.
    */
   tls?: { key: string; cert: string }
   /**
-   * In development, the LAN URL of the web-client's Vite dev server. When set it
-   * is advertised to guests (as `webAppUrl`/`lanWebAppUrl`) instead of a URL for
-   * the statically served bundle, so guests load the HMR-enabled dev server. The
-   * sync socket still runs here; the dev server proxies `/sync` back to it.
+   * In development, the LAN url of the web-client's Vite dev server. When set
+   * it is advertised to guests instead of the statically served bundle, so they
+   * load the HMR-enabled app. The sync socket still runs here, and the dev
+   * server proxies `/sync` back to it.
    */
   webAppDevUrl?: string
   /**
    * Root of the content-addressed audio store. When omitted the `/blobs`
-   * routes are still matched but answer 503, so the server keeps working (and
-   * keeps its tests passing) without one.
+   * routes still match but answer 503, so the server and its tests keep
+   * working without one.
    */
   blobStorePath?: string
   /**
-   * Root of the append-only playback-event log. Omitted by tests that have no
-   * interest in events; the ingest route answers 503 without one, exactly as
-   * `/blobs` does without a blob store.
+   * Root of the append-only playback-event log. Tests that do not care about
+   * events omit it. The ingest route then answers 503, as `/blobs` does
+   * without a blob store.
    */
   eventStorePath?: string
   /**
@@ -128,10 +128,8 @@ export function getBlobStore(): BlobStore | undefined {
 
 /**
  * The running host's repo, for the blob GC's walk over the library graph.
- *
- * Nothing else on the host reads document contents — the server otherwise only
- * relays and persists — so this stays deliberately narrow rather than becoming
- * a general seam for interpreting docs in the main process.
+ * Nothing else on the host reads document contents, so this stays narrow
+ * rather than becoming a general seam for interpreting docs in main.
  */
 export function getSyncRepo(): Repo | undefined {
   return current?.repo
@@ -139,16 +137,11 @@ export function getSyncRepo(): Repo | undefined {
 
 /**
  * The running host's playback-event log, for the ingest route and for deriving
- * aggregates. Undefined until `startSyncServer` has opened it — a store whose
+ * aggregates. Undefined until the server has opened it, since a store whose
  * dedupe index has not loaded would re-admit events already on disk.
  *
- * **This is only ever *this device's own* log**, exactly as `getBlobStore` is
- * only its own store. A device can be a host and a guest of another host at the
- * same time (`SyncServerUrls` in `rendererRepo.ts` syncs a remote server *in
- * addition to* the local one), and its own plays are flushed to whichever host
- * it is synced with — which may not be this one. A read path that answers the
- * renderer from here unconditionally will report zeros for a library whose
- * events all went elsewhere: the same failure mode TAP-74 fixed for blobs.
+ * This is only ever this device's own log, as `getBlobStore` is only its own
+ * store. See the caveat on `getAggregateStore`.
  */
 export function getEventStore(): EventStore | undefined {
   return current?.eventStore
@@ -157,11 +150,11 @@ export function getEventStore(): EventStore | undefined {
 /**
  * Per-recording plays and average completion, derived from that log.
  *
- * Carries the same caveat as `getEventStore`, and more visibly: these numbers
- * only ever describe the events *this* device accepted. A device that is a
- * guest of another host flushes its plays there, so a read path that answers
- * the renderer from here unconditionally will report zeros for a library whose
- * events all went elsewhere.
+ * These numbers only describe events this device accepted. A device can be a
+ * host and a guest of another host at once, and its own plays flush to
+ * whichever host it syncs with. A read path that answers the renderer from
+ * here unconditionally reports zeros for a library whose events went
+ * elsewhere. The blob endpoints had the same bug in remote sync mode.
  */
 export function getAggregateStore(): AggregateStore | undefined {
   return current?.aggregateStore
@@ -211,9 +204,9 @@ type RouteHandler = (
 ) => Promise<boolean>
 
 /**
- * Builds the HTTP request handler. When `webClientPath` is set it serves the
- * built web-client bundle (with an SPA fallback to index.html so deep links
- * like `/?am=<url>` work); otherwise it responds with a plain health check.
+ * Builds the HTTP request handler. With `webClientPath` set it serves the built
+ * web-client bundle, falling back to index.html so deep links like `/?am=<url>`
+ * work. Without it, it answers a plain health check.
  */
 function createRequestHandler(
   webClientPath?: string,
@@ -223,13 +216,12 @@ function createRequestHandler(
     request: http.IncomingMessage,
     response: http.ServerResponse,
   ) => {
-    // Ahead of everything, including the health check below: the static
-    // branch's SPA fallback answers any unmatched path with index.html and a
-    // 200, so an API route mounted after it would return HTML to an <audio>
-    // element (or to a flushing event queue) rather than a 404. The
-    // health-check branch returns early, so this must also precede it or the
-    // routes would break whenever no web-client bundle is staged (which is how
-    // both server test harnesses run).
+    // API routes run first, ahead of the health check and the static handler.
+    // The SPA fallback answers any unmatched path with index.html and a 200, so
+    // a route mounted after it would hand HTML to an audio element or to a
+    // flushing event queue instead of a 404. The health check returns early,
+    // so routes must also precede it or they would break whenever no bundle is
+    // staged, which is how both server test harnesses run.
     for (const route of routes) {
       if (await route(request, response)) {
         return
@@ -281,9 +273,8 @@ function createRequestHandler(
 }
 
 /**
- * Stands in when no blob store is configured. It still *claims* the `/blobs`
- * paths so they can never fall through to the SPA fallback and come back as a
- * 200 page of HTML.
+ * Stands in when no blob store is configured. It still claims the `/blobs`
+ * paths so they never fall through to the SPA fallback and come back as HTML.
  */
 async function unavailableBlobRequestHandler(
   request: http.IncomingMessage,
@@ -300,9 +291,9 @@ async function unavailableBlobRequestHandler(
 }
 
 /**
- * The same stand-in for `/events`, and for the same reason: the path has to be
- * claimed even when there is no log behind it, or a flushing client would read
- * the SPA fallback's 200 as "accepted" and clear its queue.
+ * The same stand-in for `/events`. The path has to be claimed even with no log
+ * behind it, or a flushing client would read the SPA fallback's 200 as
+ * "accepted" and clear its queue.
  */
 async function unavailableEventRequestHandler(
   request: http.IncomingMessage,
@@ -322,19 +313,14 @@ async function unavailableEventRequestHandler(
 }
 
 /**
- * Whether this host holds the document a reported play names, read straight
- * off `NodeFSStorageAdapter`'s layout — the first two characters of the id
- * name a directory holding the rest, the same layout `blobGc.ts` walks.
+ * Whether this host holds the document a reported play names.
  *
- * A `stat` rather than a `repo.find`: the check runs per event of every
- * ingest, and resolving a document would mean loading and merging it. This
- * answers the only question the route actually asks — is this a recording this
- * host has ever heard of, or a fabricated id.
- *
- * Only positives are cached. A document that is present stays present for the
- * life of the process, but a miss is frequently temporary: a guest that played
- * offline can reach `/events` before its recording has finished syncing here,
- * which is why the route treats that rejection as retryable.
+ * Answered with a file check on the storage adapter's layout rather than a
+ * repo lookup, because the check runs for every event of every ingest and
+ * resolving a document would load and merge it. Only positives are cached. A
+ * miss is often temporary, since a guest that played offline can reach
+ * `/events` before its recording has synced here. The route treats that as
+ * retryable.
  */
 function createKnownRecordingCheck(storagePath: string) {
   const known = new Set<string>()
@@ -348,6 +334,8 @@ function createKnownRecordingCheck(storagePath: string) {
       return false
     }
     try {
+      // The first two characters of the id name a directory holding the rest.
+      // The same layout `blobGc.ts` walks.
       await access(
         path.join(storagePath, documentId.slice(0, 2), documentId.slice(2)),
       )
@@ -439,15 +427,12 @@ export async function startSyncServer(
         // later `rebuild` can recover, which is the point of deriving.
         console.error('Playback aggregates failed to open:', error)
       }
-      // Retention rides the same startup moment as the tmp sweep rather than
-      // getting a timer of its own; a host that never restarts for 90 days is
-      // not a case this app has.
-      //
-      // It goes through the aggregate store when there is one: expiring events
-      // have to be folded into the frozen baseline *before* they are unlinked,
-      // or an old tape's lifetime play count would decay as its events aged
-      // out. Without one, the raw sweep still runs — a log that grows forever
-      // is the worse failure — and those plays are simply lost.
+      // Retention runs at startup, alongside the tmp sweep, rather than on a
+      // timer. A host that never restarts for 90 days is not a case this app
+      // has. It goes through the aggregate store when there is one, so expiring
+      // events are folded into the frozen baseline before they are unlinked.
+      // Without one the raw sweep still runs, since a log that grows forever is
+      // the worse failure, and those plays are lost.
       void (aggregateStore ?? store)
         .sweep(DEFAULT_EVENT_MAX_AGE_MS)
         .then(({ segments, events, retained }) => {
@@ -589,10 +574,10 @@ export async function stopSyncServer(): Promise<void> {
     client.terminate()
   }
   await new Promise<void>((resolve) => wss.close(() => resolve()))
-  // `server.close` only stops new connections; it waits for existing ones to
-  // end. Now that guests hold keep-alive HTTP connections for `/blobs`, that
-  // wait runs to the keep-alive timeout and stalls quitting the app (main.ts
-  // defers `will-quit` on this).
+  // `server.close` only stops new connections and waits for existing ones to
+  // end. Guests hold keep-alive HTTP connections for blobs, so that wait would
+  // run to the keep-alive timeout and stall quitting. main.ts defers quitting
+  // on this call.
   server.closeAllConnections()
   await new Promise<void>((resolve) => server.close(() => resolve()))
 }

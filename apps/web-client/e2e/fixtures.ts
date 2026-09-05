@@ -105,17 +105,17 @@ export type DeviceOption = {
  * Audio input devices offered by AudioInputSelector, minus its placeholder.
  *
  * Option values are whole stringified MediaDeviceInfo objects, not bare device
- * ids — the two clients need different fields off the same option, so the
+ * ids. The two clients need different fields off the same option, so the
  * selector serializes the lot and each reads what it needs.
  */
 export const deviceOptions = async (page: Page): Promise<DeviceOption[]> => {
   const select = page.getByRole('combobox').first()
 
   // AudioInputSelector renders an "Allow access" button until its permission
-  // query resolves, then swaps in the <select>. Don't probe for that button
-  // and click it — it is often already gone by the time the click lands
-  // (Playwright then waits forever on a detached element). Wait for the
-  // outcome instead, and only take the explicit path if it never arrives.
+  // query resolves, then swaps in the <select>. Clicking that button is racy:
+  // it is often gone by the time the click lands, and Playwright then waits
+  // forever on a detached element. Wait for the select instead, and only take
+  // the explicit path if it never arrives.
   try {
     await select.waitFor({ state: 'visible', timeout: 5_000 })
   } catch {
@@ -140,15 +140,12 @@ export const deviceOptions = async (page: Page): Promise<DeviceOption[]> => {
 }
 
 export const selectDevice = async (page: Page, device: DeviceOption) => {
-  // Target the select that actually offers this device rather than a
-  // positional one. The Settings view has three comboboxes (input device,
-  // recording format, channels) and the device selector populates last —
-  // it waits on a permissions query and enumerateDevices — so `.first()`
-  // races it and lands on the format select on a slow machine.
-  //
-  // Matched by option *text*, not by an `option[value="..."]` CSS selector:
-  // the value is now JSON, whose quotes and braces would have to be escaped
-  // into the selector. `hasText` takes a plain string.
+  // Target the select that offers this device rather than a positional one.
+  // The Settings view has three comboboxes and the device selector populates
+  // last, after a permissions query and enumerateDevices, so `.first()` can
+  // land on the format select on a slow machine. Matched by option text, not
+  // an `option[value]` selector: the value is JSON, whose quotes and braces
+  // would need escaping.
   const select = page
     .locator('select')
     .filter({ has: page.locator('option', { hasText: device.label }) })
@@ -173,7 +170,7 @@ export const storedAudioInputDeviceId = (page: Page) =>
 export const recordFor = async (page: Page, durationMs = 4000) => {
   // getByTitle, not getByRole+name: while recording the button renders the
   // elapsed Timer, and text content wins over `title` when the accessible name
-  // is computed — so the button is named "00:00:04:21", not "Stop recording".
+  // is computed. The button is then named "00:00:04:21", not "Stop recording".
   await page.getByTitle('Start recording').click()
   await page.waitForTimeout(durationMs)
   await page.getByTitle('Stop recording').click()

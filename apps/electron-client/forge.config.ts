@@ -15,11 +15,11 @@ const notarizeOptions = {
   teamId: process.env.APPLE_TEAM_ID ?? '',
 } as const
 
-// Notarization requires a real "Developer ID Application" certificate: Apple
-// rejects the ad-hoc signature that `osxSign: {}` falls back to when no cert is
-// installed. Detect a usable identity so local `yarn package` runs produce an
-// ad-hoc-signed build and skip notarization, while CI/release machines that
-// have imported a Developer ID cert (and set the APPLE_* creds) still notarize.
+// Notarization requires a real "Developer ID Application" certificate. Apple
+// rejects the ad-hoc signature that an empty osxSign falls back to when no cert
+// is installed. Local package runs therefore produce an ad-hoc-signed build and
+// skip notarization. Release machines with the cert and the APPLE_* variables
+// still notarize.
 function hasDeveloperIdCertificate(): boolean {
   try {
     const identities = execSync('security find-identity -v -p codesigning', {
@@ -47,13 +47,11 @@ const repositoryOptions = {
 /**
  * A build the e2e suite can drive.
  *
- * Playwright's Electron support talks to the main process over node's inspector
- * — it launches the app with `--inspect=0` and waits for the debugger line on
- * stderr — which the `EnableNodeCliInspectArguments` fuse switches off. A
- * shipped build must keep that fuse: it is what stops anyone from attaching a
- * debugger to an installed copy and reading whatever the main process holds. So
- * the e2e build turns exactly that one fuse back on, and lands in an `out`
- * directory of its own so it can never be mistaken for a release.
+ * Playwright launches the app with `--inspect=0` and waits for the debugger
+ * line on stderr, which the node inspector fuse switches off. A shipped build
+ * must keep that fuse, since it stops anyone attaching a debugger to an
+ * installed copy. The e2e build turns exactly that fuse back on and lands in
+ * its own output directory so it is never mistaken for a release.
  */
 const isE2EBuild = Boolean(process.env.TAPES_E2E)
 

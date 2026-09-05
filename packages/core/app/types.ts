@@ -23,7 +23,7 @@ export type RecordingData = {
   /**
    * Where the audio lives. The bytes themselves are held by the sync host and
    * fetched on demand, so this doc stays O(metadata) however long the
-   * recording is. Absent when the bytes have not reached a host yet — a
+   * recording is. Absent when the bytes have not reached a host yet. A
    * local-only client has nowhere to put them.
    */
   blob?: BlobDescriptor

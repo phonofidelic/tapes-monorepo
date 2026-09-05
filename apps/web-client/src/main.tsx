@@ -20,21 +20,18 @@ import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-networ
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 
-// Where this bundle syncs, in precedence order:
+// Where this bundle syncs, in precedence order. Each step is commented in
+// syncServerUrl.ts next to the code that takes it.
 //
-//   1. VITE_SYNC_SERVER_URL — build-time, the Vercel deploy path.
-//   2. `remoteSyncServerUrl` in localStorage — a remote server the user opted
-//      into from Settings.
-//   3. The Vite dev server (import.meta.env.DEV) — same-origin `/sync`, which
-//      the dev server proxies to the Electron host's embedded sync server so a
-//      LAN guest gets HMR and sync at once (see vite.config.ts).
-//   4. VITE_SERVED_BY_HOST — set when electron-client stages this bundle into
-//      its own resources, so the host is serving it and the sync server is on
-//      the same origin. That flag is what distinguishes a host-served bundle
-//      from a standalone static deploy; both are plain builds otherwise.
-//   5. Nothing matched — a standalone deploy with no server to reach. Resolve
-//      to undefined and let core run local-only (IndexedDB plus cross-tab
-//      BroadcastChannel) instead of retrying an origin nothing listens on.
+//   1. VITE_SYNC_SERVER_URL, set at build time for the Vercel deploy.
+//   2. `remoteSyncServerUrl` in localStorage, chosen by the user in Settings.
+//   3. The Vite dev server: same-origin `/sync`, proxied to the Electron host
+//      so a LAN guest gets HMR and sync at once (see vite.config.ts).
+//   4. VITE_SERVED_BY_HOST: electron-client staged this bundle, so the host
+//      serves it and the sync server is on the same origin. That flag is the
+//      only difference from a standalone static deploy.
+//   5. Nothing matched: a standalone deploy with no server to reach. Core runs
+//      local-only (IndexedDB plus cross-tab BroadcastChannel).
 
 // A bundle the Electron host serves to LAN guests gets no service worker; the
 // plugin is disabled for that build (see vite.config.ts for why). Tear down any
@@ -76,7 +73,7 @@ const syncServerUrl = resolveSyncServerUrl({
 
 // Where this bundle sends and fetches recorded audio. Same shape as the sync
 // URL chain above: the host's own origin when it is serving us, an explicit
-// remote otherwise, and nothing at all for a standalone deploy — in which case
+// remote otherwise, and nothing at all for a standalone deploy, where
 // recordings simply stay in this device's OPFS. More than one can resolve, in
 // which case they are tried in order.
 const blobEndpoints = resolveBlobEndpoints({

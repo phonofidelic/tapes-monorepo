@@ -8,22 +8,19 @@ import type { AutomergeUrl } from '@automerge/automerge-repo/slim'
 /**
  * The renderer telling the host which library it just loaded.
  *
- * The host has no notion of a root document otherwise — the url lives in the
- * renderer's localStorage, and everything main receives over IPC is a
- * *recording* doc url. Without it the blob GC has nothing to mark against.
- *
- * This doubles as the GC's trigger. The ticket calls for a sweep "on startup
- * after the repo has loaded", and there is no repo-ready hook on the host: the
- * sync server is started fire-and-forget during `app.on('ready')`, long before
- * any library exists. The renderer announcing its library *is* that moment.
+ * The host otherwise has no notion of a root document. The url lives in the
+ * renderer's localStorage, and everything else main receives over IPC names a
+ * recording. Without this the blob GC has nothing to mark against. It also
+ * triggers the GC, since the host has no repo-ready hook: the sync server
+ * starts fire-and-forget on app ready, long before any library exists.
  */
 export class AnnounceLibraryChannel implements IpcChannel {
   name: string = 'library:announce'
 
   /**
-   * The renderer re-announces whenever it rebuilds its repo (a host url
-   * change, a reconnect), but sweeping the whole store is not something to
-   * repeat on every one of those.
+   * The renderer re-announces whenever it rebuilds its repo, such as on a host
+   * url change or a reconnect. Sweeping the whole store is not something to
+   * repeat each time.
    */
   private sweptThisLaunch = false
 

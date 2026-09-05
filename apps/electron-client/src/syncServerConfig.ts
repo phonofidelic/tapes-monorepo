@@ -6,15 +6,14 @@ import { app } from 'electron'
 export type SyncServerConfig = {
   peerId: string
   lanEnabled: boolean
-  // Serve the LAN over self-signed HTTPS so guests get a secure context
-  // (required for playback and recording, not just plain browsing).
+  // Serve the LAN over self-signed HTTPS so guests get a secure context, which
+  // playback and recording both require.
   httpsEnabled: boolean
-  // Shared secret guarding everything this host exposes on the LAN: the
-  // `/blobs` HTTP surface and the sync socket's upgrade. Minted once and
-  // distributed to guests via the QR pairing URL — an unauthenticated socket
-  // would let anyone who can route to the port read or rewrite the whole
-  // library. Rotating it unpairs every guest at once; there is no per-device
-  // revocation.
+  // Shared secret guarding everything this host exposes on the LAN: the blob
+  // routes and the sync socket's upgrade. Minted once and handed to guests in
+  // the QR pairing url. Without it anyone who can route to the port could read
+  // or rewrite the whole library. Rotating it unpairs every guest at once.
+  // There is no per-device revocation.
   pairingToken: string
   /**
    * Library roots this host has been told about, so the blob GC can mark
@@ -35,10 +34,10 @@ export const syncStoragePath = () =>
 export const blobStoragePath = () => path.join(app.getPath('userData'), 'blobs')
 
 /**
- * Root of the append-only playback-event log. A sibling of the blob store
- * rather than a directory inside it: the two have different lifetimes — audio
- * lives as long as its recording, events for 90 days — and a retention sweep
- * that could reach into `blobs/` is a sweep that could unlink audio.
+ * Root of the append-only playback-event log. A sibling of the blob store, not
+ * a directory inside it. Audio lives as long as its recording and events for
+ * 90 days, and a retention sweep that could reach into `blobs/` could unlink
+ * audio.
  */
 export const eventStoragePath = () =>
   path.join(app.getPath('userData'), 'events')
@@ -46,14 +45,11 @@ export const eventStoragePath = () =>
 /**
  * Port the embedded server binds, when something has pinned one.
  *
- * Normally there is nothing to decide — the server takes
- * `DEFAULT_SYNC_SERVER_PORT` and, if that is taken, whatever the OS hands it.
- * The e2e suite cannot live with either: it starts a *second* copy of this app
- * on a machine that may already be running the developer's own, and the guest's
- * dev server proxies `/sync` and `/blobs` to a port chosen before either
- * process exists. `TAPES_SYNC_SERVER_PORT` is the same variable the
- * web-client's dev server reads to aim those proxies, so the two agree by
- * construction.
+ * Normally the server takes the default port, or whatever the OS hands it when
+ * that is taken. The e2e suite needs a fixed port. It starts a second copy of
+ * this app beside the developer's own, and the guest's dev server proxies to a
+ * port chosen before either process exists. The web-client's dev server reads
+ * `TAPES_SYNC_SERVER_PORT` too, so the two agree by construction.
  */
 export const syncServerPort = (): number | undefined => {
   const port = Number(process.env.TAPES_SYNC_SERVER_PORT)
@@ -63,10 +59,10 @@ export const syncServerPort = (): number | undefined => {
 const createPairingToken = () => crypto.randomBytes(32).toString('base64url')
 
 /**
- * Resolves the directory of the bundled web-client, staged as an
- * `extraResource` in production (see forge.config.ts) and read from the
- * sibling package's `dist` in development. Returns `undefined` when no built
- * bundle is present, so hosting is only advertised when it can actually work.
+ * Directory of the bundled web-client. In production it is staged as an extra
+ * resource by the forge config. In development it is the sibling package's
+ * `dist`. Returns undefined when no built bundle is present, so hosting is
+ * only advertised when it can work.
  */
 export const webClientPath = (): string | undefined => {
   const candidate =
@@ -78,11 +74,10 @@ export const webClientPath = (): string | undefined => {
 }
 
 /**
- * In development the web-client is served by its own Vite dev server (for HMR),
- * not the statically staged bundle. The dev scripts pass its LAN URL via
- * `WEB_CLIENT_DEV_URL`; when present we advertise it to guests (see the QR/copy
- * flow in core's Settings) so they load the HMR-enabled app instead of a stale
- * static build. Returns `undefined` outside development.
+ * In development the web-client is served by its own Vite dev server, for HMR,
+ * not the staged bundle. The dev scripts pass its LAN url in an environment
+ * variable, and core's Settings advertises it to guests through the QR and
+ * copy flow so they load the live app. Returns undefined outside development.
  */
 export const webClientDevUrl = (): string | undefined =>
   process.env.NODE_ENV === 'development'
@@ -99,9 +94,9 @@ export function readSyncServerConfig(): SyncServerConfig {
         peerId: stored.peerId,
         lanEnabled: stored.lanEnabled === true,
         httpsEnabled: stored.httpsEnabled === true,
-        // Configs written before the token existed have none; mint one and
-        // persist it so it stays stable across restarts (a token that changed
-        // every launch would unpair every guest).
+        // Configs written before the token existed have none. Mint one and
+        // persist it so it stays stable across restarts. A token that changed
+        // every launch would unpair every guest.
         pairingToken:
           typeof stored.pairingToken === 'string' &&
           stored.pairingToken.length > 0
