@@ -78,8 +78,7 @@ describe('fetchAggregates over http', () => {
     })
   })
 
-  // The point of revalidating: a reconnect after a day away costs a header,
-  // not the whole library.
+  // A reconnect after a day away costs a header, not the whole library.
   it('revalidates with the held tag and reports an unchanged library', async () => {
     const fetchMock = stubFetch(jsonResponse(304, null))
 
@@ -100,8 +99,8 @@ describe('fetchAggregates over http', () => {
     await expect(fetchAggregates(HTTP)).rejects.toThrow(AggregatesRequestError)
   })
 
-  // One malformed row from a host of another version must not cost the library
-  // its numbers: these are decorations on a list that renders without them.
+  // One malformed row from a host on another version must not cost the whole
+  // library its numbers.
   it('keeps the rows it understands and drops the rest', async () => {
     stubFetch(
       jsonResponse(200, {
@@ -124,8 +123,7 @@ describe('fetchAggregates over http', () => {
     })
   })
 
-  // A host reporting 1.02 is a rounding artefact of a play that finished, not
-  // a reason to render 102%.
+  // A host reporting 1.02 means a play that finished, not 102%.
   it('clamps a completion the host reports out of range', async () => {
     stubFetch(
       jsonResponse(200, {
@@ -183,8 +181,8 @@ describe('fetchAggregates over ipc', () => {
     })
   })
 
-  // "No aggregate store" is not "nothing has been played": conflating them
-  // would render a confident zero on every row.
+  // A missing store is not an empty library. Treating them alike would show a
+  // zero on every row.
   it('raises rather than reporting an empty library when the store is absent', async () => {
     const ipc = stubIpc({
       success: false,

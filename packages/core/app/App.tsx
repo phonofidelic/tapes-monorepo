@@ -27,11 +27,9 @@ import type { EventHost } from './eventTarget'
  * them out is a supported mode: a standalone web client has no host, so its
  * recordings stay on the device.
  *
- * `eventTarget` is the single host that owns this library's playback numbers,
- * resolved by the shell through `resolveEventTarget`. One host and not a list:
- * bytes are content addressed so any host holding them will do, but a play
- * count is held by one host and asking a second would return the wrong number
- * rather than none.
+ * `eventTarget` is the one host that owns this library's playback numbers. The
+ * shell resolves it. It is a single host rather than a list, because a play
+ * count lives on one host and asking another returns a wrong number.
  */
 export function App({
   appContextValue,

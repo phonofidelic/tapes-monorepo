@@ -15,9 +15,8 @@ describe('resolveEventTarget', () => {
     ).toEqual({ kind: 'ipc' })
   })
 
-  // TAP-74's failure, in a second place. A desktop app in remote-sync mode
-  // still runs its own embedded host, so answering from it is always possible
-  // and almost always wrong: the plays went to the server it is a guest of.
+  // A desktop app in remote sync mode still runs its own host. Answering from
+  // it is always possible and almost always wrong.
   it('prefers the remote edge over its own embedded host', () => {
     expect(
       resolveEventTarget({
@@ -35,8 +34,7 @@ describe('resolveEventTarget', () => {
     })
   })
 
-  // Without a token every request to that host would 401, so it is not a host
-  // this device can read from at all.
+  // Without a token every request to that server would be rejected.
   it('falls back to its own host when the remote edge is unpaired', () => {
     expect(
       resolveEventTarget({
@@ -76,7 +74,7 @@ describe('resolveEventTarget', () => {
     })
   })
 
-  // Paired with nothing: no host to send plays to, and none to read back from.
+  // Paired with nothing, so there is no host to read from.
   it('resolves nothing for a standalone web client', () => {
     expect(
       resolveEventTarget({ origin: 'https://tapes.example.com' }),
@@ -105,8 +103,8 @@ describe('sameEventTarget', () => {
     expect(sameEventTarget(undefined, undefined)).toBe(true)
   })
 
-  // A re-pairing is a different host as far as the held numbers go: the old
-  // token's snapshot and entity tag mean nothing to the new one.
+  // Re-pairing counts as a different host. The old entity tag means nothing
+  // to the new one.
   it('separates hosts that differ by origin, token or kind', () => {
     expect(
       sameEventTarget(

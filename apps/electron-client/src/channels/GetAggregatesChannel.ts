@@ -3,14 +3,12 @@ import { IpcChannel, IpcRequest } from '@/types'
 import { getAggregateStore } from '../syncServer'
 
 /**
- * The host reading its own numbers, without a round trip through its own HTTP
- * surface.
+ * Serves this device's own playback numbers to its renderer.
  *
- * The renderer of a device that hosts its library is in the same process tree
- * as the store, so asking it over the network would mean holding a token and a
- * port to reach a `Map` that is already in memory. A guest, and a host in
- * remote-sync mode, take `GET /events/aggregates` instead — which host to ask
- * is decided in core by `resolveEventTarget`, not here.
+ * The renderer and the store share a process, so a network request would need
+ * a port and a token to reach numbers already in memory. Guests and devices in
+ * remote sync mode use the HTTP route instead. Core decides which of the two
+ * applies; this channel does not.
  */
 export class GetAggregatesChannel implements IpcChannel {
   name: string = 'events:get-aggregates'
@@ -23,9 +21,8 @@ export class GetAggregatesChannel implements IpcChannel {
 
     const store = getAggregateStore()
     if (!store) {
-      // Distinguished from an empty library on purpose: no store means these
-      // numbers are unavailable, not that nothing has been played. A caller
-      // that conflated the two would render a confident zero on every row.
+      // Reported as a failure, not as an empty library. No store means the
+      // numbers are unavailable, not that nothing has been played.
       event.sender.send(responseChannel, {
         success: false,
         error: new Error('Playback aggregates are not available'),

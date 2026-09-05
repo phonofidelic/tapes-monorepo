@@ -16,37 +16,33 @@ import { type EventHost } from '@/eventTarget'
 import { useAppContext } from '@/context/AppContext'
 
 /**
- * The library's playback numbers, held for the whole app rather than fetched
- * per row.
+ * Holds the library's playback numbers for the whole app.
  *
- * One request covers every recording. The Library renders its whole list at
- * once, so a hook that fetched per row would turn one screen into a hundred
- * round trips for a few hundred bytes.
+ * One request covers every recording, because the Library renders every row at
+ * once. Fetching per row would mean a hundred requests for one screen.
  *
- * **Nothing here ever blocks a render.** These numbers are slow-moving
- * decoration on a list that is perfectly usable without them: the first paint
- * shows rows with no counts, and counts appear when the host answers. A host
- * that is away or unpaired is not an error state the user has to clear — it is
- * a list without numbers, which is what an offline guest should see.
+ * Nothing here blocks a render. Rows appear without counts and gain them when
+ * the host answers. An unreachable host leaves a list without numbers, which is
+ * not an error the user has to clear.
  */
 
-/** Long enough that scrolling a library costs one request, short enough that a
- * play you just finished shows up without a restart. */
+/** Long enough that scrolling costs one request. Short enough that a play shows
+ * up without a restart. */
 export const AGGREGATES_TTL_MS = 60_000
 
 export type AggregatesState = {
   /** Keyed by recording url. Recordings nobody has played are absent. */
   byRecording: ReadonlyMap<string, RecordingAggregate>
-  /** True while a request is in flight; never a reason to hold a render. */
+  /** True while a request is in flight. Never a reason to hold a render. */
   loading: boolean
-  /** The last failure, kept for diagnostics rather than for the user. */
+  /** The last failure, for diagnostics rather than for the user. */
   error?: Error
   /** When the held snapshot was built by the host. */
   generatedAt?: string
   /**
-   * Re-reads the numbers. Within the TTL this is a no-op unless `force` is
-   * set — which is what a just-flushed play should pass, having made the held
-   * snapshot wrong rather than merely old.
+   * Re-reads the numbers. Within the cache window this does nothing unless
+   * `force` is set. A play that just landed should force it, because it makes
+   * the held snapshot wrong rather than merely old.
    */
   refresh: (options?: { force?: boolean }) => void
 }
@@ -66,10 +62,9 @@ export function AggregatesProvider({
   /**
    * The host holding these numbers, from `resolveEventTarget`.
    *
-   * Identity is the signal to re-read, so a shell must hand back the same
-   * object while its resolution is unchanged — `sameEventTarget` is there for
-   * exactly that, and the electron renderer resolves this on every settings
-   * write. The same contract `blobEndpoints` is held to.
+   * A change of object identity triggers a re-read. Shells must therefore
+   * return the same object while their resolution is unchanged. The electron
+   * renderer uses `sameEventTarget` to do that, as it does for blob endpoints.
    */
   target: EventHost | undefined
   children: React.ReactNode
@@ -77,9 +72,8 @@ export function AggregatesProvider({
   const appContext = useAppContext()
   const ipc = appContext.type === 'electron-client' ? appContext.ipc : undefined
 
-  // The held snapshot carries the host it came from, so a change of host is a
-  // derivation rather than a reset: the old numbers stop being shown the
-  // moment they stop applying, without a render that clears them first.
+  // The snapshot carries the host it came from. A change of host is then
+  // handled by the derivation below, with no render showing stale counts.
   const [held, setHeld] = useState<{
     target?: EventHost
     snapshot?: AggregatesSnapshot
@@ -87,8 +81,8 @@ export function AggregatesProvider({
   }>({})
   const [loading, setLoading] = useState(false)
 
-  // Refs, not state: nothing here is rendered, and a change to any of them
-  // must not rebuild the callback that reads it.
+  // Refs, not state. None of these are rendered, and changing one must not
+  // rebuild the callback that reads it.
   const etag = useRef<string | undefined>(undefined)
   const fetchedAt = useRef(0)
   const inFlight = useRef<AbortController | undefined>(undefined)
@@ -101,8 +95,8 @@ export function AggregatesProvider({
       if (!force && Date.now() - fetchedAt.current < AGGREGATES_TTL_MS) {
         return
       }
-      // One request at a time. A reconnect can arrive while a slow request is
-      // still out, and the later answer is the one worth having.
+      // One request at a time. A reconnect can land while a slow request is
+      // still out, and the later answer is the one to keep.
       inFlight.current?.abort()
       const controller = new AbortController()
       inFlight.current = controller
@@ -121,8 +115,7 @@ export function AggregatesProvider({
           if (result.status === 'fresh') {
             etag.current = result.snapshot.etag
           }
-          // `unchanged` leaves the held snapshot alone; that it is still
-          // current is the whole answer.
+          // An unchanged answer keeps the held snapshot as it is.
           setHeld((current) => ({
             target,
             snapshot:
@@ -133,9 +126,8 @@ export function AggregatesProvider({
           if (controller.signal.aborted) {
             return
           }
-          // The held numbers are kept. Stale counts beside a host that is
-          // temporarily away are better than a list that empties itself
-          // whenever the network hiccups.
+          // The held numbers stay. Stale counts beat a list that empties
+          // itself whenever the network drops.
           setHeld((current) => ({
             ...current,
             error: cause instanceof Error ? cause : new Error(String(cause)),
@@ -151,9 +143,8 @@ export function AggregatesProvider({
     [target, ipc],
   )
 
-  // A new host means new numbers, so the tag goes with it: revalidating one
-  // host's tag against another's would be meaningless, and a 304 from it would
-  // be wrong. What is already held stops being *shown* by derivation below.
+  // A new host means new numbers, so the entity tag is cleared with it.
+  // Revalidating one host's tag against another could return a wrong answer.
   useEffect(() => {
     etag.current = undefined
     fetchedAt.current = 0
@@ -164,10 +155,8 @@ export function AggregatesProvider({
     }
   }, [load])
 
-  // Reconnecting is the moment the held numbers are most likely to be wrong —
-  // the device has been away, and other people have been playing tapes. It is
-  // also when a queued flush lands, so the counts on the other side have just
-  // moved.
+  // Reconnecting is when the held numbers are most likely to be stale. The
+  // device has been away, and a queued flush lands around the same time.
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -182,9 +171,8 @@ export function AggregatesProvider({
     [load],
   )
 
-  // Numbers from a host we are no longer pointed at are another library's, so
-  // they are dropped here rather than cleared in an effect — there is no render
-  // in which the old counts sit under the new host.
+  // Numbers from a host we no longer point at belong to another library.
+  // Dropping them here means no render shows them under the new host.
   const current = held.target === target ? held : undefined
 
   const value = useMemo<AggregatesState>(
@@ -214,12 +202,10 @@ export function useAggregates(): AggregatesState {
 }
 
 /**
- * One recording's numbers, or `undefined` when it has never been played, the
- * host has not answered yet, or there is no host to ask.
+ * One recording's numbers, or nothing.
  *
- * Those three are deliberately one answer. A caller that told them apart would
- * be deciding what to render from how the network went, and every one of them
- * means the same thing on screen: this row has no numbers to show.
+ * Nothing covers three cases: never played, no answer yet, and no host to ask.
+ * They are deliberately one answer, because all three render the same way.
  */
 export function useRecordingAggregate(
   recordingUrl: string | undefined,

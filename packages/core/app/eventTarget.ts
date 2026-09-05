@@ -1,31 +1,20 @@
 import type { SyncServerInfo } from './IpcService'
 
 /**
- * Which host holds a library's playback numbers.
+ * Picks the host that holds a library's playback numbers.
  *
- * One seam for both directions. Plays are flushed to a host and read back from
- * a host, and if those two resolved separately they could disagree — a device
- * reporting its plays to the server it syncs with while reading counts off its
- * own embedded store, which is exactly how it would show zeros for a library
- * it had been playing all week. So reads and writes both come through here.
+ * Sending plays and reading counts must resolve to the same host. If they
+ * differ, a device reports plays to one host and reads zeros from another.
+ * So both directions call `resolveEventTarget` rather than choosing for
+ * themselves.
  *
- * This is the failure TAP-74 fixed for blobs, in a second place: an electron
- * client in remote-sync mode still runs its own embedded host, so "ask the
- * local one" is always *available* and usually wrong.
- *
- * Unlike blobs there is no list to fall back through. Bytes are content
- * addressed, so any host holding them will do; a play count is not — two hosts
- * hold different halves of the truth, and asking a second one after the first
- * says "nothing" would report the wrong number rather than none.
+ * There is no second host to fall back to. A play count lives on one host, so
+ * asking another returns a wrong number rather than none.
  */
 export type EventHost =
-  /**
-   * This device's own embedded host, read in-process. Electron only: the
-   * renderer is in the same process tree as the store, so there is no reason
-   * to pay for HTTP and a token to reach it.
-   */
+  /** This device's own embedded host, read in the same process. Electron only. */
   | { kind: 'ipc' }
-  /** Another host's `/events` surface, over the network. */
+  /** Another host's event routes, over the network. */
   | { kind: 'http'; baseUrl: string; token?: string }
 
 export type ResolveEventTargetInput = {
@@ -43,18 +32,16 @@ export type ResolveEventTargetInput = {
 }
 
 /**
- * The owner of this device's library, under the interim rule: the remote edge
- * when the device has one, else the local host.
+ * Returns the host that owns this device's library.
  *
- * That rule is temporary and known to be crude — it assumes a device with a
- * remote edge is a guest of it, which stops being true the moment a device is
- * a guest of one library and a host of another. TAP-105 replaces it with an
- * ownership record, at which point this function keeps its signature and
- * changes its mind about how it answers. Callers should stay uninterested in
- * how the choice is made.
+ * The current rule is the paired remote server when the device has one, and
+ * the local host otherwise. It assumes a device with a remote server is a
+ * guest of it. That stops being true once a device is a guest of one library
+ * and a host of another, so an ownership record will replace it. Callers only
+ * need the answer, not the rule.
  *
- * `undefined` is a supported answer, not a failure: a standalone web-client is
- * paired with nothing, has nowhere to send plays and no numbers to read back.
+ * Returning nothing is a normal outcome. A standalone web client is paired
+ * with no one, so it has no numbers to read.
  */
 export function resolveEventTarget(
   input: ResolveEventTargetInput,
@@ -62,9 +49,8 @@ export function resolveEventTarget(
   const { syncServerInfo, origin, servedByHost, isDev, remoteSyncServerUrl } =
     input
 
-  // First, because a device paired with a remote host is a guest of it: its
-  // plays go there and its counts come from there, even though it is perfectly
-  // capable of answering itself.
+  // Checked first. A device paired with a remote server is a guest of it, even
+  // when it runs a host of its own.
   if (remoteSyncServerUrl && input.token) {
     const derived = deriveHttpOrigin(remoteSyncServerUrl)
     if (derived) {
@@ -72,13 +58,13 @@ export function resolveEventTarget(
     }
   }
 
-  // An embedded host of our own, reached in-process.
+  // Our own embedded host, read in the same process.
   if (syncServerInfo?.blobBaseUrl) {
     return { kind: 'ipc' }
   }
 
-  // A hosted web guest: the page's own origin serves `/events`, and in
-  // development Vite proxies it back to the host.
+  // A web guest the host is serving. Its own origin carries the event routes.
+  // In development the Vite server proxies them back to the host.
   if (origin && (servedByHost || isDev)) {
     return { kind: 'http', baseUrl: trimSlash(origin), token: input.token }
   }
@@ -108,8 +94,10 @@ function trimSlash(value: string): string {
 }
 
 /**
- * The sync socket and the HTTP surface are the same server on the same port,
- * so the origin to read from is the sync URL with its scheme swapped.
+ * Turns a sync socket url into the http origin to read from.
+ *
+ * The socket and the HTTP routes are one server on one port, so only the
+ * scheme differs.
  */
 function deriveHttpOrigin(syncUrl: string): string | undefined {
   try {

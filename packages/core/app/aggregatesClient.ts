@@ -2,20 +2,17 @@ import type { IpcService } from './IpcService'
 import type { EventHost } from './eventTarget'
 
 /**
- * Client for the host's playback numbers.
+ * Reads playback numbers from a host, over HTTP or over IPC.
  *
- * Two transports, one shape. A guest — and a desktop app paired with someone
- * else's host — reads `GET /events/aggregates`; a device reading its own
- * embedded host goes over IPC instead of through its own network stack. Which
- * of the two applies is `resolveEventTarget`'s decision, not this file's.
+ * The two transports return the same shape. Callers pass the host that
+ * `resolveEventTarget` chose and do not pick a transport themselves.
  *
- * Every number here is derived from an event log the host owns. Nothing is
- * written back, and nothing is merged into the Automerge doc: two peers that
- * both counted plays into a shared document would double every count they
- * synced.
+ * This module only reads. Play counts are never written into an Automerge
+ * document, because two peers counting into a shared document would double
+ * every count they synced.
  */
 
-/** Per-recording numbers. Recordings nobody has played are simply absent. */
+/** Per-recording numbers. Recordings nobody has played are absent. */
 export type RecordingAggregate = {
   recordingUrl: string
   plays: number
@@ -32,9 +29,8 @@ export type AggregatesSnapshot = {
 }
 
 /**
- * Either the host's numbers, or its word that the ones already held are still
- * current. The second is the point of revalidating: a reconnect after a day
- * away costs a request and a header, not the whole library.
+ * Either fresh numbers, or the host confirming the held ones are current.
+ * The second answer is why revalidating is cheap: a header, not the library.
  */
 export type FetchAggregatesResult =
   { status: 'fresh'; snapshot: AggregatesSnapshot } | { status: 'unchanged' }
@@ -52,9 +48,8 @@ export class AggregatesRequestError extends Error {
 /**
  * How long the host has to start answering.
  *
- * Shorter than the blob timeout, and deliberately: nothing waits on these
- * numbers. A row renders without its play count and gains one later, so a host
- * that has gone quiet should be given up on quickly rather than held open.
+ * Shorter than the blob timeout on purpose. Nothing waits on these numbers, so
+ * a quiet host should be given up on quickly.
  */
 export const AGGREGATES_RESPONSE_TIMEOUT_MS = 5_000
 
@@ -96,14 +91,15 @@ async function fetchOverIpc(
     'events:get-aggregates',
   )
   if (!response.success) {
-    // The host answering "unavailable" is an error and not an empty library:
-    // the difference is a row that shows nothing versus a row that claims a
-    // confident zero.
+    // A host with no aggregate store is an error, not an empty library. The
+    // difference is a row showing nothing against a row showing zero.
     throw new AggregatesRequestError(
       0,
       response.error?.message ?? 'Playback aggregates are not available',
     )
   }
+  // No entity tag over IPC. The numbers are already in this process, so there
+  // is no transfer for a tag to save.
   return {
     status: 'fresh',
     snapshot: {
@@ -114,8 +110,6 @@ async function fetchOverIpc(
           : new Date().toISOString(),
     },
   }
-  // No entity tag over IPC. There is no transfer to avoid — the rollup is
-  // already in this process tree — so revalidating would only add a comparison.
 }
 
 async function fetchOverHttp(
@@ -176,11 +170,10 @@ async function fetchOverHttp(
 }
 
 /**
- * Takes the rows that are well formed and drops the rest.
+ * Keeps the rows that are well formed and drops the rest.
  *
- * A stricter reading would be worse here: one malformed row from a newer or
- * older host would cost the whole library its numbers, and these are
- * decorations on a list that renders fine without them.
+ * Rejecting the whole response would cost the library its numbers over one bad
+ * row from a host on another version.
  */
 function parseAggregates(value: unknown): RecordingAggregate[] {
   if (!Array.isArray(value)) {
@@ -227,8 +220,8 @@ async function errorMessage(response: Response): Promise<string> {
 }
 
 /**
- * `AbortSignal.any` would express this, but it is still missing from enough of
- * the browsers and test environments this runs in to be worth the few lines.
+ * Aborts one controller when a caller's signal fires. Replaces
+ * `AbortSignal.any`, which is missing from some browsers this runs in.
  */
 function linkAbort(
   controller: AbortController,

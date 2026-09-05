@@ -546,8 +546,8 @@ describe('aggregate reads', () => {
     expect(Date.parse(body.generatedAt)).not.toBeNaN()
   })
 
-  // The whole point of the route: one request covers the library. A per-row
-  // route would make a hundred-tape list a hundred round trips.
+  // One request covers the library. A per-row route would make a hundred-tape
+  // list a hundred round trips.
   it('returns every played recording in one response', async () => {
     const { origin, storagePath } = await startHost()
     await seedRecording(storagePath, OTHER_RECORDING)
@@ -563,17 +563,16 @@ describe('aggregate reads', () => {
     const body = (await (
       await getAggregates(origin)
     ).json()) as AggregatesResponse
-    // Sorted by recording url, which is what makes the entity tag stable
-    // across a restart: the rollup's own iteration order follows whether the
-    // host replayed the log or folded events in as they arrived.
+    // Sorted by recording url, which keeps the entity tag stable across a
+    // restart.
     expect(body.aggregates).toEqual([
       { recordingUrl: RECORDING, plays: 2, averageCompletion: 0.75 },
       { recordingUrl: OTHER_RECORDING, plays: 1, averageCompletion: 0.25 },
     ])
   })
 
-  // Ingest folds into the rollup rather than leaving it to a later replay: a
-  // client that flushes a play and then renders the Library has to see it.
+  // A client that flushes a play and then renders the Library has to see it,
+  // without waiting for a restart and a log replay.
   it('reflects a play flushed a moment earlier', async () => {
     const { origin } = await startHost()
 
@@ -591,8 +590,8 @@ describe('aggregate reads', () => {
     ])
   })
 
-  // A duplicate is dropped by the log, so it must not reach the rollup either:
-  // a retried flush that counted twice is exactly what dedupe exists to stop.
+  // The log drops duplicates, so the totals must drop them too. Otherwise a
+  // retried flush counts twice.
   it('does not count a re-sent event twice', async () => {
     const { origin } = await startHost()
 
@@ -639,9 +638,8 @@ describe('aggregate reads', () => {
     expect((await getAggregates(origin, { method: 'POST' })).status).toBe(405)
   })
 
-  // Without its own route the read path falls through to the SPA fallback,
-  // which answers 200 with a page of HTML — a client would read that as a
-  // broken host rather than as one with no event store.
+  // Without its own route the request falls through to the static handler,
+  // which answers 200 with HTML. A client reads that as a broken host.
   it('answers 503 rather than the SPA shell when there is no event store', async () => {
     const { origin } = await startHost({ withStore: false, withBundle: true })
 

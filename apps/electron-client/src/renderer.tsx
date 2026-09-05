@@ -101,9 +101,8 @@ function ElectronAppRoot() {
           sameBlobEndpoints(current, endpoints) ? current : endpoints,
         )
         // Playback numbers resolve to one host, not a list. In remote mode
-        // that is the server this app is a guest of — reading its own embedded
-        // store instead would report zeros for a library whose plays all went
-        // elsewhere, which is TAP-74's failure in a second place.
+        // that is the server this app is a guest of. Reading the embedded
+        // store instead would report zeros for a library played elsewhere.
         const target = resolveEventTarget({
           syncServerInfo: info,
           remoteSyncServerUrl: urls.remoteUrl,

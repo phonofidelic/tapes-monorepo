@@ -87,9 +87,9 @@ const blobEndpoints = resolveBlobEndpoints({
   token: pairingToken,
 })
 
-// Where this bundle reports plays and reads play counts. One host, not a list:
-// a guest's numbers live on the host it is paired with, and there is no second
-// host that could answer for it.
+// Where this bundle reports plays and reads play counts. One host, not a list.
+// A guest's numbers live on the host it is paired with, and no other host can
+// answer for it.
 const eventTarget = resolveEventTarget({
   origin: window.location.origin,
   servedByHost,

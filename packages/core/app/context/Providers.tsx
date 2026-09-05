@@ -34,9 +34,9 @@ export default function Providers({
                   know what it must not evict. */}
               <BlobProvider endpoints={values.blobEndpoints}>
                 <PinProvider>
-                  {/* Inside the app context, which is where an electron
-                      renderer's ipc comes from, and around the player, so a
-                      finished play can ask for the numbers again. */}
+                  {/* Inside the app context, which supplies the electron ipc
+                      service. Around the player, so a finished play can ask
+                      for the numbers again. */}
                   <AggregatesProvider target={values.eventTarget}>
                     <AudioPlayerProvider>{children}</AudioPlayerProvider>
                   </AggregatesProvider>

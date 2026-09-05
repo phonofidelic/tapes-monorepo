@@ -129,11 +129,10 @@ export type HasBlobResponse =
     }
 
 /**
- * The host's own playback numbers, read straight off its aggregate store.
+ * The host's own playback numbers, read from its aggregate store.
  *
- * `success: false` is how "this host has no aggregates" arrives, and it is not
- * the same answer as an empty list: one means the numbers are unavailable, the
- * other that nothing has been played.
+ * A failure means the numbers are unavailable. An empty list means nothing has
+ * been played. The two are not the same answer.
  */
 export type GetAggregatesResponse =
   | {

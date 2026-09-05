@@ -72,8 +72,7 @@ describe('AggregatesProvider', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  // Nothing waits on these numbers: the row is on screen before the host has
-  // answered, and gains its count afterwards.
+  // The row is on screen before the host answers, and gains its count after.
   it('renders before the host answers', () => {
     vi.stubGlobal(
       'fetch',
@@ -96,8 +95,8 @@ describe('AggregatesProvider', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  // A play that just landed makes the held snapshot wrong rather than merely
-  // old, so the TTL is not the thing standing in its way.
+  // A play that just landed makes the held numbers wrong rather than old, so
+  // the cache window should not hold it back.
   it('re-reads within the TTL when the caller forces it', async () => {
     const fetchMock = vi
       .fn()
@@ -116,8 +115,7 @@ describe('AggregatesProvider', () => {
     )
   })
 
-  // Reconnecting is when the held numbers are most likely to be wrong: the
-  // device has been away, and other people have been playing tapes.
+  // Reconnecting is when the held numbers are most likely to be stale.
   it('revalidates on reconnect', async () => {
     const fetchMock = vi
       .fn()
@@ -138,8 +136,7 @@ describe('AggregatesProvider', () => {
     )
   })
 
-  // A `304` is the host saying the held numbers are still current, which is
-  // the whole answer — there is nothing to apply.
+  // An unchanged answer means the held numbers are current. Nothing to apply.
   it('keeps the held snapshot when the host reports it unchanged', async () => {
     const fetchMock = vi
       .fn()
@@ -159,8 +156,7 @@ describe('AggregatesProvider', () => {
     expect(screen.getByTestId('plays')).toHaveTextContent('3')
   })
 
-  // Stale counts beside a host that is briefly away beat a list that empties
-  // itself whenever the network hiccups.
+  // Stale counts beat a list that empties itself whenever the network drops.
   it('keeps the numbers it has when a re-read fails', async () => {
     const fetchMock = vi
       .fn()
@@ -180,9 +176,8 @@ describe('AggregatesProvider', () => {
     expect(screen.getByTestId('plays')).toHaveTextContent('3')
   })
 
-  // Another host's numbers are a different library's. Revalidating the old
-  // host's tag against the new one would be meaningless, and showing the old
-  // counts under the new host would be wrong.
+  // Another host means another library. The old counts must not show under
+  // the new host, and the old entity tag must not be sent to it.
   it('drops what it holds when the host changes', async () => {
     const fetchMock = vi
       .fn()
@@ -210,8 +205,8 @@ describe('AggregatesProvider', () => {
     )
   })
 
-  // A standalone client is paired with nothing, which is a list without
-  // numbers rather than an error to clear.
+  // A standalone client is paired with nothing. That is a list without
+  // numbers, not an error.
   it('asks nobody when there is no host', async () => {
     const fetchMock = vi.fn().mockResolvedValue(snapshot(3, '"a"'))
     vi.stubGlobal('fetch', fetchMock)
