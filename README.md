@@ -1,43 +1,48 @@
 # Tapes
 
-Tapes is a **local-first audio recording app**. You record audio in the browser,
-and your recordings (and their metadata) are stored locally and synced
-peer-to-peer across the devices on your local network using
-[Automerge](https://automerge.org/) CRDTs — there is no central database.
+Tapes is a local-first audio recording app. You record in the browser. Your
+recordings stay on your own devices and sync across your local network with
+[Automerge](https://automerge.org/) CRDTs. There is no central database.
 
-The desktop app acts as the sync **host**: it persists the shared data and serves
-the recording UI to other devices on the LAN. Those devices join as **guests**
-(paired with a QR code) and record into the same synced library.
+The desktop app is the sync **host**. It stores the shared data and serves the
+recording UI to other devices on the LAN. Those devices join as **guests** by
+scanning a QR code, and record into the same library.
+
+Recorded audio is not carried in the Automerge document. The bytes are stored on
+the host and addressed by their sha-256 hash. The document holds only a
+descriptor for each recording. Guests upload what they record and fetch what they
+play over the host's `/blobs` endpoint.
 
 ## Monorepo layout
 
-This is a [Turborepo](https://turborepo.com/) monorepo managed with **Yarn 4**.
+This is a [Turborepo](https://turborepo.com/) monorepo managed with Yarn 4.
 
 ### Apps
 
-| Package                | Description                                                                 | Dev port |
-| ---------------------- | --------------------------------------------------------------------------- | -------- |
-| `apps/web-client`      | Vite + React shell that mounts the Tapes app and captures microphone audio. | `3000`   |
-| `apps/electron-client` | Desktop **host**: embeds `web-client`, runs the embedded LAN sync server.   | —        |
-| `apps/api`             | Standalone NestJS Automerge sync server (alternative/remote sync backend).  | `3031`   |
-| `apps/web`             | Next.js marketing / landing site.                                           | `3002`   |
-| `apps/docs`            | Next.js documentation site.                                                 | `3001`   |
+| Package                | Description                                                                   | Dev port |
+| ---------------------- | ----------------------------------------------------------------------------- | -------- |
+| `apps/web-client`      | Vite and React shell that mounts the Tapes app and captures microphone audio. | `3000`   |
+| `apps/electron-client` | Desktop **host**. Embeds `web-client` and runs the LAN sync server.           | —        |
+| `apps/api`             | Standalone NestJS Automerge sync server. An alternative remote backend.       | `3031`   |
+| `apps/web`             | Next.js marketing site.                                                       | `3002`   |
+| `apps/docs`            | Next.js documentation site.                                                   | `3001`   |
 
-The electron host's embedded sync server listens on port `9001`.
+The host's embedded sync server listens on port `9001` by default. If that port
+is taken it uses whatever port the OS hands it. Set `TAPES_SYNC_SERVER_PORT` to
+pick a different one.
 
 ### Packages
 
-| Package                             | Description                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- |
-| `@tapes-monorepo/core`              | The actual Tapes application (`App`, views, context) plus Automerge sync and QR pairing. |
-| `@tapes-monorepo/ui`                | Shared, presentational React component library (Tailwind).                               |
-| `@tapes-monorepo/tailwind-config`   | Shared Tailwind theme.                                                                   |
-| `@tapes-monorepo/eslint-config`     | Shared ESLint configurations.                                                            |
-| `@tapes-monorepo/typescript-config` | Shared `tsconfig.json` bases.                                                            |
+| Package                             | Description                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| `@tapes-monorepo/core`              | The Tapes application itself: `App`, views, context, sync helpers and QR pairing. |
+| `@tapes-monorepo/ui`                | Shared presentational React components, styled with Tailwind.                     |
+| `@tapes-monorepo/tailwind-config`   | Shared Tailwind theme.                                                            |
+| `@tapes-monorepo/eslint-config`     | Shared ESLint configurations.                                                     |
+| `@tapes-monorepo/typescript-config` | Shared `tsconfig.json` bases.                                                     |
 
-The Tapes UI lives in `@tapes-monorepo/core` (`packages/core/app/`) and is
-consumed by both `web-client` and the electron renderer, so the same app runs in
-the browser and inside the desktop host.
+The UI lives in `packages/core/app/`. Both `web-client` and the electron
+renderer mount it, so the same app runs in a browser and inside the desktop host.
 
 ## Architecture
 
@@ -60,24 +65,29 @@ flowchart LR
     webclient -. "optional remote sync" .-> api
 ```
 
-- `@tapes-monorepo/core` owns the Automerge repo: **IndexedDB** storage in the
-  browser, and **WebSocket + BroadcastChannel** networking.
-- Guests reach the host's embedded sync server over the LAN; the `web-client` dev
-  server proxies `/sync` to it (see `apps/web-client/vite.config.ts`).
-- `apps/api` is an independent Automerge sync server (filesystem-backed) that can
-  act as a remote/cloud backend.
+Each shell builds its own Automerge repo and passes it to `App`. Storage and
+networking are platform-specific, so only the shell knows where its sync server
+lives.
+
+- The web client stores documents in IndexedDB. It talks to other tabs over a
+  broadcast channel and to the host over a WebSocket.
+- The host's embedded sync server stores documents and blobs on the filesystem.
+- Guests reach the host over the LAN. In development the `web-client` dev server
+  proxies `/sync` and `/blobs` to it. See `apps/web-client/vite.config.ts`.
+- `apps/api` is an independent, filesystem-backed sync server. It can act as a
+  remote backend. Its auth module is currently commented out.
 
 ## Prerequisites
 
-- **Node.js 24** (see [`.nvmrc`](./.nvmrc)). Enable Corepack so the pinned Yarn
-  version is used: `corepack enable`.
-- **Yarn 4** (declared via `packageManager`; provided by Corepack).
-- **macOS is assumed for the full recording flow.** The dev scripts use
-  `ipconfig getifaddr en0` to discover the LAN IP, and the desktop host shells out
-  to [SoX](https://sourceforge.net/projects/sox/) (recording) and
-  [`switchaudio-osx`](https://github.com/deweller/switchaudio-osx) (input
-  selection). On Linux/Windows the non-audio parts build and run, but the
-  end-to-end recording flow is not currently supported.
+- Node.js 24. The version is pinned in [`.nvmrc`](./.nvmrc).
+- Yarn 4, declared in `packageManager`. Run `corepack enable` once so the pinned
+  version is used.
+- macOS for the full recording flow. The dev scripts read the LAN IP with
+  `ipconfig getifaddr en0`. The desktop host shells out to
+  [SoX](https://sourceforge.net/projects/sox/) to record and to
+  [`switchaudio-osx`](https://github.com/deweller/switchaudio-osx) to select an
+  input. On Linux and Windows the non-audio parts build and run, but end-to-end
+  recording is not supported.
 
 ## Getting started
 
@@ -87,27 +97,26 @@ yarn              # install dependencies
 yarn dev          # start all apps in dev mode
 ```
 
-### Local HTTPS (`yarn dev:https`)
+### Local HTTPS
 
-Browsers only expose the microphone in a **secure context**, so LAN guests
-recording over HTTP won't work — you need HTTPS on the LAN IP:
+Browsers only expose the microphone in a secure context. LAN guests therefore
+cannot record over plain HTTP. Use HTTPS on the LAN IP instead:
 
 ```sh
 yarn dev:https
 ```
 
-This runs `core`, `web-client` (TLS via `@vitejs/plugin-basic-ssl`), the electron
-host (advertising an `https://<lan-ip>:3000` URL to guests), and `api`. The
-desktop host generates its own self-signed cert (via the `selfsigned` package,
-with the LAN IP in the certificate SAN) for its embedded sync server.
+That script starts `ui`, `core`, `web-client`, the electron host and `api`. The
+web client gets TLS from `@vitejs/plugin-basic-ssl`. The host advertises an
+`https://<lan-ip>:3000` URL to guests. It also generates a self-signed
+certificate for its own sync server, with the LAN IP in the certificate SAN.
 
-> **Note (`apps/api` dev HTTPS):** in development the API serves over HTTPS and
-> expects `localhost-key.pem` and `localhost-cert.pem` in `apps/api/`. Generate
-> them with `yarn workspace api cert`.
+`apps/api` serves over HTTPS in development. It expects `localhost-key.pem` and
+`localhost-cert.pem` in `apps/api/`. Generate them with `yarn workspace api cert`.
 
 ## Scripts
 
-Run from the repo root (each fans out through Turborepo):
+Run these from the repo root. Each one fans out through Turborepo.
 
 | Command            | Description                                         |
 | ------------------ | --------------------------------------------------- |
@@ -117,33 +126,42 @@ Run from the repo root (each fans out through Turborepo):
 | `yarn lint`        | Lint everything.                                    |
 | `yarn check-types` | Type-check everything.                              |
 | `yarn test`        | Run unit tests.                                     |
-| `yarn format`      | Prettier-format all `.ts`, `.tsx`, and `.md` files. |
+| `yarn format`      | Prettier-format every `.ts`, `.tsx` and `.md` file. |
 | `yarn clean`       | Remove build artifacts.                             |
 
-## Versioning & releases
+## Versioning and releases
 
-Versioning uses [Changesets](https://github.com/changesets/changesets). When your
-change affects a published package, add a changeset:
+Versioning uses [Changesets](https://github.com/changesets/changesets). Add a
+changeset when your change affects a published package:
 
 ```sh
 yarn changeset
 ```
 
-On push to `main`, the Release workflow opens/updates a "Version Packages" PR that
-applies the pending changesets. Dependency updates are automated with
-[Renovate](https://docs.renovatebot.com/).
+On push to `main` the Release workflow opens or updates a "Version Packages" pull
+request that applies the pending changesets. Dependency updates are automated
+with [Renovate](https://docs.renovatebot.com/).
 
 ## CI
 
-Pull requests to `main` run (see [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)):
+Pull requests to `main` run two jobs. See
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
-- **Build & Lint** — `yarn lint`, `yarn check-types`, `yarn build`, and unit tests
-  scoped to `@tapes-monorepo/core`. (The `apps/api` Jest suite is currently
-  excluded due to a pre-existing compile failure.)
-- **E2E (web-client)** — Playwright against Chromium, with a virtual PulseAudio
-  device so the mic-capture tests have an audio input to enumerate.
+- **Build & Lint** runs `yarn lint`, `yarn check-types` and `yarn build`, then the
+  unit tests for `core`, `electron-client` and `web-client`. The `apps/api` Jest
+  suite is excluded because of a pre-existing compile failure.
+- **E2E (web-client)** runs Playwright against Chromium. The job first starts
+  PulseAudio with two virtual sources, so the mic-capture tests have inputs to
+  enumerate and switch between.
+
+The electron end-to-end suite runs nightly instead of per pull request, on a
+macOS runner. It packages the desktop app and records through SoX, which is slow
+and macOS-only. See
+[`.github/workflows/e2e-electron.yml`](./.github/workflows/e2e-electron.yml). You
+can also trigger it by hand.
 
 ## Documentation
 
-Each app and package has its own README with setup and env details. Contribution
-guidelines are in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Each app and package has its own README with setup and environment details.
+Contribution guidelines are in [`CONTRIBUTING.md`](./CONTRIBUTING.md). Guidance
+for AI agents is in [`CLAUDE.md`](./CLAUDE.md).

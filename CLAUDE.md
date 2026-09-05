@@ -6,19 +6,24 @@ to the READMEs rather than duplicating them here.
 ## What this is
 
 **Tapes** — a local-first audio recording app. Audio is recorded in the browser
-and synced peer-to-peer across LAN devices with **Automerge** CRDTs (no central
-DB). The desktop app is the sync **host**; other devices join as **guests** over
-the LAN. See [`README.md`](./README.md) for architecture.
+and synced across LAN devices with **Automerge** CRDTs (no central DB). The
+desktop app is the sync **host**; other devices join as **guests** over the LAN.
+Recorded audio itself lives on the host behind `/blobs`, not in the Automerge
+doc. See [`README.md`](./README.md) for the architecture and the port table.
 
 ## Layout
 
-- `packages/core` (`@tapes-monorepo/core`) — the actual Tapes app (`app/`) + sync
-  - QR pairing. Consumed by `web-client` and the electron renderer.
+Ports and descriptions are in the [README](./README.md#monorepo-layout). What an
+agent needs on top of that:
+
+- `packages/core` — the Tapes app itself (`app/`), plus sync and QR pairing.
+  Mounted by both `web-client` and the electron renderer.
 - `packages/ui` — shared React components. `packages/{eslint,tailwind,typescript}-config` — shared config.
-- `apps/web-client` — browser shell; owns mic capture; has the Playwright e2e suite (port `3000`).
-- `apps/electron-client` — desktop host; embedded sync server on port `9001`; native audio (SoX, `switchaudio-osx`).
-- `apps/api` — standalone NestJS Automerge sync server (port `3031`); auth module currently disabled.
-- `apps/web` (port `3002`), `apps/docs` (port `3001`) — Next.js sites.
+- `apps/web-client` — browser shell. Owns mic capture and a Playwright e2e suite.
+- `apps/electron-client` — desktop host. Embedded sync server, native audio,
+  and its own nightly Playwright suite.
+- `apps/api` — standalone NestJS sync server. Its auth module is commented out.
+- `apps/web`, `apps/docs` — Next.js sites, not part of the recording runtime.
 
 ## Key commands
 
@@ -36,9 +41,10 @@ the LAN. See [`README.md`](./README.md) for architecture.
   `apps/api/` — generate them with `yarn workspace api cert`.
 - Env files are git-ignored and pulled from Vercel (`yarn ... pull`); committed
   `.env.example` files document the vars.
-- CI runs unit tests only for `@tapes-monorepo/core`; the `apps/api` Jest suite is
-  excluded (pre-existing compile failure). Don't treat that as a gap to "fix"
-  without checking.
+- CI unit tests cover `core`, `electron-client` and `web-client`. The `apps/api`
+  Jest suite is excluded (pre-existing compile failure). Don't treat that as a
+  gap to "fix" without checking.
+- The electron e2e suite is nightly, not part of the PR gate.
 
 ## Writing style (PR descriptions, commit bodies, doc comments)
 
@@ -63,8 +69,8 @@ copy their prose style.
   A sentence with four backticked names is a list, not a sentence.
 - **Bullets are one or two sentences.** If a bullet needs a paragraph, it is a
   section. Bold the first few words of a bullet, never a whole sentence.
-- **Use a predictable shape:** *What changed* / *Why* / *How it was tested* /
-  *Notes or known limits*. Test results go in a short list or table, not prose.
+- **Use a predictable shape:** _What changed_ / _Why_ / _How it was tested_ /
+  _Notes or known limits_. Test results go in a short list or table, not prose.
 - **Length.** A typical PR body fits in about 250 words. Longer is fine only
   when the change is genuinely large; then use the section headers above.
 
