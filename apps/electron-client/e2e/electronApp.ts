@@ -12,13 +12,10 @@ import { SYNC_PORT } from './ports'
  * The real desktop app, launched from its packaged bundle and driven like any
  * other Playwright target.
  *
- * Packaged rather than a bare `electron .`: it is the build users run, and it
- * is the only one where `process.resourcesPath` — which is where the app looks
- * for its `sox` binary and its staged web-client — means anything.
- *
- * Everything the app writes goes to a fresh `--user-data-dir`, so a run never
- * reads or rewrites the developer's own library, and its blob store and
- * `sync-server.json` are ours to inspect.
+ * Packaged, not `electron .`, because only the packaged build resolves the
+ * bundled sox binary and staged web-client through the resources path.
+ * Everything the app writes goes to a fresh user-data directory, so a run
+ * never touches the developer's own library and the suite can inspect it.
  */
 
 // `__dirname` rather than `import.meta.url`: this workspace is not
@@ -47,11 +44,9 @@ export type LaunchedApp = {
 }
 
 /**
- * `Tapes.app`'s executable, as `electron-forge package` lays it out.
- *
- * `out-e2e`, not `out`: the build this suite drives has the node inspector fuse
- * turned back on (see forge.config.ts), so it must never be confused with the
- * `yarn package` output a developer might go on to ship.
+ * The app's executable, as packaging lays it out. It lives in `out-e2e`, not
+ * the normal output directory. This build has the node inspector fuse turned
+ * back on in the forge config, so it must never be shipped.
  */
 function packagedExecutable(): string {
   return path.join(
@@ -84,10 +79,9 @@ function resolveBin(name: string): string {
 /**
  * Runs a `node_modules/.bin` script under the current node.
  *
- * Through `node` rather than executing the shim directly: the shims are
- * symlinks into a package's `dist`, and whether the file behind one carries the
- * executable bit depends on how the install was linked — in a git worktree that
- * resolves up to a parent's `node_modules`, it does not.
+ * Through node rather than the shim directly. The shims are symlinks into a
+ * package's dist, and in a git worktree that resolves to a parent's install
+ * the file behind one lacks the executable bit.
  */
 function runBin(name: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   return new Promise<void>((resolve, reject) => {
@@ -108,10 +102,9 @@ function runBin(name: string, args: string[], env: NodeJS.ProcessEnv = {}) {
 /**
  * Packages the app if it has not been packaged already.
  *
- * Deliberately not a rebuild-if-stale check: packaging is minutes of signing
- * and asar work, and a suite that silently repackaged on every source change
- * would make a single test run unpredictably long. Delete `out-e2e/` to
- * force one.
+ * Not a rebuild-if-stale check. Packaging is minutes of signing and asar work,
+ * and repackaging on every source change would make a run unpredictably long.
+ * Delete `out-e2e/` to force one.
  */
 export async function ensurePackagedApp(): Promise<string> {
   const executable = packagedExecutable()
@@ -132,13 +125,10 @@ export async function ensurePackagedApp(): Promise<string> {
     )
   }
 
-  // `electron-forge package` directly, not the workspace's `package` script:
-  // that one runs under `dotenvx --env-file=.env`, and `.env` is git-ignored
-  // and holds only publishing credentials this build has no use for. It also
-  // skips `stage-web-client`, because the guest in these tests loads the
-  // web-client from its own dev server rather than from this host.
-  // `TAPES_E2E` is what makes forge emit a build this suite can drive, into
-  // `out-e2e` rather than `out`.
+  // Runs forge directly rather than the workspace's `package` script. That
+  // script loads a git-ignored env file of publishing credentials this build
+  // does not need, and stages the web-client, which the guest here loads from
+  // its own dev server instead. `TAPES_E2E` makes forge emit into `out-e2e`.
   await runBin('electron-forge', ['package'], { TAPES_E2E: '1' })
 
   if (!existsSync(executable)) {
@@ -151,19 +141,18 @@ export async function ensurePackagedApp(): Promise<string> {
 }
 
 /**
- * Waits for the embedded server to answer on the port we pinned.
+ * Waits for the embedded server to answer on the pinned port.
  *
- * `startSyncServer` falls back to an OS-assigned port when the one it asked for
- * is taken, which would leave the app perfectly healthy and the guest's proxies
- * pointed at nothing. An unauthorized request is enough to prove who is there:
- * it needs no token and cannot be answered by anything but our server.
+ * The server falls back to an OS-assigned port when its port is taken. The app
+ * would then be healthy and the guest's proxies pointed at nothing. An
+ * unauthorized request proves who is listening and needs no token.
  */
 async function waitForSyncServer(timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   for (;;) {
     try {
       const response = await fetch(`http://127.0.0.1:${SYNC_PORT}/blobs/probe`)
-      // 401 unauthorized, 404 unknown blob — either is our server talking.
+      // 401 unauthorized or 404 unknown blob. Either is our server talking.
       if (response.status === 401 || response.status === 404) {
         return
       }
@@ -174,7 +163,7 @@ async function waitForSyncServer(timeoutMs = 30_000): Promise<void> {
       throw new Error(
         `Nothing answered on port ${SYNC_PORT}. The app's embedded server ` +
           'either never started or fell back to another port because ' +
-          'something else holds this one — a stale e2e run, or the ' +
+          'something else holds this one: a stale e2e run, or the ' +
           "developer's own desktop app.",
       )
     }
@@ -206,14 +195,10 @@ export async function blobObjects(
 /**
  * Waits until the embedded server has written a document to its own storage.
  *
- * The renderer holds its repo in IndexedDB and syncs to the server over a
- * socket, so a document existing in the window is no promise that the device of
- * record has it. The server's `NodeFSStorageAdapter` writing it is the first
- * moment anything else asking for that document is guaranteed an answer.
- *
- * The adapter shards by the first two characters of the document id, so this
- * looks for that exact directory rather than counting what is in the store —
- * two documents whose ids share a prefix share a directory.
+ * The renderer keeps its repo in IndexedDB and syncs to the server over a
+ * socket. A document in the window is no promise the server has it. The
+ * server's storage adapter shards by the first two characters of the id, so
+ * this waits for that exact directory rather than counting entries.
  */
 async function waitForStoredDoc(
   userDataPath: string,
@@ -267,10 +252,9 @@ async function readPairingToken(userDataPath: string): Promise<string> {
  * Launches the app, points it at a recording directory, and waits until it has
  * a library.
  *
- * The storage location is seeded into the renderer's own settings rather than
- * clicked through the directory dialog: that dialog is native, and Playwright
- * cannot drive it. Everything downstream — which is all of what this suite is
- * about — runs exactly as it does for a user.
+ * The storage location is seeded into the renderer's settings rather than
+ * chosen through the directory dialog, which is native and beyond Playwright.
+ * Everything downstream runs exactly as it does for a user.
  */
 export async function launchTapes(): Promise<LaunchedApp> {
   const executablePath = await ensurePackagedApp()
@@ -316,12 +300,11 @@ export async function launchTapes(): Promise<LaunchedApp> {
     throw new Error('The app never stored a library url')
   }
 
-  // Before the reload below, not after it. A first launch *creates* the
-  // library, and the renderer holds it in IndexedDB while it makes its way to
-  // the embedded server over the socket. Reload inside that window and the
-  // bootstrap takes the `repo.find` path against a server that has never heard
-  // of the document, which reports it unavailable and replaces the whole app
-  // with "Your library could not be loaded from this device."
+  // Wait before the reload below. A first launch creates the library in
+  // IndexedDB and syncs it to the embedded server over the socket. A reload
+  // inside that window makes the bootstrap look the document up on a server
+  // that has never heard of it, and the app shows "Your library could not be
+  // loaded from this device."
   await waitForStoredDoc(userDataPath, libraryUrl)
 
   await page.evaluate((location) => {
@@ -331,10 +314,9 @@ export async function launchTapes(): Promise<LaunchedApp> {
       JSON.stringify({
         ...settings,
         storageLocation: location,
-        // Reveals the record button. `AudioInputSelector` writes this when the
-        // user picks a device, and its only other job — telling the system
-        // which input to make default — is what `sox --default-device` then
-        // captures from, so a device *id* changes nothing about the capture.
+        // Reveals the record button. The electron selector's only other job is
+        // to make the chosen device the system default, which is what sox then
+        // captures from. The id itself changes nothing about the capture.
         audioInputDeviceId: 'e2e-default-input',
         audioFormat: 'wav',
         audioChannelCount: '1',
