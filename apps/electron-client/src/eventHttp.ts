@@ -6,38 +6,23 @@ import { isAuthorized } from './tokenAuth'
 import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
 
 /**
- * The `/events` ingest surface: where a guest's queued plays land.
+ * The `/events` routes. Posting to `/events` stores what a guest played, and
+ * getting `/events/aggregates` returns totals per recording. Both share the
+ * origin, port and pairing token of the blob routes, so a guest needs no extra
+ * configuration. Like them, they must stay mounted ahead of the static handler,
+ * whose SPA fallback answers any unmatched path with a 200 and HTML.
  *
- * Mounted on the same origin, port and pairing token as `/blobs`, and for the
- * same reasons — a guest already reaches this host and already holds the
- * token, so there is no new port to open, no second CORS story, and nothing
- * further to configure. Like the blob routes it must be mounted *ahead* of the
- * static handler, whose SPA fallback answers any unmatched path with a 200 and
- * a page of HTML.
- *
- * **Two routes.** Posting to `/events` stores what a guest played. Getting
- * `/events/aggregates` returns the totals per recording. They share this file
- * because they share the log, the token and the origin.
- *
- * **A flush is a batch.** The client queues events while offline and sends
- * what it has in one request, so the interesting case is not one event but a
- * mixed batch, and the answer has to be per event: see `IngestResponse`.
- *
- * **These numbers are not tamper-proof.** An event carries no authentication
- * beyond the pairing token, which every guest holds, so anyone the host handed
- * a QR code to can inflate a count. That is an accepted trade for a LAN tool
- * among people you invited; it is written down here so nobody later reads
- * "plays" as an audited figure. What the rate limit below defends is the disk,
- * not the integrity of the counts.
+ * The counts are not tamper-proof. Every guest holds the pairing token, so
+ * anyone given a QR code can inflate a play count. That is accepted for a LAN
+ * tool among invited people. The rate limit protects the disk, not the counts.
  */
 
 export const EVENTS_PATH = '/events'
 
 /**
- * Returns every recording's numbers in one response.
- *
- * Whole-library and never per-recording. The Library renders every row at once,
- * so a per-recording route would mean a hundred requests for one screen.
+ * Returns every recording's numbers in one response. The Library renders every
+ * row at once, so a per-recording route would mean a hundred requests for one
+ * screen.
  */
 export const AGGREGATES_PATH = '/events/aggregates'
 
@@ -45,9 +30,8 @@ export const AGGREGATES_PATH = '/events/aggregates'
 export const DEFAULT_MAX_BATCH_EVENTS = 500
 
 /**
- * Body ceiling, checked as bytes arrive rather than trusting `Content-Length`
- * (which a client may omit or lie about). Comfortably above a full batch of
- * plausible events.
+ * Body ceiling, checked as bytes arrive rather than trusting a content-length
+ * header a client may omit or lie about. Comfortably above a full batch.
  */
 export const DEFAULT_MAX_BODY_BYTES = 1024 * 1024
 
@@ -71,23 +55,21 @@ export type Rejection = {
   id?: string
   reason: RejectionReason
   /**
-   * Whether the client should keep the event queued.
-   *
-   * Only `unknown-recording` is retryable, and it genuinely is: a guest that
-   * played offline may reach `/events` before the recording's document has
-   * finished syncing to this host, and dropping the play then would lose
-   * exactly the event this whole feature exists to catch.
+   * Whether the client should keep the event queued. Only `unknown-recording`
+   * is retryable. A guest that played offline may reach `/events` before the
+   * recording's document has synced to this host, and dropping the play then
+   * would lose the very event this feature exists to catch.
    */
   retryable: boolean
 }
 
 /**
- * The honest answer to a partial batch, and the contract the client queue
- * clears itself against: drop `accepted` and `duplicates`, drop the rejections
- * marked non-retryable, keep everything else.
- *
- * Anything absent from all three lists was never taken — a client that loses
- * the response entirely re-sends the batch and is deduped on arrival.
+ * The answer to a partial batch, and what the client queue clears itself
+ * against: drop `accepted` and `duplicates`, drop rejections marked
+ * non-retryable, keep everything else. The client queues while offline and
+ * flushes in one batch, so the answer has to be per event. Anything absent
+ * from all three lists was never taken. A client that loses the response
+ * re-sends the batch and is deduped on arrival.
  */
 export type IngestResponse = {
   accepted: string[]
@@ -172,25 +154,20 @@ async function readBody(
 }
 
 /**
- * Clamped to `[0, 1]` rather than rejected.
- *
- * Completion is a measurement, and the client computing it divides by a
- * duration that browsers report as `Infinity` mid-stream and revise once
- * metadata lands; a 1.02 is a rounding artefact of a play that genuinely
- * finished, not a lie worth discarding a play over. Values that are not
- * numbers at all still fail validation below.
+ * Clamped to `[0, 1]` rather than rejected. Completion is a measurement. The
+ * client divides by a duration that browsers report as Infinity mid-stream and
+ * revise once metadata lands, so a 1.02 is a rounding artefact of a finished
+ * play, not a lie worth discarding it over. Non-numbers still fail validation.
  */
 function clampCompletion(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
 
 /**
- * Automerge url shape only — whether the host *holds* that recording is a
- * separate, asynchronous question (`isKnownRecording`).
- *
- * Deliberately a regex and not an `isValidAutomergeUrl` import: this file, like
- * `blobStore.ts`, stays free of Automerge and Electron so the HTTP surface can
- * be tested against a real server in a plain node process.
+ * Automerge url shape only. Whether the host holds that recording is a
+ * separate, asynchronous question answered by `isKnownRecording`. A regex
+ * rather than an Automerge import, so this file stays free of Automerge and
+ * Electron and the HTTP surface can be tested in a plain node process.
  */
 const RECORDING_URL_PATTERN = /^automerge:[1-9A-HJ-NP-Za-km-z]{16,}$/
 
@@ -245,14 +222,11 @@ function validate(value: unknown): Validated {
 }
 
 /**
- * A token bucket per connection.
- *
- * Keyed on the socket and held in a `WeakMap`, so a bucket is collected with
- * the connection that owns it rather than accumulating one entry per guest
- * that ever paired. Per connection is the granularity the threat needs: the
- * concern is a loop filling the disk, and a loop runs over a kept-alive
- * socket. It is not an identity check — a determined client can reconnect —
- * which is the same trade the note at the top of this file describes.
+ * A token bucket per connection, keyed on the socket in a `WeakMap` so a bucket
+ * is collected with its connection rather than accumulating one per guest that
+ * ever paired. Per connection fits the threat: a loop filling the disk runs
+ * over a kept-alive socket. It is not an identity check, since a determined
+ * client can reconnect. See the header on tamper resistance.
  */
 function createRateLimiter(
   burst: number,
