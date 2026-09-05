@@ -1,14 +1,11 @@
 /**
- * The "update available" toast.
+ * The "update available" toast. Presentational only: registration and the
+ * choice between this and the install prompt live in ShellPrompts.
  *
- * The worker is built with `registerType: 'prompt'` (see vite.config.ts), so a
- * new deploy installs in the background and waits rather than activating under
- * a running app — taking it mid-recording would be hostile. This is the only
- * affordance for accepting it; without one, a returning visitor would sit on
- * the old bundle indefinitely.
- *
- * Presentational only: registration and the decision to show this rather than
- * the install prompt both live in `ShellPrompts`.
+ * The worker uses `registerType: 'prompt'` (see vite.config.ts), so a new
+ * deploy installs in the background and waits instead of replacing the bundle
+ * under a running recording. This toast is the only way a user accepts that
+ * update. Without it a returning visitor would stay on the old bundle for good.
  */
 export default function PwaUpdatePrompt({
   onLater,

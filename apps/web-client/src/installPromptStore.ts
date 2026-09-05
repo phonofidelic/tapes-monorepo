@@ -1,14 +1,11 @@
 /**
- * Captures the browser's install prompt.
+ * Captures the browser's install prompt. `beforeinstallprompt` routinely fires
+ * before React has mounted, so the listener is attached at module scope and
+ * the event is held here until something renders a control for it. Calling
+ * `preventDefault()` suppresses Chrome's own mini-infobar.
  *
- * `beforeinstallprompt` fires as soon as the browser decides the app is
- * installable, which is routinely before React has mounted — so the listener is
- * attached at module scope rather than in a component effect, and the event is
- * held here until something renders a control for it. Calling `preventDefault()`
- * is what suppresses Chrome's own mini-infobar and hands us the timing.
- *
- * The store is exposed as a `subscribe`/`getSnapshot` pair so a component can
- * read it through `useSyncExternalStore` without this module importing React.
+ * The store is a subscribe and snapshot pair, so a component can read it
+ * through `useSyncExternalStore` without this module importing React.
  */
 
 export interface BeforeInstallPromptEvent extends Event {
@@ -41,7 +38,7 @@ window.addEventListener('beforeinstallprompt', (event) => {
   emit()
 })
 
-// Fires when the install completes by any route — our button, the browser's own
+// Fires when the install completes by any route: our button, the browser's own
 // menu item, or the OS. Either way there is nothing left to offer.
 window.addEventListener('appinstalled', () => {
   deferredPrompt = null
@@ -79,10 +76,10 @@ export function isStandalone() {
 }
 
 /**
- * iOS Safari never fires `beforeinstallprompt` — WebKit has no equivalent API —
- * so there is no event to capture and no button that could do anything. Those
- * users get an instruction instead, which is why this is detected by user agent
- * rather than by feature.
+ * iOS Safari never fires `beforeinstallprompt`, as WebKit has no equivalent
+ * API, so there is no event to capture and no button that could do anything.
+ * Those users get an instruction instead, which is why this is detected by
+ * user agent rather than by feature.
  */
 export function isIosSafari() {
   const ua = navigator.userAgent

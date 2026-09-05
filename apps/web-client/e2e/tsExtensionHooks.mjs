@@ -3,8 +3,8 @@
  * written with (`./blobStore`), which are a bundler convention Node's ESM
  * resolver does not follow. Node itself strips the types.
  *
- * Only the host child process uses this — see `registerTsExtensions.mjs` and
- * `hostProcess.ts`. Nothing here changes how the app is built or shipped.
+ * Only the host child process uses this; see registerTsExtensions.mjs and
+ * hostProcess.ts. Nothing here changes how the app is built or shipped.
  */
 export async function resolve(specifier, context, next) {
   try {

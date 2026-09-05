@@ -47,17 +47,14 @@ export function resolveSyncServerUrl({
     return remoteSyncServerUrl
   }
 
-  // 3 & 4. Same-origin `/sync`. In development that is web-client's own Vite
-  // dev server proxying back to the host's embedded sync server (see
-  // vite.config.ts); in a staged build it is the Electron host itself, whose
-  // WebSocketServer is attached to the whole http server rather than a route,
-  // so it accepts the upgrade on `/sync` too.
-  //
-  // The host verifies the pairing token on that upgrade, and a browser cannot
-  // set headers on a `WebSocket`, so it rides the query as `?t=` — the same
-  // form `/blobs` accepts. Without a token the connection will be refused; we
-  // still return the URL so the failure is a visible 401 rather than a silent
-  // local-only session.
+  // 3 & 4. Same-origin `/sync`. In development that is the Vite dev server
+  // proxying to the host's embedded sync server (see vite.config.ts). In a
+  // staged build it is the Electron host itself, whose WebSocketServer is
+  // attached to the whole http server, so it accepts the upgrade on `/sync`.
+  // The host checks the pairing token on that upgrade. A browser cannot set
+  // headers on a WebSocket, so the token rides the query as `?t=`, the same
+  // form `/blobs` accepts. Without a token the URL is still returned, so the
+  // failure is a visible 401 rather than a silent local-only session.
   if (env.DEV || env.VITE_SERVED_BY_HOST === 'true') {
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
     const query = token ? `?t=${encodeURIComponent(token)}` : ''
@@ -71,9 +68,9 @@ export function resolveSyncServerUrl({
 /**
  * Reads `remoteSyncServerUrl` out of the settings blob core's SettingsProvider
  * writes to localStorage, mirroring the pre-mount read in the Electron
- * renderer. Anything unusable — absent key, malformed JSON, a URL that is not
- * `ws:`/`wss:` — resolves to undefined so the caller falls through rather than
- * handing Automerge an address that can only produce reconnect noise.
+ * renderer. Anything unusable (absent key, malformed JSON, a URL that is not
+ * `ws:` or `wss:`) resolves to undefined, so the caller falls through rather
+ * than handing Automerge an address that can only produce reconnect noise.
  */
 function readRemoteSyncServerUrl(
   storage: Pick<Storage, 'getItem'>,

@@ -1,14 +1,10 @@
 /**
  * Build gate: fails if Automerge's WebAssembly module is missing from the
- * generated Workbox precache manifest.
- *
- * The bundle fetches that ~3.2 MB asset at module-init time under a top-level
- * await, so if it is not precached the app installs, launches offline, and then
- * never mounts. Workbox drops it *silently* under its own defaults — `wasm` is
- * absent from the default `globPatterns` and the default
- * `maximumFileSizeToCacheInBytes` is 2 MiB — which makes this exactly the kind
- * of regression nobody notices until they are on a plane. vite.config.ts
- * overrides both; this checks the override actually took.
+ * generated Workbox precache manifest. The bundle fetches that ~3.2 MB asset at
+ * module-init time under a top-level await, so without it the app installs,
+ * launches offline, and never mounts. Workbox drops it silently under its own
+ * defaults: `wasm` is not in the default globs and the default size cap is
+ * 2 MiB. vite.config.ts overrides both. This script checks the override took.
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'

@@ -49,7 +49,7 @@ test.describe('input device selection', () => {
 
   // The option value carries the whole device so the electron client can read
   // `label` (switchaudio-osx matches on device name) while the web client reads
-  // `deviceId`. What gets *persisted* is still only the deviceId — if the JSON
+  // `deviceId`. What gets persisted is still only the deviceId. If the JSON
   // blob ever leaked into settings, getUserMedia would be handed a constraint
   // it cannot match.
   test('serializes the whole device into the option but persists only its id', async ({
