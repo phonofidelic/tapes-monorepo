@@ -163,7 +163,7 @@ async function waitForSyncServer(timeoutMs = 30_000): Promise<void> {
       throw new Error(
         `Nothing answered on port ${SYNC_PORT}. The app's embedded server ` +
           'either never started or fell back to another port because ' +
-          'something else holds this one: a stale e2e run, or the ' +
+          'something else holds this one — a stale e2e run, or the ' +
           "developer's own desktop app.",
       )
     }
