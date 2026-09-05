@@ -171,6 +171,12 @@ export default defineConfig(({ command }) => ({
         secure: false,
         changeOrigin: true,
       },
+      // Playback events are posted to the same host as blobs.
+      '/events': {
+        target: `http://127.0.0.1:${syncServerPort}`,
+        secure: false,
+        changeOrigin: true,
+      },
     },
   },
   build: {

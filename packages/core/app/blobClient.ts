@@ -218,7 +218,7 @@ function deriveHttpOrigin(syncUrl: string): string | undefined {
   }
 }
 
-function authHeaders(endpoint: BlobEndpoint): Record<string, string> {
+export function authHeaders(endpoint: BlobEndpoint): Record<string, string> {
   return endpoint.token ? { Authorization: `Bearer ${endpoint.token}` } : {}
 }
 
