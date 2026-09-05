@@ -39,3 +39,48 @@ the LAN. See [`README.md`](./README.md) for architecture.
 - CI runs unit tests only for `@tapes-monorepo/core`; the `apps/api` Jest suite is
   excluded (pre-existing compile failure). Don't treat that as a gap to "fix"
   without checking.
+
+## Writing style (PR descriptions, commit bodies, doc comments)
+
+Write for a competent engineer who has not seen this code before and is reading
+quickly. Past PRs (#303, #306, #307, #309, #312) are accurate but dense; do not
+copy their prose style.
+
+- **Lead with the change.** The first two or three sentences say what changed
+  and why, in plain words. A reader who stops there should know what the PR does.
+- **Short sentences, one idea each.** Aim for about 20 words. Do not chain
+  clauses with em-dashes, semicolons, or parentheses. Start a new sentence.
+- **Plain words over clever ones.** Avoid figurative or essayistic phrasing
+  ("no second CORS story", "failure posture", "the price of", "worth a reviewer's
+  eye", "the traps", "does the real work here"). Say the concrete thing.
+- **Give the reason once, where it matters.** Not every sentence needs a
+  "so that" or "which is what lets". Explain the non-obvious decisions; skip
+  the obvious ones.
+- **Do not use ticket numbers as nouns.** "TAP-98's index" means nothing to a
+  reader without Linear open. Name the thing: "the per-device dedupe index".
+  Link the ticket once at the top.
+- **At most one code identifier per sentence.** Describe the rest in words.
+  A sentence with four backticked names is a list, not a sentence.
+- **Bullets are one or two sentences.** If a bullet needs a paragraph, it is a
+  section. Bold the first few words of a bullet, never a whole sentence.
+- **Use a predictable shape:** *What changed* / *Why* / *How it was tested* /
+  *Notes or known limits*. Test results go in a short list or table, not prose.
+- **Length.** A typical PR body fits in about 250 words. Longer is fine only
+  when the change is genuinely large; then use the section headers above.
+
+Doc comments follow the same rules, with two additions:
+
+- A module header says what the module does and the one or two constraints a
+  reader must know before editing it. Keep it under roughly eight lines. It is
+  not a copy of the PR description.
+- Put the reasoning next to the code it explains, as a short comment at that
+  line, rather than collecting it all in the header.
+
+Example rewrite, from PR #312:
+
+> Before: "Reusing that origin means no new port, no second CORS story, and
+> nothing further to configure — guests already reach it and already hold the
+> token."
+>
+> After: "The route shares the existing HTTP origin and pairing token, so
+> guests need no extra configuration."
