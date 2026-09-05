@@ -1,12 +1,11 @@
 /**
  * Request/response helper for the web-client's storage worker.
  *
- * The worker's `onmessage` is one switch with no correlation between a request
- * and its reply, and callers have so far each hand-rolled an
- * `addEventListener`/`removeEventListener` dance around it. That is fine while
- * only one request is ever in flight, but blob fetches can overlap with each
- * other and with a save. Tagging every message with a `requestId` and routing
- * replies through one place fixes that, and gives tests a single seam to fake.
+ * The worker's `onmessage` is one switch with no correlation between a
+ * request and its reply. That is fine while only one request is in flight,
+ * but blob fetches can overlap with each other and with a save. So every
+ * message carries a request id, and replies are matched in one place. Tests
+ * fake this one seam.
  */
 
 export type WorkerResponse<T> = {

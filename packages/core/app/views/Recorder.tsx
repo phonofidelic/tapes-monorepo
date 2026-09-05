@@ -58,10 +58,10 @@ export function Recorder() {
   const [hasErrors, setHasErrors] = useState(false)
 
   /**
-   * Hands the audio to the sync host and records where it landed. On failure —
-   * or with no host at all, which is the ordinary state of a standalone web
-   * client — the recording stays playable from this device's own copy and the
-   * upload is queued for the next time an endpoint is available.
+   * Hands the audio to the sync host and records where it landed. On failure,
+   * or with no host at all, the recording stays playable from this device's
+   * own copy and the upload is queued for the next time an endpoint exists.
+   * Having no host is the ordinary state of a standalone web client.
    */
   const storeRecordingAudio = useCallback(
     async (docUrl: AutomergeUrl, recordingFilepath: string) => {
@@ -117,8 +117,8 @@ export function Recorder() {
       setEditedName(NEW_RECORDING_DEFAULT_NAME)
     }
 
-    // Capture everything the doc needs before the first `await` — the Save/Enter
-    // handlers reset this state synchronously right after invoking this.
+    // Capture everything the doc needs before the first `await`. The Save and
+    // Enter handlers reset this state synchronously right after invoking this.
     const recordingFilepath = filepath
     const recordingName = editedName || NEW_RECORDING_DEFAULT_NAME
     const recordingDuration = time
@@ -132,7 +132,7 @@ export function Recorder() {
       // The doc is metadata only, and is written before the audio moves
       // anywhere: it is created synchronously so the recording appears in the
       // library at once, however long the upload takes. There is no size limit
-      // any more — the bytes never enter the document.
+      // any more, because the bytes never enter the document.
       const handle = repo.create<RecordingData>()
       const url = handle.url
       handle.change((doc) => {

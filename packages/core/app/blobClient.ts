@@ -2,16 +2,13 @@ import type { SyncServerInfo } from './IpcService'
 import type { BlobDescriptor } from './types'
 
 /**
- * Client for the host's `/blobs` surface.
+ * Client for the host's `/blobs` routes.
  *
- * Recorded audio is addressed by the sha-256 of its bytes and lives on the
- * sync host, not in the Automerge doc. Guests upload what they record and
- * fetch what they play; the doc carries only the descriptor.
- *
- * The hash is always computed by the host while it streams the upload, never
- * here: a phone would otherwise have to read a 50 MB+ file to hash it, and
- * `crypto.subtle` is unavailable in the plain-HTTP LAN mode the host can be
- * configured into.
+ * Recorded audio lives on the sync host, addressed by the sha-256 of its
+ * bytes. The Automerge doc carries only the descriptor. Guests upload what
+ * they record and fetch what they play. The host computes the hash while it
+ * receives an upload. Never hash on the client: a phone would have to read a
+ * 50 MB+ file, and `crypto.subtle` is unavailable in the plain-HTTP LAN mode.
  */
 
 export type BlobEndpoint = {
@@ -19,10 +16,9 @@ export type BlobEndpoint = {
   baseUrl: string
   token?: string
   /**
-   * True when this endpoint is this device's own embedded host, i.e. the bytes
-   * are already on local disk. Callers use it to decide what a local copy is
-   * worth: pinning a blob that is served from this machine's own store buys
-   * nothing, while pinning one that lives on another host does.
+   * True when this endpoint is this device's own embedded host, so the bytes
+   * are already on local disk. Pinning a blob served from this machine gains
+   * nothing. Pinning one held by another host does.
    */
   local?: boolean
 }
@@ -42,13 +38,9 @@ export type BlobAttempt =
   { kind: 'status'; status: number } | { kind: 'network' }
 
 /**
- * Why a blob could not be fetched.
- *
- * A fetch used to surface whichever error happened to come last, which left a
- * host that is reachable but no longer paired indistinguishable from one that
- * is switched off — both reached the player as the same "not available
- * offline". The reason is decided across every attempt rather than by the
- * final one.
+ * Why a blob could not be fetched. The reason is decided across every
+ * attempt, not by the last one. Otherwise a host that is reachable but no
+ * longer paired would look the same as one that is switched off.
  */
 export type BlobFailureReason =
   /** No host is configured at all: this device is paired with nothing. */
@@ -72,14 +64,10 @@ export class BlobFetchError extends Error {
 }
 
 /**
- * Precedence when hosts disagree: a 401 is the one failure the user can act on
- * — re-pair — so it must never be masked by another host answering 404. An
- * unreachable host outranks a 404 in turn, because "nobody could be asked" is
- * a weaker claim than "every host that answered said no".
- *
- * Anything else, 5xx included, is reported as unreachable: from the player's
- * side a host that is broken is not meaningfully different from one that is
- * away.
+ * Precedence when hosts disagree. A 401 wins: re-pairing is the one fix the
+ * user can apply, so a 404 from another host must never hide it. An
+ * unreachable host outranks a 404, because "nobody could be asked" is a
+ * weaker claim than "every host that answered said no".
  */
 export function classifyBlobFailure(
   attempts: readonly BlobAttempt[],
@@ -97,19 +85,21 @@ export function classifyBlobFailure(
   if (sawStatus(404)) {
     return 'missing'
   }
+  // Anything else, 5xx included. To the player a broken host is the same as
+  // an absent one.
   return 'unreachable'
 }
 
 /**
- * How long a host has to start answering. This bounds reaching the host and
- * getting response headers back, never the transfer: a ten-minute tape over a
+ * How long a host has to start answering. This covers reaching the host and
+ * receiving response headers, never the transfer. A ten-minute tape over a
  * slow LAN is a slow response, not an absent host.
  */
 export const BLOB_RESPONSE_TIMEOUT_MS = 15_000
 
 /**
- * `AbortSignal.any` would express this, but it is still missing from enough of
- * the browsers and test environments this runs in to be worth the few lines.
+ * Aborts `controller` when the caller's signal fires. `AbortSignal.any` would
+ * do this, but some browsers and test environments this runs in still lack it.
  */
 function linkAbort(
   controller: AbortController,
@@ -147,26 +137,22 @@ export type ResolveBlobEndpointInput = {
 
 /**
  * Every host this device could get bytes from, in the order to try them.
+ * The first entry is the write target: uploads and new claims go there.
  *
- * Mirrors the sync-URL precedence in apps/web-client/src/syncServerUrl.ts, but
- * lives here so both shells resolve it the same way. Unlike that chain this one
- * does not stop at the first match: the electron renderer can be paired with a
- * remote server *in addition to* running its own embedded one (see
- * `syncServerMode: 'remote'`), and will then sync docs whose hashes only the
- * remote host has ever seen. Content addressing means any host holding the
- * bytes will do, so a miss on one is a reason to ask the next rather than to
- * fail — and no origin ever belongs in the shared doc, which would leak this
- * device's topology to every peer.
- *
- * The first entry is the *write* target: uploads and new claims go there. An
- * empty list is a supported outcome, not a failure — a standalone web-client
- * with no host has nowhere to put bytes, and keeps them in OPFS.
+ * Mirrors the sync-URL precedence in the web client's syncServerUrl module,
+ * but lives here so both shells resolve it the same way. Unlike that chain it
+ * does not stop at the first match. An empty list is a supported outcome, not
+ * a failure: a standalone web client has no host and keeps its bytes in OPFS.
  */
 export function resolveBlobEndpoints(
   input: ResolveBlobEndpointInput,
 ): BlobEndpoint[] {
   const { syncServerInfo, origin, servedByHost, isDev, remoteSyncServerUrl } =
     input
+  // Blobs are content addressed, so any host holding the bytes will do. A
+  // miss on one host is a reason to ask the next, not to fail. No origin is
+  // ever written into the shared doc: that would leak this device's topology
+  // to every peer.
   const endpoints: BlobEndpoint[] = []
 
   if (syncServerInfo?.blobBaseUrl) {
@@ -184,8 +170,11 @@ export function resolveBlobEndpoints(
   }
 
   if (remoteSyncServerUrl && input.token) {
-    // A remote host is only usable for blobs if we were also paired with it;
-    // without a token every request would just 401.
+    // Added even when an embedded host was found above. With the sync server
+    // mode set to remote, the electron renderer is paired with a remote server
+    // while still running its own host, and syncs docs whose hashes only the
+    // remote has seen. A remote host is only usable for blobs if we were also
+    // paired with it. Without a token every request would just 401.
     const derived = deriveHttpOrigin(remoteSyncServerUrl)
     if (derived) {
       endpoints.push({ baseUrl: derived, token: input.token })
@@ -241,8 +230,7 @@ async function failure(response: Response): Promise<BlobRequestError> {
 
 /**
  * Uploads recorded bytes and returns the descriptor to write into the doc.
- *
- * `body` should be the OPFS `File` handle rather than a materialized buffer —
+ * Pass the OPFS file handle as the body rather than a materialized buffer.
  * `fetch` streams it off disk, so a large recording never has to fit in JS
  * memory on a phone.
  */
@@ -368,8 +356,8 @@ export type BlobFetchResult = {
   from: BlobEndpoint
   /**
    * Endpoints that answered 404 before this one succeeded. They are reachable
-   * and paired, they just do not hold this blob — the case `replicateBlob`
-   * exists to repair.
+   * and paired but do not hold this blob. `replicateBlob` exists to repair
+   * that.
    */
   missingFrom: BlobEndpoint[]
 }
@@ -377,11 +365,11 @@ export type BlobFetchResult = {
 /**
  * Fetches a blob from the first host that has it.
  *
- * A 404 means "not this host, ask the next". Other failures are also worth
- * moving past — one host can be asleep while another answers. Every outcome is
- * kept rather than just the last one, because what the player needs to tell
- * the user is decided across all of them: one host answering 404 says nothing
- * about another that rejected our token.
+ * A 404 means "not this host, ask the next". Other failures also move on,
+ * since one host can be asleep while another answers. Every outcome is kept,
+ * not just the last one, because what the player tells the user is decided
+ * across all of them. One host answering 404 says nothing about another that
+ * rejected our token.
  */
 export async function fetchBlobFromAny(
   endpoints: readonly BlobEndpoint[],
@@ -427,10 +415,10 @@ export async function fetchBlobFromAny(
 /**
  * Pushes bytes we already hold to hosts that turned out not to have them.
  *
- * Two hosts that both serve this library should both be able to answer for it;
- * the alternative is a recording that plays only while one particular machine
- * is awake. Best-effort by design — a failed copy leaves the blob exactly where
- * it was, so this never turns a successful playback into an error.
+ * Two hosts that both serve this library should both be able to answer for
+ * it. Otherwise a recording plays only while one particular machine is awake.
+ * Best effort by design: a failed copy leaves the blob where it was, so this
+ * never turns a successful playback into an error.
  */
 export async function replicateBlob(
   endpoints: readonly BlobEndpoint[],
@@ -461,10 +449,9 @@ export async function replicateBlob(
 
 /**
  * Releases this recording's claim on every host that might be holding it.
- *
  * Which host has the bytes is deliberately not recorded anywhere, so the only
- * way to drop a claim is to drop it everywhere; `deleteBlob` already treats an
- * absent blob as success.
+ * way to drop a claim is to drop it everywhere. `deleteBlob` already treats
+ * an absent blob as success.
  */
 export async function deleteBlobEverywhere(
   endpoints: readonly BlobEndpoint[],

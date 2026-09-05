@@ -4,10 +4,10 @@ import type { HasBlobResponse, IpcResponse } from './IpcService'
 import { callWorker } from './workerClient'
 
 /**
- * The device-local copy of blobs fetched from the host, so a guest's storage
- * grows with what it has played rather than with the size of the library.
+ * The device-local copy of blobs fetched from the host. A guest's storage
+ * grows with what it has played, not with the size of the library.
  *
- * Web keeps them in an OPFS `blobs/` directory keyed by hash; electron hands
+ * Web keeps blobs in an OPFS `blobs/` directory keyed by hash. Electron hands
  * them to its own blob store, which for a host is already where the bytes
  * live. Both are addressed by content hash, so a cached blob is always the
  * right bytes and never needs invalidating.
@@ -49,7 +49,7 @@ export function forgetCacheEntry(hash: string, storage: Storage) {
 }
 
 /**
- * Least-recently-played first, skipping anything the user pinned — a pin is a
+ * Least recently played first, skipping anything the user pinned. A pin is a
  * promise that the recording stays playable with the host switched off.
  */
 export function selectEvictions(
@@ -98,9 +98,9 @@ export async function hasCachedBlob(
 }
 
 /**
- * Resolves a cached blob to something an `<audio>` element can play. Returns
- * an object URL on web (revoke it when done) and a `tapes-blob://` url on
- * electron, which its protocol handler serves out of the blob store.
+ * Resolves a cached blob to something an `<audio>` element can play. On web
+ * this is an object URL, which the caller must revoke when done. On electron
+ * it is a `tapes-blob://` url that the protocol handler serves from the store.
  */
 export async function cachedBlobSource(
   appContext: AppContextValue,
