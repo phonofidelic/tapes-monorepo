@@ -528,8 +528,12 @@ describe('switching between recordings', () => {
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('error'),
     )
+    // `src` is a sample of the element taken by the probe's poller, not a
+    // React value, so it lags the failure it is being read against by up to a
+    // tick — long enough on a loaded machine to still be showing the first
+    // recording. Wait for the sample rather than reading one snapshot of it.
+    await waitFor(() => expect(srcText()).toBe(''))
     expect(srcText()).not.toBe(firstSrc)
-    expect(srcText()).toBe('')
     // Nothing is loaded, so the transport must not sit in its playing state.
     expect(screen.getByTestId('playing')).toHaveTextContent('false')
   })

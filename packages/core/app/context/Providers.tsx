@@ -9,8 +9,26 @@ import { RecordingStateProvider } from './RecordingContext'
 import { BlobProvider } from './BlobContext'
 import { PinProvider } from './PinContext'
 import { AggregatesProvider } from './AggregatesContext'
+import { usePlayEventQueue } from '@/usePlayEventQueue'
 import type { BlobEndpoint } from '@/blobClient'
 import type { EventHost } from '@/eventTarget'
+
+/**
+ * The player, with its measured play sessions going to the event queue.
+ *
+ * A component of its own because the queue needs the blob endpoints to know
+ * which host owns a play, so the hook has to run below `BlobProvider` — and
+ * the player takes the callback as a prop rather than reading a context, so
+ * that a shell which does not count plays simply leaves it out.
+ */
+function CountedPlayback({ children }: { children: React.ReactNode }) {
+  const recordPlaySession = usePlayEventQueue()
+  return (
+    <AudioPlayerProvider onPlaySession={recordPlaySession}>
+      {children}
+    </AudioPlayerProvider>
+  )
+}
 
 export default function Providers({
   values,
@@ -38,7 +56,7 @@ export default function Providers({
                       service. Around the player, so a finished play can ask
                       for the numbers again. */}
                   <AggregatesProvider target={values.eventTarget}>
-                    <AudioPlayerProvider>{children}</AudioPlayerProvider>
+                    <CountedPlayback>{children}</CountedPlayback>
                   </AggregatesProvider>
                 </PinProvider>
               </BlobProvider>
