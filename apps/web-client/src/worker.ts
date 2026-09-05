@@ -1,3 +1,12 @@
+/**
+ * The recording worker. Owns the OPFS files behind the web client: recordings
+ * this device made live flat in the OPFS root under uuid names, and blobs
+ * fetched from the sync host live in `blobs/` under their content hash.
+ *
+ * Messages arrive from core as `{ type, payload }`. The blob and get-file
+ * handlers echo a `requestId` through `respond` so overlapping requests can be
+ * told apart. The older recorder and storage handlers reply without one.
+ */
 export {}
 
 declare global {
@@ -236,7 +245,7 @@ onmessage = async (event) => {
     case 'storage:get-file': {
       // Hands back the OPFS `File` itself rather than its bytes. `fetch` can
       // stream a File off disk, so uploading a long recording never has to
-      // materialize it in memory — which matters on a phone.
+      // materialize it in memory. That matters on a phone.
       const { filename, requestId } = payload
       try {
         const root = await navigator.storage.getDirectory()

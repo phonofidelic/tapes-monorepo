@@ -21,20 +21,13 @@ import {
 } from './host'
 
 /**
- * Host↔guest, over the wire.
- *
- * The rest of the suite runs one browser against a dev server with no host at
- * all, which leaves the seam this project is built on — a guest that syncs
- * metadata over a socket and fetches audio over HTTP from another device —
- * tested only by hand. Here a real embedded sync server runs alongside the
- * suite in its own process (see `host.ts`), the guest's dev server proxies
- * `/sync` and `/blobs` to it, and the browser is a genuine second device: its
- * own origin, its own OPFS, paired only by the url it was handed.
- *
- * Each test gets a fresh browser context, so a guest never inherits the OPFS
- * or localStorage of the one before it — which is what makes "this device
- * holds only what it played" a real assertion rather than an artifact of
- * ordering.
+ * Host and guest, over the wire. The rest of the suite runs one browser with
+ * no host, so the guest-to-host seam (metadata over a socket, audio over HTTP)
+ * was only tested by hand. Here a real embedded sync server runs in its own
+ * process (see host.ts), the guest's dev server proxies `/sync` and `/blobs`
+ * to it, and the browser is a genuine second device with its own origin and
+ * OPFS. Each test gets a fresh browser context, so "this device holds only
+ * what it played" is a real assertion rather than an artifact of ordering.
  */
 
 let libraryUrl: string
@@ -89,8 +82,8 @@ const pair = async (page: Page) => {
 
 /**
  * One recording's row. `div.group`, not `li`: Library maps its recordings
- * straight to `LibraryListItem`, which renders a div — the `group` class is
- * there to drive the row's hover states, and is the only marker the row has.
+ * straight to `LibraryListItem`, which renders a div. The `group` class drives
+ * the row's hover states and is the only marker the row has.
  */
 const row = (page: Page, name: string) =>
   page.locator('div.group').filter({ hasText: name }).first()
@@ -160,7 +153,7 @@ test.describe('host and guest', () => {
     await saveRecording(page, 'Guest take one')
 
     // The upload is a POST to `/blobs`, so the host gaining an object is the
-    // honest end of it — a row in the guest's own library proves nothing.
+    // honest end of it. A row in the guest's own library proves nothing.
     await expect
       .poll(async () => (await hostObjects()).length, { timeout: 30_000 })
       .toBe(before.length + 1)

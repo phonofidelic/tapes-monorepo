@@ -1,17 +1,17 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * PWA packaging, against the `vite preview` server — the rest of the suite runs
+ * PWA packaging, against the `vite preview` server. The rest of the suite runs
  * on the dev server, where the service worker is deliberately disabled.
  *
- * The load-bearing assertion is the offline one. Automerge's ~3.2 MB wasm is
+ * The important assertion is the offline one. Automerge's ~3.2 MB wasm is
  * fetched at module-init time under a top-level await, so if it is not
- * precached the app installs, launches offline, and then never mounts. Workbox
- * would drop it silently under its own defaults; vite.config.ts overrides them.
+ * precached the app installs, launches offline, and never mounts. Workbox
+ * would drop it silently under its own defaults. vite.config.ts overrides them.
  */
 
 /**
- * Resolves once a service worker for this origin has reached `activated` —
+ * Resolves once a service worker for this origin has reached `activated`,
  * which also means its install step, and so the precache, has completed.
  *
  * `expect.poll` around `page.evaluate`, not `page.waitForFunction`: the latter
@@ -100,7 +100,7 @@ test('launches and mounts offline after one load', async ({
     await page.reload()
 
     // `<App>` renders "Loading..." until the Automerge repo resolves, and the
-    // repo cannot exist unless the top-level-await wasm init completed — from
+    // repo cannot exist unless the top-level-await wasm init completed from
     // cache, since nothing can reach the network here. So the nav appearing is
     // the real proof the wasm was precached, not just the shell.
     await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
