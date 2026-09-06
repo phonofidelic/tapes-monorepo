@@ -108,8 +108,9 @@ yarn dev:https
 
 That script starts `ui`, `core`, `web-client`, the electron host and `api`. The
 web client gets TLS from `@vitejs/plugin-basic-ssl`. The host advertises an
-`https://<lan-ip>:3000` URL to guests. It also generates a self-signed
-certificate for its own sync server, with the LAN IP in the certificate SAN.
+`https://<lan-ip>:3000` URL to guests. Its own sync server gets a certificate
+issued by a root the host mints once, with the LAN IP in the certificate SAN.
+A guest who installs that root avoids the browser warning.
 
 `apps/api` serves over HTTPS in development. It expects `localhost-key.pem` and
 `localhost-cert.pem` in `apps/api/`. Generate them with `yarn workspace api cert`.

@@ -17,9 +17,10 @@ import { ensureSyncServerCert } from './certManager'
 
 /**
  * Turns the persisted sync-server config into runtime options and starts the
- * server. Binds LAN-wide when sharing is on. Mints or loads a self-signed cert
- * with the current LAN IP in its SAN when HTTPS is on. Shared by the app
- * bootstrap and the IPC toggles so the option-building lives in one place.
+ * server. Binds LAN-wide when sharing is on. With HTTPS on it loads the TLS
+ * chain, re-issuing the leaf for the current LAN IP when that IP has changed.
+ * Shared by the app bootstrap and the IPC toggles so the option-building lives
+ * in one place.
  */
 export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
   const config = readSyncServerConfig()
