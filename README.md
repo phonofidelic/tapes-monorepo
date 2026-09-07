@@ -99,8 +99,8 @@ yarn dev          # start all apps in dev mode
 
 ### Local HTTPS
 
-Browsers only expose the microphone in a secure context. LAN guests therefore
-cannot record over plain HTTP. Use HTTPS on the LAN IP instead:
+Browsers only expose the microphone and OPFS in a secure context. LAN guests
+therefore cannot record over plain HTTP. Use HTTPS on the LAN IP instead:
 
 ```sh
 yarn dev:https
@@ -108,12 +108,26 @@ yarn dev:https
 
 That script starts `ui`, `core`, `web-client`, the electron host and `api`. The
 web client gets TLS from `@vitejs/plugin-basic-ssl`. The host advertises an
-`https://<lan-ip>:3000` URL to guests. Its own sync server gets a certificate
-issued by a root the host mints once, with the LAN IP in the certificate SAN.
-A guest who installs that root avoids the browser warning.
+`https://<lan-ip>:3000` URL to guests.
+
+The embedded sync server stays on plain HTTP here. Guests do not reach it
+directly in development. They load the Vite dev server, which proxies through to
+it over loopback, and both hops are already secure contexts. So the host
+certificate authority described below does not come into play under
+`yarn dev:https`.
 
 `apps/api` serves over HTTPS in development. It expects `localhost-key.pem` and
 `localhost-cert.pem` in `apps/api/`. Generate them with `yarn workspace api cert`.
+
+### LAN HTTPS in the packaged app
+
+In the packaged app guests connect to the embedded sync server directly, so that
+server needs its own certificate. The host is its own certificate authority. It
+mints a root once and issues the server certificate from it. Guests either
+install that root once or click through a browser warning. Both are supported.
+
+See [the electron-client README](./apps/electron-client/README.md#lan-https-and-guest-trust)
+for what each option protects against, and for the page a host can send a guest to.
 
 ## Scripts
 
