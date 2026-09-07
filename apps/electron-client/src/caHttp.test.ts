@@ -3,6 +3,10 @@ import { AddressInfo } from 'net'
 import { afterEach, describe, expect, it } from 'vitest'
 import { generateKeyPairSync, randomBytes } from 'crypto'
 import { md, pki } from 'node-forge'
+import {
+  encodeFingerprint,
+  formatFingerprint,
+} from '../../../packages/core/app/pairing'
 import { fingerprintFromPem } from './certFingerprint'
 import {
   CA_CERT_CONTENT_TYPE,
@@ -141,6 +145,87 @@ describe('createCaRequestHandler', () => {
       expect(body).toContain('Certificate Trust Settings')
       expect(body).toContain('Encryption and credentials')
       expect(body).toContain('Always Trust')
+    })
+
+    // The comparison the page exists to make. `fp` is the one value on this
+    // page an attacker on the LAN cannot reach: it was scanned off the host's
+    // own screen, not fetched over this connection.
+    describe('with a fingerprint from the pairing link', () => {
+      it('reports a match when the link names the certificate being offered', async () => {
+        const { cert } = selfSignedPem()
+        const origin = await startForTest(cert)
+        const fp = encodeFingerprint(fingerprintFromPem(cert)!)
+
+        const body = await (
+          await fetch(`${origin}${TRUST_PAGE_PATH}?fp=${fp}`)
+        ).text()
+
+        expect(body).toContain('Checked.')
+        expect(body).not.toContain('Do not install')
+        // The install is the point of the page, and a match is what clears it.
+        expect(body).toContain(CA_CERT_PATH)
+        expect(body).toContain('Certificate Trust Settings')
+      })
+
+      it('accepts the fingerprint as base64url, hex or colon-separated hex', async () => {
+        const { cert } = selfSignedPem()
+        const origin = await startForTest(cert)
+        const colonHex = fingerprintFromPem(cert)!
+        const forms = [
+          encodeFingerprint(colonHex),
+          colonHex.replace(/:/g, '').toLowerCase(),
+          colonHex,
+        ]
+
+        for (const form of forms) {
+          const body = await (
+            await fetch(
+              `${origin}${TRUST_PAGE_PATH}?fp=${encodeURIComponent(form)}`,
+            )
+          ).text()
+
+          expect(body).toContain('Checked.')
+        }
+      })
+
+      // The one screen where the person is about to install a root. A mismatch
+      // has to end the flow, not decorate it.
+      it('stops, and offers no install, when the link names a different root', async () => {
+        const { cert } = selfSignedPem()
+        const other = selfSignedPem().cert
+        const origin = await startForTest(cert)
+        const fp = encodeFingerprint(fingerprintFromPem(other)!)
+
+        const body = await (
+          await fetch(`${origin}${TRUST_PAGE_PATH}?fp=${fp}`)
+        ).text()
+
+        expect(body).toContain('Do not install this certificate')
+        expect(body).not.toContain('Checked.')
+        // No download link and no install steps: nothing here is safe to add
+        // to a trust store.
+        expect(body).not.toContain(`href="${CA_CERT_PATH}"`)
+        expect(body).not.toContain('Certificate Trust Settings')
+        // Both values, so the person can see which one they are being handed.
+        expect(body).toContain(formatFingerprint(fingerprintFromPem(other)!))
+        expect(body).toContain(fingerprintFromPem(cert))
+      })
+
+      // Nothing to compare against is the state the page was already in, and
+      // its wording for that is correct. Anything else would be a verdict the
+      // page cannot back up.
+      it('falls back to the manual comparison when the value is not a fingerprint', async () => {
+        const { cert } = selfSignedPem()
+        const origin = await startForTest(cert)
+
+        const body = await (
+          await fetch(`${origin}${TRUST_PAGE_PATH}?fp=not-a-fingerprint`)
+        ).text()
+
+        expect(body).toContain('Check this first.')
+        expect(body).toContain(fingerprintFromPem(cert))
+        expect(body).not.toContain('Do not install this certificate')
+      })
     })
 
     it('is answered by this route rather than the app shell', async () => {

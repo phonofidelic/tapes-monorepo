@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildGuestUrl,
+  buildTrustPageUrl,
   decodeFingerprint,
   encodeFingerprint,
   formatFingerprint,
@@ -105,5 +106,25 @@ describe('fingerprint encoding', () => {
     expect(formatFingerprint(FINGERPRINT)).toBe(
       '9F:86:D0:81:88:4C:7D:65:9A:2F:EA:A0:C5:5A:D0:15:A3:BF:4F:1B:2B:0B:82:2C:D1:5D:6C:15:B0:F0:0A:08',
     )
+  })
+})
+
+describe('buildTrustPageUrl', () => {
+  const fingerprint = encodeFingerprint(HOST_FINGERPRINT)
+
+  // The app forwards what it was opened with, which is what lets the trust
+  // page check the root it is offering instead of asking the person to.
+  it('carries the fingerprint the app was opened with', () => {
+    expect(buildTrustPageUrl(`?am=automerge:abc&fp=${fingerprint}`)).toBe(
+      `/trust?fp=${fingerprint}`,
+    )
+  })
+
+  it('has no link without a fingerprint, since the page has nothing to check', () => {
+    expect(buildTrustPageUrl('?am=automerge:abc')).toBeNull()
+  })
+
+  it('has no link for a value that is not a fingerprint', () => {
+    expect(buildTrustPageUrl('?fp=not-a-fingerprint')).toBeNull()
   })
 })
