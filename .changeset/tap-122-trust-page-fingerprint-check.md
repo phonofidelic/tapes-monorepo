@@ -3,26 +3,24 @@
 '@tapes-monorepo/core': patch
 ---
 
-Check the pairing link's fingerprint against the root the trust page is offering
+Check the pairing link's fingerprint against the certificate the trust page offers
 
-The trust page used to print one fingerprint and ask the person to walk to the
-host computer and compare it by eye. Everything on that page arrives over the
-connection nothing has vouched for yet, so on its own it proves nothing: anything
-answering as the host serves its own root and its own matching fingerprint, and
-the page looks right.
+The trust page printed one fingerprint and asked the person to compare it with
+the host by eye. That value arrives over an unverified connection, so it proves
+nothing on its own. Anything answering as the host can serve its own root and a
+matching fingerprint.
 
-The value in the pairing link is different. It was scanned in the same room, off
-the host's own screen, and it is the one input on this page an attacker on the
-LAN cannot reach. `/trust` now takes it as `fp` and makes the comparison itself.
-A match says so and offers the install as before. A mismatch stops: no download
-link, no install steps, both fingerprints side by side, and the one safe next
-step, which is to go back to the host and scan again.
+The fingerprint in the pairing link was scanned off the host's screen. It is the
+only input on the page that a machine on the LAN cannot forge. The page now
+takes it as `fp` and makes the comparison.
 
-The QR is unchanged. It still points at the app, and Settings gives a guest that
-arrived with an `fp` a link to `/trust?fp=…` carrying it across. With no `fp` the
-page reads exactly as it did before, asking for the comparison by eye, which is
-still correct. So does a value that is not a fingerprint: a verdict the page
-cannot back up is worse than no verdict.
+A match says so and offers the install as before. A mismatch stops. It removes
+the download link and the install steps, shows both fingerprints, and tells the
+person to scan the code again at the host.
 
-Fingerprints are compared as normalized lowercase hex, so the base64url the link
-carries and the colon-separated pairs the page prints compare equal.
+The pairing QR is unchanged. Settings gives a guest that arrived with a
+fingerprint a link to the trust page carrying it. With no fingerprint, or one
+that cannot be read, the page keeps its older wording.
+
+Values are compared as lowercase hex, so the base64url in the link matches the
+colon-separated pairs the page prints.

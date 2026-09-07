@@ -190,8 +190,8 @@ function SyncSettings() {
     ? formatFingerprint(serverInfo.rootCertFingerprint)
     : null
 
-  // Guests only. The desktop app is the host: it minted the root and already
-  // trusts it, and its own Settings is where the fingerprint below is shown.
+  // Guests only. The desktop app is the host. It minted the root and already
+  // trusts it.
   const trustPageUrl =
     appContext.type === 'web-client'
       ? buildTrustPageUrl(window.location.search)

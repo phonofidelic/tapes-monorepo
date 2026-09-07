@@ -167,9 +167,8 @@ describe('Settings: the host root fingerprint', () => {
   })
 })
 
-// A guest that scanned the host's code arrives with the fingerprint in its
-// URL. Handing it on to the trust page is what lets that page check the root
-// it offers, instead of asking the person to walk back to the host.
+// A guest that scanned the code arrives with the fingerprint in its URL.
+// Forwarding it lets the trust page check the root it offers.
 describe('Settings: the guest link to the trust page', () => {
   beforeEach(() => {
     localStorage.clear()

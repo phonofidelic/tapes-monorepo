@@ -1,8 +1,6 @@
 import type http from 'http'
-// The pairing link's own reader, imported from core's source rather than its
-// bundle: the bundle is the React app, and this is the main process. The file
-// is dependency-free on purpose, so taking it directly costs nothing and keeps
-// one definition of what counts as a fingerprint on both ends of the link.
+// Imported from core's source, not its bundle. The bundle is the React app,
+// and this is the main process. The file has no dependencies of its own.
 import {
   decodeFingerprint,
   formatFingerprint,
@@ -30,13 +28,11 @@ import { CORS_HEADERS, sendJson } from './httpResponses'
  * The root's private key is never read here. This module only ever sees the
  * certificate PEM, which the caller loads separately from the key.
  *
- * `/trust` also takes an optional `fp`, the fingerprint the pairing link
- * carries. Everything else on this page arrived over the connection nothing
- * has vouched for yet, so it proves nothing on its own; that value was scanned
- * off the host's own screen in the same room. Given both, the page compares
- * them so the person does not have to walk back to the host and read 64
- * characters by eye. The QR is unchanged: it still points at the app, and
- * whatever sends someone here appends the `fp` it was opened with.
+ * `/trust` also takes an optional `fp`, the fingerprint from the pairing link.
+ * That value was scanned off the host's screen. Everything else on the page
+ * arrived over an unverified connection, so the scanned value is the only
+ * input here that a machine on the LAN cannot forge. The page compares the
+ * two. The pairing QR is unchanged, and callers append the value themselves.
  */
 
 export const CA_CERT_PATH = '/ca.crt'
@@ -125,20 +121,17 @@ ${steps}
 }
 
 /**
- * What the page can say about the root it is offering.
- *
- * `unchecked` covers every case where there is nothing to compare: no `fp` in
- * the link, a value that is not a fingerprint, or a host with no certificate
- * yet. All three fall back to asking the person to compare by eye, which is
- * what the page said before it could compare anything, and is still correct.
+ * What the page can say about the root it offers. `unchecked` means there was
+ * nothing to compare. That covers a missing fingerprint, an unreadable one,
+ * and a host with no certificate. All three keep the older wording, which
+ * asks the person to compare the two values by eye.
  */
 type Comparison = 'unchecked' | 'match' | 'mismatch'
 
 /**
- * Compares what this host is offering against what the pairing link named.
- * Both sides are normalized to lowercase hex first: this page prints uppercase
- * colon-separated pairs and the link carries base64url, so the raw strings
- * never match even when the certificates do.
+ * Compares the root this host offers against the one the link named. Both
+ * sides are normalized to lowercase hex first. The page prints colon-separated
+ * pairs and the link carries base64url, so raw strings never match.
  */
 function compareFingerprints(
   servedFingerprint: string | null,
@@ -156,8 +149,8 @@ function compareFingerprints(
 }
 
 /**
- * The block above the install steps: what the person is being asked to check,
- * and how much of it the page has already checked for them.
+ * The block above the install steps. It says what to check, and what the page
+ * has already checked.
  */
 function renderVerdict(
   verdict: Comparison,
@@ -207,10 +200,9 @@ export function renderTrustPage(
 ): string {
   const verdict = compareFingerprints(fingerprint, linkFingerprint)
 
-  // A mismatch is the one case where the page stops rather than warns. The
-  // download and the install steps are what it is here to offer, so on a
-  // mismatch it offers neither: there is nothing safe to do with a certificate
-  // that is not the one the host showed.
+  // A mismatch stops the flow rather than warning about it. The page drops the
+  // download and the install steps. Nothing here is safe to add to a trust
+  // store.
   const stop = verdict === 'mismatch'
 
   return `<!doctype html>
@@ -245,8 +237,7 @@ export function renderTrustPage(
     font: .8rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .fingerprint .label { display: block; margin-top: .75rem; font-size: .8rem; opacity: .8; }
-  /* Colour is the second signal, never the only one: both states say what they
-     mean in words first, for anyone who cannot tell these two apart. */
+  /* Colour is a second signal only. Both states say what they mean in words. */
   .match { border-color: #15803d; }
   .stop { border-width: 2px; border-color: #b91c1c; }
   .stop strong { color: #b91c1c; }
@@ -334,9 +325,8 @@ export function createCaRequestHandler(options: CaHandlerOptions = {}) {
     }
 
     if (pathname === TRUST_PAGE_PATH) {
-      // Whatever sent the guest here forwards the `fp` the pairing link was
-      // opened with. It is public by design, so it costs nothing to have it
-      // in a URL, and the page is the only thing that reads it.
+      // The caller forwards the fingerprint the pairing link carried. It is
+      // public, so it is safe in a URL.
       const body = Buffer.from(
         renderTrustPage(
           fingerprint,

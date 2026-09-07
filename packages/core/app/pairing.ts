@@ -107,18 +107,12 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 }
 
 /**
- * The host's trust page, carrying the fingerprint this app was opened with, or
- * null when the current URL has no `fp`.
+ * The host's trust page, carrying the fingerprint this app was opened with.
+ * Returns null when the current URL has no readable one.
  *
- * The QR stays as it is: it points at the app, and the app forwards what it
- * was given. The trust page is served by the same origin as a host-served
- * bundle, so the link is relative and only ever points back at the host the
- * guest is already talking to.
- *
- * No `fp`, no link. A pairing link without one came from a host with no TLS,
- * which has no certificate to install and answers `/trust` with the fallback
- * advice; and a page reached some other way has nothing to compare, so the
- * link would be no better than typing the address by hand.
+ * The link is relative, so it only points at the host serving this bundle. A
+ * pairing link without a fingerprint came from a host running without TLS.
+ * That host has no certificate to install, so there is nothing to link to.
  */
 export function buildTrustPageUrl(search: string): string | null {
   const fingerprint = new URLSearchParams(search).get(PAIRING_FINGERPRINT_PARAM)

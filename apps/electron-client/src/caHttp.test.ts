@@ -147,9 +147,8 @@ describe('createCaRequestHandler', () => {
       expect(body).toContain('Always Trust')
     })
 
-    // The comparison the page exists to make. `fp` is the one value on this
-    // page an attacker on the LAN cannot reach: it was scanned off the host's
-    // own screen, not fetched over this connection.
+    // The comparison the page exists to make. The fingerprint from the link
+    // was scanned off the host's screen, not fetched over this connection.
     describe('with a fingerprint from the pairing link', () => {
       it('reports a match when the link names the certificate being offered', async () => {
         const { cert } = selfSignedPem()
@@ -202,8 +201,7 @@ describe('createCaRequestHandler', () => {
 
         expect(body).toContain('Do not install this certificate')
         expect(body).not.toContain('Checked.')
-        // No download link and no install steps: nothing here is safe to add
-        // to a trust store.
+        // No download link and no install steps.
         expect(body).not.toContain(`href="${CA_CERT_PATH}"`)
         expect(body).not.toContain('Certificate Trust Settings')
         // Both values, so the person can see which one they are being handed.
@@ -211,9 +209,8 @@ describe('createCaRequestHandler', () => {
         expect(body).toContain(fingerprintFromPem(cert))
       })
 
-      // Nothing to compare against is the state the page was already in, and
-      // its wording for that is correct. Anything else would be a verdict the
-      // page cannot back up.
+      // With nothing to compare, the page keeps its older wording. A verdict
+      // it cannot back up would be worse than none.
       it('falls back to the manual comparison when the value is not a fingerprint', async () => {
         const { cert } = selfSignedPem()
         const origin = await startForTest(cert)

@@ -112,8 +112,8 @@ describe('fingerprint encoding', () => {
 describe('buildTrustPageUrl', () => {
   const fingerprint = encodeFingerprint(HOST_FINGERPRINT)
 
-  // The app forwards what it was opened with, which is what lets the trust
-  // page check the root it is offering instead of asking the person to.
+  // The app forwards what it was opened with, so the trust page can check
+  // the root it offers.
   it('carries the fingerprint the app was opened with', () => {
     expect(buildTrustPageUrl(`?am=automerge:abc&fp=${fingerprint}`)).toBe(
       `/trust?fp=${fingerprint}`,
