@@ -3,6 +3,7 @@ import { generateKeyPairSync, randomBytes } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { app } from 'electron'
 import { md, pki } from 'node-forge'
+import { fingerprintFromPem } from './certFingerprint'
 
 /**
  * TLS material for the embedded sync server. The host is its own certificate
@@ -227,4 +228,14 @@ export function isSyncServerCert(pem: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * SHA-256 fingerprint of the root certificate, or null when no root has been
+ * minted. The trust page prints it so a guest can check what it downloaded
+ * against what the host shows.
+ */
+export function getSyncServerRootFingerprint(): string | null {
+  const pem = getSyncServerRootCertPem()
+  return pem ? fingerprintFromPem(pem) : null
 }

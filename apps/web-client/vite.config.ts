@@ -101,7 +101,14 @@ const plugins = [
       // are fetches rather than navigations, so the fallback should not apply
       // to them either. Serving the app shell instead of audio bytes fails as
       // an opaque decode error, so it is ruled out explicitly.
-      navigateFallbackDenylist: [/^\/sync/, /^\/blobs/],
+      // `/trust` and `/ca.crt` are answered by the host, not this bundle.
+      // Handing the app shell to a certificate install is a confusing failure.
+      navigateFallbackDenylist: [
+        /^\/sync/,
+        /^\/blobs/,
+        /^\/trust/,
+        /^\/ca\.crt/,
+      ],
       cleanupOutdatedCaches: true,
     },
     // Off on purpose. A worker on the dev server would fight the LAN-guest HMR
@@ -171,6 +178,19 @@ export default defineConfig(({ command }) => ({
       },
       // Playback events are posted to the same host as blobs.
       '/events': {
+        target: `http://127.0.0.1:${syncServerPort}`,
+        secure: false,
+        changeOrigin: true,
+      },
+      // The host's root certificate and the page explaining how to install it.
+      // Proxied so a guest on this dev server reaches them at the same paths a
+      // guest on a packaged host does.
+      '/ca.crt': {
+        target: `http://127.0.0.1:${syncServerPort}`,
+        secure: false,
+        changeOrigin: true,
+      },
+      '/trust': {
         target: `http://127.0.0.1:${syncServerPort}`,
         secure: false,
         changeOrigin: true,
