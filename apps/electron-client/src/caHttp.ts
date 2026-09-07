@@ -1,4 +1,11 @@
 import type http from 'http'
+// Imported from core's source, not its bundle. The bundle is the React app,
+// and this is the main process. The file has no dependencies of its own.
+import {
+  decodeFingerprint,
+  formatFingerprint,
+  PAIRING_FINGERPRINT_PARAM,
+} from '../../../packages/core/app/pairing'
 import { fingerprintFromPem } from './certFingerprint'
 import { CORS_HEADERS, sendJson } from './httpResponses'
 
@@ -20,6 +27,12 @@ import { CORS_HEADERS, sendJson } from './httpResponses'
  *
  * The root's private key is never read here. This module only ever sees the
  * certificate PEM, which the caller loads separately from the key.
+ *
+ * `/trust` also takes an optional `fp`, the fingerprint from the pairing link.
+ * That value was scanned off the host's screen. Everything else on the page
+ * arrived over an unverified connection, so the scanned value is the only
+ * input here that a machine on the LAN cannot forge. The page compares the
+ * two. The pairing QR is unchanged, and callers append the value themselves.
  */
 
 export const CA_CERT_PATH = '/ca.crt'
@@ -108,11 +121,90 @@ ${steps}
 }
 
 /**
+ * What the page can say about the root it offers. `unchecked` means there was
+ * nothing to compare. That covers a missing fingerprint, an unreadable one,
+ * and a host with no certificate. All three keep the older wording, which
+ * asks the person to compare the two values by eye.
+ */
+type Comparison = 'unchecked' | 'match' | 'mismatch'
+
+/**
+ * Compares the root this host offers against the one the link named. Both
+ * sides are normalized to lowercase hex first. The page prints colon-separated
+ * pairs and the link carries base64url, so raw strings never match.
+ */
+function compareFingerprints(
+  servedFingerprint: string | null,
+  linkFingerprint: string | null,
+): Comparison {
+  if (!servedFingerprint || !linkFingerprint) {
+    return 'unchecked'
+  }
+  const served = decodeFingerprint(servedFingerprint)
+  const fromLink = decodeFingerprint(linkFingerprint)
+  if (!served || !fromLink) {
+    return 'unchecked'
+  }
+  return served === fromLink ? 'match' : 'mismatch'
+}
+
+/**
+ * The block above the install steps. It says what to check, and what the page
+ * has already checked.
+ */
+function renderVerdict(
+  verdict: Comparison,
+  servedFingerprint: string | null,
+  linkFingerprint: string | null,
+): string {
+  if (verdict === 'match') {
+    return `<div class="fingerprint match">
+  <strong>Checked.</strong> This host is offering the certificate the pairing
+  link names, so it is the computer whose screen you scanned. Go ahead and
+  install it.
+  <code>${escapeHtml(servedFingerprint ?? '')}</code>
+</div>`
+  }
+
+  if (verdict === 'mismatch') {
+    return `<div class="fingerprint stop">
+  <strong>Stop. Do not install this certificate.</strong> It is not the one the
+  pairing link names, which means something other than the host answered this
+  connection. Nothing here is safe to install. Go back to the host computer,
+  check the fingerprint in its Sync settings, and scan the code again.
+  <span class="label">In the link you scanned</span>
+  <code>${escapeHtml(
+    formatFingerprint(decodeFingerprint(linkFingerprint ?? '') ?? ''),
+  )}</code>
+  <span class="label">Offered by this connection</span>
+  <code>${escapeHtml(servedFingerprint ?? '')}</code>
+</div>`
+  }
+
+  return `<div class="fingerprint">
+  <strong>Check this first.</strong> Open Tapes on the host computer and compare
+  the fingerprint it shows with this one. If they differ, stop &mdash; something
+  on the network answered instead of the host.
+  <code>${servedFingerprint ? escapeHtml(servedFingerprint) : 'No certificate has been created on this host yet.'}</code>
+</div>`
+}
+
+/**
  * The trust page. Self-contained on purpose: no bundle, no fonts, no images.
  * This is the page a guest reaches when TLS to this host is not working yet, so
  * anything it had to fetch is the thing most likely to fail.
  */
-export function renderTrustPage(fingerprint: string | null): string {
+export function renderTrustPage(
+  fingerprint: string | null,
+  linkFingerprint: string | null = null,
+): string {
+  const verdict = compareFingerprints(fingerprint, linkFingerprint)
+
+  // A mismatch stops the flow rather than warning about it. The page drops the
+  // download and the install steps. Nothing here is safe to add to a trust
+  // store.
+  const stop = verdict === 'mismatch'
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -144,6 +236,16 @@ export function renderTrustPage(fingerprint: string | null): string {
     display: block; margin-top: .4rem; word-break: break-all;
     font: .8rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+  .fingerprint .label { display: block; margin-top: .75rem; font-size: .8rem; opacity: .8; }
+  /* Colour is a second signal only. Both states say what they mean in words. */
+  .match { border-color: #15803d; }
+  .stop { border-width: 2px; border-color: #b91c1c; }
+  .stop strong { color: #b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    .match { border-color: #4ade80; }
+    .stop { border-color: #f87171; }
+    .stop strong { color: #f87171; }
+  }
   details { border-top: 1px solid rgba(128,128,128,.4); padding: .75rem 0; }
   summary { cursor: pointer; font-weight: 600; }
   ol { margin: .75rem 0 0; padding-left: 1.25rem; }
@@ -151,23 +253,22 @@ export function renderTrustPage(fingerprint: string | null): string {
 </style>
 </head>
 <body>
-<h1>Trust this host</h1>
+${
+  stop
+    ? `<h1>Do not trust this host</h1>`
+    : `<h1>Trust this host</h1>
 <p class="lede">
   This computer signs its own connections. Installing its certificate once stops
   the browser warning on this device, and keeps it away even when the host moves
   to a different address on the network.
-</p>
+</p>`
+}
 
-<p><a class="download" href="${CA_CERT_PATH}" download="tapes-host-ca.crt">Download the certificate</a></p>
+${stop ? '' : `<p><a class="download" href="${CA_CERT_PATH}" download="tapes-host-ca.crt">Download the certificate</a></p>`}
 
-<div class="fingerprint">
-  <strong>Check this first.</strong> Open Tapes on the host computer and compare
-  the fingerprint it shows with this one. If they differ, stop &mdash; something
-  on the network answered instead of the host.
-  <code>${fingerprint ? escapeHtml(fingerprint) : 'No certificate has been created on this host yet.'}</code>
-</div>
+${renderVerdict(verdict, fingerprint, linkFingerprint)}
 
-${PLATFORMS.map(renderPlatform).join('\n')}
+${stop ? '' : PLATFORMS.map(renderPlatform).join('\n')}
 
 <script>
   // Only chooses which section starts open. Every platform is on the page, so
@@ -203,7 +304,8 @@ export function createCaRequestHandler(options: CaHandlerOptions = {}) {
     request: http.IncomingMessage,
     response: http.ServerResponse,
   ): Promise<boolean> {
-    const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+    const url = new URL(request.url ?? '/', 'http://localhost')
+    const pathname = url.pathname
     if (pathname !== CA_CERT_PATH && pathname !== TRUST_PAGE_PATH) {
       return false
     }
@@ -223,7 +325,15 @@ export function createCaRequestHandler(options: CaHandlerOptions = {}) {
     }
 
     if (pathname === TRUST_PAGE_PATH) {
-      const body = Buffer.from(renderTrustPage(fingerprint), 'utf-8')
+      // The caller forwards the fingerprint the pairing link carried. It is
+      // public, so it is safe in a URL.
+      const body = Buffer.from(
+        renderTrustPage(
+          fingerprint,
+          url.searchParams.get(PAIRING_FINGERPRINT_PARAM),
+        ),
+        'utf-8',
+      )
       response.writeHead(200, {
         ...CORS_HEADERS,
         'Content-Type': 'text/html; charset=utf-8',

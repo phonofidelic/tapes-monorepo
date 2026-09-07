@@ -12,7 +12,7 @@ import { Button, TextInput } from '@tapes-monorepo/ui'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useAutomergeUrl } from '@/utils'
 import { SyncServerInfo } from '@/IpcService'
-import { buildGuestUrl, formatFingerprint } from '@/pairing'
+import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
 
 export function Settings() {
   const appContext = useAppContext()
@@ -190,9 +190,29 @@ function SyncSettings() {
     ? formatFingerprint(serverInfo.rootCertFingerprint)
     : null
 
+  // Guests only. The desktop app is the host. It minted the root and already
+  // trusts it.
+  const trustPageUrl =
+    appContext.type === 'web-client'
+      ? buildTrustPageUrl(window.location.search)
+      : null
+
   return (
     <div className="flex flex-col gap-4">
       <h2>Sync</h2>
+      {trustPageUrl && (
+        <div className="flex flex-col gap-1">
+          <a className="text-sm underline" href={trustPageUrl}>
+            Install this host&rsquo;s certificate
+          </a>
+          <p className="pl-2 text-xs text-zinc-500">
+            Stops the browser warning on this device, and keeps it away when the
+            host moves to another address on the network. The page compares the
+            certificate against the code you scanned before it offers to install
+            anything.
+          </p>
+        </div>
+      )}
       {appContext.type === 'electron-client' && (
         <>
           <label className="flex flex-col gap-2 text-sm">

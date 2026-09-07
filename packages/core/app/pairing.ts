@@ -106,6 +106,22 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
     .join('')
 }
 
+/**
+ * The host's trust page, carrying the fingerprint this app was opened with.
+ * Returns null when the current URL has no readable one.
+ *
+ * The link is relative, so it only points at the host serving this bundle. A
+ * pairing link without a fingerprint came from a host running without TLS.
+ * That host has no certificate to install, so there is nothing to link to.
+ */
+export function buildTrustPageUrl(search: string): string | null {
+  const fingerprint = new URLSearchParams(search).get(PAIRING_FINGERPRINT_PARAM)
+  if (!fingerprint || !decodeFingerprint(fingerprint)) {
+    return null
+  }
+  return `/trust?${PAIRING_FINGERPRINT_PARAM}=${encodeURIComponent(fingerprint)}`
+}
+
 export type GuestUrlOptions = {
   /** LAN-reachable URL of the hosted web client. */
   lanWebAppUrl?: string

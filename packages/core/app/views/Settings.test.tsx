@@ -6,7 +6,7 @@ import { AppContextProvider, type AppContextValue } from '@/context/AppContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import { Settings } from './Settings'
 import type { IpcService, SyncServerInfo } from '@/IpcService'
-import { decodeFingerprint } from '@/pairing'
+import { decodeFingerprint, encodeFingerprint } from '@/pairing'
 
 // The selector enumerates real devices through `navigator.mediaDevices`, which
 // jsdom has no notion of; none of it is what these tests are about.
@@ -164,5 +164,42 @@ describe('Settings: the host root fingerprint', () => {
     await screen.findByTitle('Copy URL to clipboard')
 
     expect(screen.queryByText(/^[0-9A-F]{2}:/)).not.toBeInTheDocument()
+  })
+})
+
+// A guest that scanned the code arrives with the fingerprint in its URL.
+// Forwarding it lets the trust page check the root it offers.
+describe('Settings: the guest link to the trust page', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    localStorage.setItem('automergeUrl', HOST_DOC_URL)
+  })
+
+  afterEach(() => {
+    cleanup()
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('forwards the fingerprint the app was opened with', async () => {
+    const fp = encodeFingerprint(HOST_FINGERPRINT)
+    window.history.replaceState({}, '', `/?am=${HOST_DOC_URL}&fp=${fp}`)
+    renderSettings()
+
+    const link = await screen.findByRole('link', {
+      name: /Install this host.s certificate/,
+    })
+
+    expect(link).toHaveAttribute('href', `/trust?fp=${fp}`)
+  })
+
+  // Without one there is nothing for the page to check, and the host it would
+  // point at is one with no certificate to install.
+  it('offers no link when the app was opened without a fingerprint', () => {
+    window.history.replaceState({}, '', `/?am=${HOST_DOC_URL}`)
+    renderSettings()
+
+    expect(
+      screen.queryByRole('link', { name: /Install this host.s certificate/ }),
+    ).not.toBeInTheDocument()
   })
 })
