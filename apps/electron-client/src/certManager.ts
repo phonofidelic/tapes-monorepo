@@ -1,8 +1,8 @@
 import path from 'path'
-import { generateKeyPairSync, randomBytes } from 'crypto'
+import { createHash, generateKeyPairSync, randomBytes } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { app } from 'electron'
-import { md, pki } from 'node-forge'
+import { asn1, md, pki } from 'node-forge'
 
 /**
  * TLS material for the embedded sync server. The host is its own certificate
@@ -210,6 +210,26 @@ export function getSyncServerRootCertPem(): string | null {
   } catch {
     return null
   }
+}
+
+/** SHA-256 of a certificate's DER form, as lowercase hex. */
+function fingerprint(pem: string): string {
+  const der = asn1.toDer(pki.certificateToAsn1(pki.certificateFromPem(pem)))
+  return createHash('sha256')
+    .update(Buffer.from(der.getBytes(), 'binary'))
+    .digest('hex')
+}
+
+/**
+ * SHA-256 of the root certificate, or null when none has been minted yet. This
+ * is the value a guest compares against the root it downloads before trusting
+ * it. It names the root, not the leaf, so it survives a change of LAN IP and
+ * the re-issued leaf that follows. It is not a secret, and unlike the pairing
+ * token it is safe to publish.
+ */
+export function getSyncServerRootFingerprint(): string | null {
+  const pem = getSyncServerRootCertPem()
+  return pem ? fingerprint(pem) : null
 }
 
 /**

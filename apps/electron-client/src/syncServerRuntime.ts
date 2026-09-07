@@ -13,7 +13,10 @@ import {
   webClientDevUrl,
   webClientPath,
 } from './syncServerConfig'
-import { ensureSyncServerCert } from './certManager'
+import {
+  ensureSyncServerCert,
+  getSyncServerRootFingerprint,
+} from './certManager'
 
 /**
  * Turns the persisted sync-server config into runtime options and starts the
@@ -39,6 +42,13 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
       ? ensureSyncServerCert(lanIp)
       : undefined
 
+  // Read after the certificate call, so the root exists on a first run. This
+  // is the once-per-start computation: it does not change while we run,
+  // because the root is minted once and never rotated on its own.
+  const rootCertFingerprint = tls
+    ? (getSyncServerRootFingerprint() ?? undefined)
+    : undefined
+
   return startSyncServer({
     storagePath: syncStoragePath(),
     host,
@@ -52,6 +62,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     blobStorePath: blobStoragePath(),
     eventStorePath: eventStoragePath(),
     pairingToken: config.pairingToken,
+    rootCertFingerprint,
   })
 }
 

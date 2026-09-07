@@ -45,6 +45,12 @@ export type SyncServerInfo = {
    * wholesale.
    */
   pairingToken?: string
+  /**
+   * SHA-256 of the host's root certificate, lowercase hex, when the sync
+   * server is running over TLS. Not a secret: unlike `pairingToken` it grants
+   * nothing, and it is published in the pairing link on purpose.
+   */
+  rootCertFingerprint?: string
   port: number
   host: string
 }
