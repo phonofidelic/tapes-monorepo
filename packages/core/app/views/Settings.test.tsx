@@ -84,12 +84,16 @@ describe('Settings: importing a host url', () => {
 const FINGERPRINT =
   '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
 
+// The form `getSyncServerRootFingerprint` hands the renderer.
+const HOST_FINGERPRINT =
+  '9F:86:D0:81:88:4C:7D:65:9A:2F:EA:A0:C5:5A:D0:15:A3:BF:4F:1B:2B:0B:82:2C:D1:5D:6C:15:B0:F0:0A:08'
+
 const serverInfo: SyncServerInfo = {
   running: true,
   url: 'wss://127.0.0.1:9001',
   lanWebAppUrl: 'https://192.168.1.5:9001',
   pairingToken: 'host-token',
-  rootCertFingerprint: FINGERPRINT,
+  rootCertFingerprint: HOST_FINGERPRINT,
   port: 9001,
   host: '0.0.0.0',
 }
@@ -132,11 +136,7 @@ describe('Settings: the host root fingerprint', () => {
   it('shows it in colon-separated pairs, so it can be read aloud', async () => {
     renderHostSettings(serverInfo)
 
-    expect(
-      await screen.findByText(
-        '9F:86:D0:81:88:4C:7D:65:9A:2F:EA:A0:C5:5A:D0:15:A3:BF:4F:1B:2B:0B:82:2C:D1:5D:6C:15:B0:F0:0A:08',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(HOST_FINGERPRINT)).toBeInTheDocument()
   })
 
   // The QR encodes the same string the copy button hands over, so copying is

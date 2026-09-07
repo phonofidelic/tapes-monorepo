@@ -24,8 +24,10 @@ export const PAIRING_FINGERPRINT_PARAM = 'fp'
  * Base64url spends 43 for the same 32 bytes. The full value is still shown as
  * hex on both the host and the guest, since that is the form people read.
  */
-export function encodeFingerprint(hex: string): string {
-  const bytes = hexToBytes(hex)
+export function encodeFingerprint(fingerprint: string): string {
+  // The host hands this over in colon-separated pairs, the form the trust page
+  // and the OS trust stores print. Plain hex is accepted too.
+  const bytes = hexToBytes(fingerprint.replace(/:/g, ''))
   if (!bytes) {
     throw new Error('Not a SHA-256 fingerprint')
   }
@@ -110,7 +112,10 @@ export type GuestUrlOptions = {
   /** Null until this device has a document, which is only briefly at startup. */
   automergeUrl: string | null
   pairingToken?: string
-  /** Lowercase hex SHA-256 of the host root, when running over TLS. */
+  /**
+   * SHA-256 of the host root, as `SyncServerInfo` carries it: colon-separated
+   * pairs. Absent unless the host runs over TLS.
+   */
   rootCertFingerprint?: string
 }
 

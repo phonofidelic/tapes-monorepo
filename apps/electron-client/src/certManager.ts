@@ -1,8 +1,9 @@
 import path from 'path'
-import { createHash, generateKeyPairSync, randomBytes } from 'crypto'
+import { generateKeyPairSync, randomBytes } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { app } from 'electron'
-import { asn1, md, pki } from 'node-forge'
+import { md, pki } from 'node-forge'
+import { fingerprintFromPem } from './certFingerprint'
 
 /**
  * TLS material for the embedded sync server. The host is its own certificate
@@ -212,26 +213,6 @@ export function getSyncServerRootCertPem(): string | null {
   }
 }
 
-/** SHA-256 of a certificate's DER form, as lowercase hex. */
-function fingerprint(pem: string): string {
-  const der = asn1.toDer(pki.certificateToAsn1(pki.certificateFromPem(pem)))
-  return createHash('sha256')
-    .update(Buffer.from(der.getBytes(), 'binary'))
-    .digest('hex')
-}
-
-/**
- * SHA-256 of the root certificate, or null when none has been minted yet. This
- * is the value a guest compares against the root it downloads before trusting
- * it. It names the root, not the leaf, so it survives a change of LAN IP and
- * the re-issued leaf that follows. It is not a secret, and unlike the pairing
- * token it is safe to publish.
- */
-export function getSyncServerRootFingerprint(): string | null {
-  const pem = getSyncServerRootCertPem()
-  return pem ? fingerprint(pem) : null
-}
-
 /**
  * True when `pem` is a certificate our root issued. The main process uses this
  * to trust the loopback connection from its own renderer. Checking against the
@@ -247,4 +228,19 @@ export function isSyncServerCert(pem: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * SHA-256 fingerprint of the root certificate, or null when no root has been
+ * minted. The trust page prints it so a guest can check what it downloaded
+ * against what the host shows, and it rides in the pairing link so the value
+ * the guest compares against arrives with the QR rather than over the same
+ * unvouched-for connection as the download.
+ *
+ * It names the root, not the leaf, so it survives a LAN IP change and the
+ * re-issued leaf that follows.
+ */
+export function getSyncServerRootFingerprint(): string | null {
+  const pem = getSyncServerRootCertPem()
+  return pem ? fingerprintFromPem(pem) : null
 }

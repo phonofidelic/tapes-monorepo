@@ -15,6 +15,7 @@ import {
 } from './syncServerConfig'
 import {
   ensureSyncServerCert,
+  getSyncServerRootCertPem,
   getSyncServerRootFingerprint,
 } from './certManager'
 
@@ -59,6 +60,10 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     webClientPath: webClientPath(),
     webAppDevUrl: devWebAppUrl,
     tls,
+    // Read after `ensureSyncServerCert`, which is what mints the root on first
+    // run. Only the certificate is passed; the root's key stays on disk and
+    // never reaches the HTTP surface.
+    rootCertPem: tls ? (getSyncServerRootCertPem() ?? undefined) : undefined,
     blobStorePath: blobStoragePath(),
     eventStorePath: eventStoragePath(),
     pairingToken: config.pairingToken,

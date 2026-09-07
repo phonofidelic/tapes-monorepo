@@ -23,6 +23,7 @@ import {
 import { createAggregateStore, type AggregateStore } from './aggregates'
 import { createBlobRequestHandler } from './blobHttp'
 import { createEventRequestHandler } from './eventHttp'
+import { createCaRequestHandler, TRUST_PAGE_PATH } from './caHttp'
 import { isAuthorized } from './tokenAuth'
 
 export const DEFAULT_SYNC_SERVER_PORT = 9001
@@ -43,15 +44,24 @@ export type SyncServerInfo = {
   /** LAN-reachable origin serving `/blobs`. */
   lanBlobBaseUrl?: string
   /**
+   * Page that offers this host's root certificate and the steps to install it.
+   * Present only when the server runs over TLS, since with plain HTTP there is
+   * nothing for a guest to trust. The LAN one is what a guest can actually
+   * open; the loopback one is for the host's own window.
+   */
+  trustPageUrl?: string
+  lanTrustPageUrl?: string
+  /**
    * Bearer token guarding both `/blobs` and the sync socket. Handed to guests
    * through the QR pairing URL; never log this object wholesale.
    */
   pairingToken?: string
   /**
-   * SHA-256 of the host's root certificate, lowercase hex, when the server is
-   * running over TLS. Shown in Settings and carried in the pairing link so the
-   * person pairing can check the root they install is this host's. Not a
-   * secret: unlike `pairingToken` it grants nothing.
+   * SHA-256 of the host's root certificate, in the colon-separated pairs the
+   * trust page and every trust-store UI print, when the server runs over TLS.
+   * Shown in Settings and carried in the pairing link so the person pairing can
+   * check the root they install is this host's. Not a secret: unlike
+   * `pairingToken` it grants nothing.
    */
   rootCertFingerprint?: string
   port: number
@@ -77,6 +87,13 @@ export type SyncServerOptions = {
    */
   tls?: { key: string; cert: string }
   /**
+   * The host's root certificate PEM, served at `/ca.crt` so a guest can install
+   * it and stop seeing the warning. Only ever the certificate: the root's
+   * private key must never reach this process's HTTP surface. Undefined when
+   * the server is not running over TLS, and the route then answers 503.
+   */
+  rootCertPem?: string
+  /**
    * In development, the LAN url of the web-client's Vite dev server. When set
    * it is advertised to guests instead of the statically served bundle, so they
    * load the HMR-enabled app. The sync socket still runs here, and the dev
@@ -101,8 +118,9 @@ export type SyncServerOptions = {
    */
   pairingToken?: string
   /**
-   * SHA-256 of the root that issued `tls.cert`, lowercase hex. Passed in
-   * rather than read here so this module stays free of the certificate store.
+   * SHA-256 of the root that issued `tls.cert`, in colon-separated pairs.
+   * Passed in rather than read here so this module stays free of the
+   * certificate store.
    */
   rootCertFingerprint?: string
 }
@@ -397,6 +415,7 @@ export async function startSyncServer(
     peerId,
     webClientPath,
     tls,
+    rootCertPem,
     webAppDevUrl,
     blobStorePath,
     eventStorePath,
@@ -487,6 +506,7 @@ export async function startSyncServer(
   const handler = createRequestHandler(webClientPath, [
     handleBlobRequest,
     handleEventRequest,
+    createCaRequestHandler({ rootCertPem }),
   ])
   const server = tls
     ? https.createServer({ key: tls.key, cert: tls.cert }, handler)
@@ -558,6 +578,15 @@ export async function startSyncServer(
       blobBaseUrl: blobStore ? `${httpScheme}://127.0.0.1:${port}` : undefined,
       lanBlobBaseUrl:
         blobStore && lanIp ? `${httpScheme}://${lanIp}:${port}` : undefined,
+      // Advertised only with TLS on. Over plain HTTP there is no certificate,
+      // and pointing anyone at a page that would answer 503 helps nobody.
+      trustPageUrl: tls
+        ? `${httpScheme}://127.0.0.1:${port}${TRUST_PAGE_PATH}`
+        : undefined,
+      lanTrustPageUrl:
+        tls && lanIp
+          ? `${httpScheme}://${lanIp}:${port}${TRUST_PAGE_PATH}`
+          : undefined,
       pairingToken,
       // Only meaningful with TLS on: without it there is no root for a guest
       // to install, so there is nothing to compare.

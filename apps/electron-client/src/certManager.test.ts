@@ -149,6 +149,8 @@ describe('ensureSyncServerCert', () => {
 })
 
 describe('getSyncServerRootFingerprint', () => {
+  // Derived here from the DER independently of certFingerprint.ts, so this
+  // pins the value a guest compares rather than restating how it is built.
   it('is the SHA-256 of the root in DER form', () => {
     ensureSyncServerCert('192.168.1.20')
 
@@ -159,9 +161,11 @@ describe('getSyncServerRootFingerprint', () => {
     const expected = createHash('sha256')
       .update(Buffer.from(der.getBytes(), 'binary'))
       .digest('hex')
+      .toUpperCase()
+      .match(/.{2}/g)!
+      .join(':')
 
     expect(getSyncServerRootFingerprint()).toBe(expected)
-    expect(getSyncServerRootFingerprint()).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('names the root, not the leaf, so a new LAN IP leaves it alone', () => {

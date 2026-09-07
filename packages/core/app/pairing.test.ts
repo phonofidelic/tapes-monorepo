@@ -10,11 +10,14 @@ import {
 const FINGERPRINT =
   '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
 
+/** The form the host hands over, matching `getSyncServerRootFingerprint`. */
+const HOST_FINGERPRINT = formatFingerprint(FINGERPRINT)
+
 const options = {
   lanWebAppUrl: 'https://192.168.1.42:9001',
   automergeUrl: 'automerge:2j9knpCseyhnK8izDgqsvbdgAqb9',
   pairingToken: 'a-token',
-  rootCertFingerprint: FINGERPRINT,
+  rootCertFingerprint: HOST_FINGERPRINT,
 }
 
 describe('buildGuestUrl', () => {
@@ -69,6 +72,12 @@ describe('buildGuestUrl', () => {
 })
 
 describe('fingerprint encoding', () => {
+  it('takes the colon-separated form the host produces', () => {
+    expect(encodeFingerprint(HOST_FINGERPRINT)).toBe(
+      encodeFingerprint(FINGERPRINT),
+    )
+  })
+
   it('round-trips through the link', () => {
     const encoded = encodeFingerprint(FINGERPRINT)
 
