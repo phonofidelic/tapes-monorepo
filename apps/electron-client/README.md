@@ -10,10 +10,12 @@ It does three things:
    shared app from core, the same app the browser web-client runs.
 2. **Runs the embedded Automerge sync server** that LAN guests connect to. It
    lives in `src/syncServer.ts` and listens on port `9001` by default. It serves
-   plain HTTP and WebSocket unless LAN HTTPS is enabled. With HTTPS on, it
-   generates a self-signed certificate with the LAN IP in its SAN, using the
-   `selfsigned` package, and persists it under the user data directory in
-   `sync-tls`. See `src/certManager.ts` and `src/syncServerRuntime.ts`.
+   plain HTTP and WebSocket unless LAN HTTPS is enabled. With HTTPS on, the host
+   acts as its own certificate authority. It mints a root once per install and
+   issues the server certificate from that root, with the LAN IP in the SAN.
+   Both live under the user data directory in `sync-tls`. A guest who installs
+   the root stops seeing browser warnings, including after the LAN IP changes.
+   See `src/certManager.ts` and `src/syncServerRuntime.ts`.
 3. **Drives native audio.** Recording shells out to
    [SoX](https://sourceforge.net/projects/sox/). Input selection uses
    [`switchaudio-osx`](https://github.com/deweller/switchaudio-osx). Both are

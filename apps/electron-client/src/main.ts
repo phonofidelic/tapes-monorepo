@@ -12,7 +12,7 @@ import { IpcChannel } from './types'
 import { cacheServer } from './cacheServer'
 import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
-import { getSyncServerCertPem } from './certManager'
+import { isSyncServerCert } from './certManager'
 import { filepathFromTapesUrl, hashFromTapesBlobUrl } from './protocolUrls'
 
 // Both custom schemes must be declared before the app is ready — Electron
@@ -82,20 +82,14 @@ export class MainWindow {
   }
 
   // When the embedded sync server runs over HTTPS, the host's own renderer
-  // connects to it at `wss://127.0.0.1` with our self-signed cert. Trust
-  // exactly that cert (by PEM match) so the loopback connection succeeds
-  // without disabling verification for anything else.
+  // connects to it at `wss://127.0.0.1` with a certificate our own root issued.
+  // Trust any certificate that root signed, so the loopback connection survives
+  // a re-issued leaf without disabling verification for anything else.
   private registerSyncServerCertTrust() {
-    const normalize = (pem: string) => pem.replace(/\s+/g, '')
     app.on(
       'certificate-error',
       (event, _webContents, _url, _error, cert, callback) => {
-        const ourCert = getSyncServerCertPem()
-        if (
-          ourCert &&
-          cert.data &&
-          normalize(cert.data) === normalize(ourCert)
-        ) {
+        if (cert.data && isSyncServerCert(cert.data)) {
           event.preventDefault()
           callback(true)
           return
