@@ -56,6 +56,14 @@ export type SyncServerInfo = {
    * through the QR pairing URL; never log this object wholesale.
    */
   pairingToken?: string
+  /**
+   * SHA-256 of the host's root certificate, in the colon-separated pairs the
+   * trust page and every trust-store UI print, when the server runs over TLS.
+   * Shown in Settings and carried in the pairing link so the person pairing can
+   * check the root they install is this host's. Not a secret: unlike
+   * `pairingToken` it grants nothing.
+   */
+  rootCertFingerprint?: string
   port: number
   host: string
 }
@@ -109,6 +117,12 @@ export type SyncServerOptions = {
    * by tests that exercise the unauthenticated shape; the app always has one.
    */
   pairingToken?: string
+  /**
+   * SHA-256 of the root that issued `tls.cert`, in colon-separated pairs.
+   * Passed in rather than read here so this module stays free of the
+   * certificate store.
+   */
+  rootCertFingerprint?: string
 }
 
 type RunningSyncServer = {
@@ -406,6 +420,7 @@ export async function startSyncServer(
     blobStorePath,
     eventStorePath,
     pairingToken,
+    rootCertFingerprint,
   } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
 
@@ -573,6 +588,9 @@ export async function startSyncServer(
           ? `${httpScheme}://${lanIp}:${port}${TRUST_PAGE_PATH}`
           : undefined,
       pairingToken,
+      // Only meaningful with TLS on: without it there is no root for a guest
+      // to install, so there is nothing to compare.
+      rootCertFingerprint: tls ? rootCertFingerprint : undefined,
       port,
       host,
     },

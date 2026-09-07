@@ -3,7 +3,8 @@ import path from 'path'
 import { mkdtempSync, readFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { pki } from 'node-forge'
+import { asn1, pki } from 'node-forge'
+import { createHash } from 'crypto'
 
 /**
  * The host is its own CA. These cover the shape the guest devices care about:
@@ -17,8 +18,12 @@ vi.mock('electron', () => ({
   app: { getPath: () => state.userData },
 }))
 
-const { ensureSyncServerCert, getSyncServerRootCertPem, isSyncServerCert } =
-  await import('./certManager')
+const {
+  ensureSyncServerCert,
+  getSyncServerRootCertPem,
+  getSyncServerRootFingerprint,
+  isSyncServerCert,
+} = await import('./certManager')
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -140,6 +145,42 @@ describe('ensureSyncServerCert', () => {
 
     expect(leaf.serialNumber).not.toBe(bareLeaf.serialNumber)
     expect(root.verify(leaf)).toBe(true)
+  })
+})
+
+describe('getSyncServerRootFingerprint', () => {
+  // Derived here from the DER independently of certFingerprint.ts, so this
+  // pins the value a guest compares rather than restating how it is built.
+  it('is the SHA-256 of the root in DER form', () => {
+    ensureSyncServerCert('192.168.1.20')
+
+    const rootPem = getSyncServerRootCertPem()!
+    const der = asn1.toDer(
+      pki.certificateToAsn1(pki.certificateFromPem(rootPem)),
+    )
+    const expected = createHash('sha256')
+      .update(Buffer.from(der.getBytes(), 'binary'))
+      .digest('hex')
+      .toUpperCase()
+      .match(/.{2}/g)!
+      .join(':')
+
+    expect(getSyncServerRootFingerprint()).toBe(expected)
+  })
+
+  it('names the root, not the leaf, so a new LAN IP leaves it alone', () => {
+    ensureSyncServerCert('192.168.1.20')
+    const before = getSyncServerRootFingerprint()
+
+    const moved = ensureSyncServerCert('192.168.1.77')
+    const [leaf] = parseChain(moved.cert)
+
+    expect(getSyncServerRootFingerprint()).toBe(before)
+    expect(leaf.subject.getField('CN')?.value).toBe('192.168.1.77')
+  })
+
+  it('is null before a root has been minted', () => {
+    expect(getSyncServerRootFingerprint()).toBeNull()
   })
 })
 

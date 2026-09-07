@@ -12,6 +12,7 @@ import { Button, TextInput } from '@tapes-monorepo/ui'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useAutomergeUrl } from '@/utils'
 import { SyncServerInfo } from '@/IpcService'
+import { buildGuestUrl, formatFingerprint } from '@/pairing'
 
 export function Settings() {
   const appContext = useAppContext()
@@ -176,13 +177,18 @@ function SyncSettings() {
   // Anyone with this link can read and write the host's recordings: the token
   // in it is what opens both the sync socket and `/blobs`.
   const guestUrl =
-    resolvedSyncServerMode === 'embedded' && serverInfo?.lanWebAppUrl
-      ? `${serverInfo.lanWebAppUrl}/?am=${automergeUrl}${
-          serverInfo.pairingToken
-            ? `&pt=${encodeURIComponent(serverInfo.pairingToken)}`
-            : ''
-        }`
+    resolvedSyncServerMode === 'embedded'
+      ? buildGuestUrl({
+          lanWebAppUrl: serverInfo?.lanWebAppUrl,
+          automergeUrl,
+          pairingToken: serverInfo?.pairingToken,
+          rootCertFingerprint: serverInfo?.rootCertFingerprint,
+        })
       : null
+
+  const rootFingerprint = serverInfo?.rootCertFingerprint
+    ? formatFingerprint(serverInfo.rootCertFingerprint)
+    : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -354,6 +360,18 @@ function SyncSettings() {
                   >
                     Copy URL <MdOutlineContentCopy />
                   </Button>
+                  {rootFingerprint && (
+                    <div className="flex flex-col items-center gap-1">
+                      <p className="text-xs text-zinc-500">
+                        Certificate fingerprint. The guest shows this after
+                        downloading the certificate. If the two do not match, do
+                        not install it.
+                      </p>
+                      <code className="max-w-full text-center font-mono text-xs break-all">
+                        {rootFingerprint}
+                      </code>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

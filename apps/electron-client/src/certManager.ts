@@ -233,7 +233,12 @@ export function isSyncServerCert(pem: string): boolean {
 /**
  * SHA-256 fingerprint of the root certificate, or null when no root has been
  * minted. The trust page prints it so a guest can check what it downloaded
- * against what the host shows.
+ * against what the host shows, and it rides in the pairing link so the value
+ * the guest compares against arrives with the QR rather than over the same
+ * unvouched-for connection as the download.
+ *
+ * It names the root, not the leaf, so it survives a LAN IP change and the
+ * re-issued leaf that follows.
  */
 export function getSyncServerRootFingerprint(): string | null {
   const pem = getSyncServerRootCertPem()
