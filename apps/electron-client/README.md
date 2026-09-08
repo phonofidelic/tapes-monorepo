@@ -10,17 +10,89 @@ It does three things:
    shared app from core, the same app the browser web-client runs.
 2. **Runs the embedded Automerge sync server** that LAN guests connect to. It
    lives in `src/syncServer.ts` and listens on port `9001` by default. It serves
-   plain HTTP and WebSocket unless LAN HTTPS is enabled. With HTTPS on, the host
-   acts as its own certificate authority. It mints a root once per install and
-   issues the server certificate from that root, with the LAN IP in the SAN.
-   Both live under the user data directory in `sync-tls`. A guest who installs
-   the root stops seeing browser warnings, including after the LAN IP changes.
-   See `src/certManager.ts` and `src/syncServerRuntime.ts`.
+   plain HTTP and WebSocket unless LAN HTTPS is enabled. See
+   [LAN HTTPS and guest trust](#lan-https-and-guest-trust) for what turning that
+   on involves.
 3. **Drives native audio.** Recording shells out to
    [SoX](https://sourceforge.net/projects/sox/). Input selection uses
    [`switchaudio-osx`](https://github.com/deweller/switchaudio-osx). Both are
    **macOS** binaries fetched by `yarn get-bin`, and the IPC channels in
    `src/channels/` call them.
+
+## LAN HTTPS and guest trust
+
+Browsers only expose the microphone and OPFS in a secure context. A guest on the
+LAN cannot record over plain HTTP, so the host serves the sync server over HTTPS
+once LAN HTTPS is turned on in Settings.
+
+There is no public name to get a certificate for, so the host issues its own. It
+mints a root certificate once per install and never rotates it on its own. The
+server certificate is issued from that root and re-issued when the LAN IP
+changes. Both live under `sync-tls` in the user data directory. See
+`src/certManager.ts`.
+
+### The two ways a guest can trust the host
+
+A guest either installs the root once on their device, or clicks through the
+browser warning. Both work, and both are supported. Installing a root on a phone
+is a real ask, and some guests will decline.
+
+What each one gives you:
+
+- **Both encrypt the connection.** Nobody on the network can read the traffic,
+  including the pairing token.
+- **Only the installed root proves which machine answered.** Clicking through
+  accepts whatever certificate arrived. Another machine on the LAN could serve
+  its own and the warning would look the same.
+
+### When the warning comes back
+
+With the root installed, it does not. That is the point of the root. The guest
+keeps trusting every server certificate the host issues afterwards, including
+the ones minted after a LAN IP change.
+
+Without it, the warning returns on every LAN IP change. It also returns whenever
+the host mints a new root. Deleting the `sync-tls` directory does that, and every
+guest has to trust the host again.
+
+### Checking the fingerprint
+
+The pairing link carries the root's fingerprint. The trust page compares that
+value against the certificate the connection actually used and says whether they
+match. The fingerprint came off the host's screen, so it is the one thing on that
+page a machine on the LAN cannot forge.
+
+The host also shows the fingerprint under Settings, next to the pairing QR code.
+That is for a guest who wants to read it off and compare by eye.
+
+### Pointing a guest at the trust page
+
+The host serves two routes for this, both on the same origin as the guest app
+and neither behind the pairing token. See `src/caHttp.ts`.
+
+| Route     | Purpose                                                   |
+| --------- | --------------------------------------------------------- |
+| `/trust`  | A plain page with install steps for the guest's platform. |
+| `/ca.crt` | The root certificate itself.                              |
+
+A guest who has opened the pairing link finds the same page linked from their
+own Settings screen, as **Install this host's certificate**. Send a guest there
+rather than writing out the steps. The page detects the platform and shows the
+right ones.
+
+One step catches people out on iOS. Installing the profile is not enough. The
+guest must also turn the certificate on under **Settings › General › About ›
+Certificate Trust Settings**. Without that the warning looks exactly as it did
+before. The trust page says so, and it is worth repeating in person.
+
+Chrome on Android trusts user-installed roots. Firefox on Android does not, so a
+Firefox guest is on the click-through path.
+
+### In development
+
+None of the above applies under `yarn dev:https`. Guests load the Vite dev
+server, which proxies to the sync server over loopback. The embedded server runs
+plain and mints nothing.
 
 ## Develop
 
