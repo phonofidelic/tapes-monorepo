@@ -39,6 +39,7 @@ const plugins = [
     includeAssets: [
       'favicon-16.png',
       'favicon-32.png',
+      'favicon-48.ico',
       'apple-touch-icon-180x180.png',
       'icon.svg',
       'tapes-mobile-ui.webp',
@@ -47,8 +48,7 @@ const plugins = [
       name: 'Tapes',
       short_name: 'Tapes',
       description: 'Local-first audio recording',
-      start_url: '/',
-      scope: '/',
+      id: 'tapes.phonofidelic',
       display: 'standalone',
       orientation: 'any',
       background_color: '#ffffff',

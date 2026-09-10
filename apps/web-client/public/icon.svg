@@ -17,22 +17,29 @@
     survives a circular crop). Re-export from Figma rather than tracing them
     back to this file. See the README.
   -->
-  <rect width="512" height="512" fill="#ffffff" />
-  <path
-    d="M225 402C305.634 402 371 336.634 371 256C371 175.366 305.634 110 225 110C144.366 110 79 175.366 79 256C79 336.634 144.366 402 225 402Z"
-    fill="none"
-    stroke="#18181B"
-    stroke-width="34"
-  />
-  <path
-    d="M225 320C260.346 320 289 291.346 289 256C289 220.654 260.346 192 225 192C189.654 192 161 220.654 161 256C161 291.346 189.654 320 225 320Z"
-    fill="#F43F5E"
-  />
-  <path
-    d="M231 402H433"
-    fill="none"
-    stroke="#18181B"
-    stroke-width="34"
-    stroke-linecap="round"
-  />
+  <style>
+    .reel {
+      fill: #333;
+    }
+    @media (prefers-color-scheme: dark) {
+      .reel {
+        fill: #fff;
+      }
+    }
+
+    .reel-1 {
+      fill="#fff";
+    }
+    @media (prefers-color-scheme: dark) {
+      .reel-1 {
+        fill: #333;
+      }
+    }
+  </style>
+  <path class="reel" d="M79 255.977c0-98.345 79.318-178.069 177.161-178.069s177.161 79.724 177.161 178.069c0 35.785-10.503 69.105-28.579 97.016h28.579v81.052H256.161C158.318 434.045 79 354.321 79 255.977m80.639 0c0 53.58 43.214 97.016 96.522 97.016s96.522-43.436 96.522-97.016-43.214-97.017-96.522-97.017-96.522 43.436-96.522 97.017" />
+    <path class="reel-1" fill="#fff" d="M256.195 355.418c54.661 0 98.972-44.538 98.972-99.479 0-54.94-44.311-99.478-98.972-99.478s-98.971 44.538-98.971 99.478c0 54.941 44.311 99.479 98.971 99.479"/>
+    <ellipse cx="255" cy="255" fill="#2f80ed" rx="77.568" ry="77.568" />
+    <ellipse cx="255" cy="255" fill="#f2c94c" rx="58.333" ry="58.333" />
+    <ellipse cx="255" cy="255" fill="#f2994a" rx="39.098" ry="39.098" />
+    <ellipse cx="255" cy="255" fill="#eb5757" rx="21.381" ry="21.381" />
 </svg>
