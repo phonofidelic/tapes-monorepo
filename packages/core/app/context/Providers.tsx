@@ -35,7 +35,7 @@ export default function Providers({
 }: {
   values: {
     appContext: AppContextValue
-    repoContext: Repo
+    repoContext: Repo | null
     blobEndpoints?: readonly BlobEndpoint[]
     eventTarget?: EventHost
   }
@@ -55,7 +55,11 @@ export default function Providers({
                       service. Around the player, so a finished play can ask
                       for the numbers again. */}
                   <AggregatesProvider target={values.eventTarget}>
-                    <CountedPlayback>{children}</CountedPlayback>
+                    {values.repoContext ? (
+                      <CountedPlayback>{children}</CountedPlayback>
+                    ) : (
+                      children
+                    )}
                   </AggregatesProvider>
                 </PinProvider>
               </BlobProvider>

@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { AutomergeUrl } from '@automerge/automerge-repo'
+import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData } from '@/types'
 import {
@@ -155,7 +155,9 @@ export const AudioPlayerProvider = ({
   // The recording doc for whatever is loaded in the player. When it carries
   // embedded `audio` bytes (synced from another device) we play those directly,
   // so a guest can play a recording it never made.
-  const [recordingDoc] = useDocument<RecordingData>(currentUrl)
+  const [recordingDoc] = useDocument<RecordingData>(
+    isValidAutomergeUrl(currentUrl) ? currentUrl : undefined,
+  )
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   // Mirrors `duration` so `onEnded` can read the latest value without the
