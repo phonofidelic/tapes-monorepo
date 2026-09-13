@@ -226,10 +226,6 @@ function ElectronAppRoot() {
     return <div>{error}</div>
   }
 
-  if (!repo) {
-    return <div>Loading...</div>
-  }
-
   return (
     <App
       appContextValue={appContextValue}
