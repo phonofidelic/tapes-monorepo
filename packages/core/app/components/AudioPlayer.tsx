@@ -132,7 +132,7 @@ export function AudioPlayer() {
         )}
       >
         {/* The bar is full-bleed so its background and border span the window;
-          the progress track and the controls below follow `main`'s column. */}
+          the progress track and the controls below keep to the content column. */}
         <div className="relative mx-auto max-w-3xl">
           {/* The track stays a hairline, but a hairline is not a pointer target,
             so the interactive strip is 12px tall with the track centred in it. */}

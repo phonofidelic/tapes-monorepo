@@ -20,7 +20,7 @@ import type { IpcService } from '@/IpcService'
 import type { RecordingData } from '@/types'
 import { blobForObjectUrl } from '../../vitest.setup'
 
-const RECORDING_URL = 'automerge:recording' as AutomergeUrl
+const RECORDING_URL = 'automerge:gQx8Jzznc3tEcPkc2p6rHzJids2' as AutomergeUrl
 const HASH = 'a'.repeat(64)
 const ENDPOINT: BlobEndpoint = {
   baseUrl: 'http://127.0.0.1:9001',
@@ -441,7 +441,7 @@ describe('recordings stored out of band', () => {
 })
 
 describe('switching between recordings', () => {
-  const SECOND_URL = 'automerge:second' as AutomergeUrl
+  const SECOND_URL = 'automerge:221YRU7jTAFpMoKT7tzB4yK7fZ8s' as AutomergeUrl
   const second: RecordingData = {
     ...base,
     url: SECOND_URL,
@@ -862,7 +862,7 @@ describe('play sessions', () => {
   })
 
   it('flushes the session when the recording changes', async () => {
-    const OTHER_URL = 'automerge:other' as AutomergeUrl
+    const OTHER_URL = 'automerge:3wFgAui1PiffnAueEdkvhm6mZaSd' as AutomergeUrl
     recordings = {
       [RECORDING_URL]: recording,
       [OTHER_URL]: { ...recording, url: OTHER_URL, id: 'take-two' },

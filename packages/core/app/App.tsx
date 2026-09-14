@@ -114,10 +114,9 @@ function Main({
   const { currentView } = useView()
 
   return (
-    // `max-w-3xl` centers `main` itself rather than an inner wrapper, because
-    // the Recorder view positions its visualizer and transport `absolute`
-    // against this element. A wrapper would leave them full-bleed. Below
-    // `3xl` the constraint never binds, so the mobile layout is unchanged.
+    // The column lives on `main` rather than an inner wrapper because the
+    // Recorder view positions its visualizer and name editor `absolute`
+    // against this element.
     <main
       ref={mainRef}
       className="relative box-content flex w-full flex-1 flex-col overflow-y-auto sm:mx-auto sm:max-w-3xl"

@@ -40,10 +40,14 @@ describe('App repo seam', () => {
   // Each shell builds its own Repo (storage and network adapters differ per
   // platform) and passes null until that bootstrap finishes.
   it('renders a loading state while the shell has no repo yet', () => {
-    render(<App appContextValue={appContextValue} repoContextValue={null} />)
+    const { container } = render(
+      <App appContextValue={appContextValue} repoContextValue={null} />,
+    )
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
-    expect(screen.queryByTestId('providers')).toBeNull()
+    // The nav renders either way; only the views wait for the repo.
+    expect(screen.getByText('Loading repo...')).toBeInTheDocument()
+    expect(container.querySelector('nav')).not.toBeNull()
+    expect(container.querySelector('main')).toBeNull()
   })
 
   it('renders the app tree once the shell provides a repo', () => {
@@ -57,16 +61,14 @@ describe('App repo seam', () => {
     )
 
     expect(screen.getByTestId('providers')).toBeInTheDocument()
-    expect(screen.queryByText('Loading...')).toBeNull()
+    expect(screen.queryByText('Loading repo...')).toBeNull()
   })
 })
 
-// TAP-67 removed the web client's mobile-only gate, so this layout is rendered
-// at desktop widths for the first time. `main` carries the column itself rather
-// than an inner wrapper because the Recorder view positions its visualizer and
-// transport `absolute` against it — a wrapper would leave those full-bleed.
+// `main` carries the column itself rather than an inner wrapper because the
+// Recorder view positions its visualizer and name editor `absolute` against it.
 describe('App desktop layout', () => {
-  it('holds main to a centred max-width column', () => {
+  it('holds main to a centred max-width column above the breakpoint', () => {
     const { container } = render(
       <App
         appContextValue={appContextValue}
@@ -76,12 +78,13 @@ describe('App desktop layout', () => {
 
     const main = container.querySelector('main')
     expect(main).not.toBeNull()
-    expect(main).toHaveClass('max-w-3xl')
-    expect(main).toHaveClass('mx-auto')
-    // Still pinned to the viewport edges, so the constraint is a no-op below
-    // the breakpoint and the mobile layout is unchanged.
-    expect(main).toHaveClass('right-0')
-    expect(main).toHaveClass('left-0')
+    // Gated on `sm`, so the mobile layout stays full-bleed.
+    expect(main).toHaveClass('sm:max-w-3xl')
+    expect(main).toHaveClass('sm:mx-auto')
+    // Main is the scrolling child of the flex column, not pinned to the viewport.
+    expect(main).toHaveClass('flex-1')
+    expect(main).toHaveClass('overflow-y-auto')
+    expect(main).not.toHaveClass('fixed')
   })
 
   it('keeps the nav bar full-bleed while centring its tabs', () => {
