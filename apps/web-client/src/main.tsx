@@ -187,10 +187,17 @@ if (!window.Worker) {
     )
   }
 
-  ReactDOM.createRoot(document.getElementById('root')!).render(
+  const rootElement = document.getElementById('root')
+  if (!rootElement) {
+    throw new Error('Root element not found')
+  }
+
+  ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <WebClientRoot />
-      {!servedByHost && <ShellPrompts />}
+      <div className="relative flex h-svh w-screen flex-col overflow-hidden">
+        <WebClientRoot />
+        {!servedByHost && <ShellPrompts />}
+      </div>
     </React.StrictMode>,
   )
 }

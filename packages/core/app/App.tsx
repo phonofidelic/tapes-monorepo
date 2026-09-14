@@ -9,7 +9,6 @@ import {
 } from '@/context/ViewContext'
 import './index.css'
 import { AudioPlayer } from './components/AudioPlayer'
-import { useAudioPlayer } from './context/AudioPlayerContext'
 import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
 import type { BlobEndpoint } from './blobClient'
@@ -47,10 +46,6 @@ export function App({
 }) {
   const mainRef = useRef<HTMLDivElement | null>(null)
 
-  if (!repoContextValue) {
-    return <div>Loading...</div>
-  }
-
   return (
     <Providers
       values={{
@@ -60,9 +55,17 @@ export function App({
         eventTarget,
       }}
     >
-      <Main mainRef={mainRef} />
-      <Navigation mainRef={mainRef} />
-      <AudioPlayer />
+      <div className="relative flex h-full flex-col overflow-hidden">
+        <Navigation mainRef={mainRef} />
+        {repoContextValue ? (
+          <>
+            <Main mainRef={mainRef} />
+            <AudioPlayer />
+          </>
+        ) : (
+          'Loading repo...'
+        )}
+      </div>
     </Providers>
   )
 }
@@ -76,7 +79,7 @@ function Navigation({
   const isScrolled = useIsScrolled(mainRef)
   return (
     <nav
-      className={clsx('w-full bg-white dark:bg-zinc-900', {
+      className={clsx('sticky top-0 z-50 w-full bg-white dark:bg-zinc-900', {
         'border-b dark:border-b-zinc-800': isScrolled,
       })}
     >
@@ -109,21 +112,14 @@ function Main({
   mainRef: React.RefObject<HTMLDivElement | null>
 }) {
   const { currentView } = useView()
-  const { currentUrl } = useAudioPlayer()
 
   return (
-    // `max-w-3xl` centers `main` itself rather than an inner wrapper, because
-    // the Recorder view positions its visualizer and transport `absolute`
-    // against this element. A wrapper would leave them full-bleed. Below
-    // `3xl` the constraint never binds, so the mobile layout is unchanged.
+    // The column lives on `main` rather than an inner wrapper because the
+    // Recorder view positions its visualizer and name editor `absolute`
+    // against this element.
     <main
       ref={mainRef}
-      className={clsx(
-        'fixed right-0 bottom-0 left-0 mx-auto box-content flex max-w-3xl flex-col overflow-y-auto p-5',
-        {
-          'pb-20': currentUrl !== undefined,
-        },
-      )}
+      className="relative box-content flex w-full flex-1 flex-col overflow-y-auto sm:mx-auto sm:max-w-3xl"
     >
       {viewComponentMap[currentView]}
     </main>

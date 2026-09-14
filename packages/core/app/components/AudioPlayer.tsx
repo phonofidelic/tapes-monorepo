@@ -117,93 +117,100 @@ export function AudioPlayer() {
 
   return (
     <div
-      className={clsx(
-        'fixed bottom-0 left-0 w-full border border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
-        {
-          'translate-y-full': !currentUrl,
-          'translate-y-0 drop-shadow-2xl': currentUrl,
-        },
-      )}
+      className={clsx('relative flex w-full flex-col transition-[height]', {
+        'h-0': !currentUrl,
+        'h-20': currentUrl,
+      })}
     >
-      {/* The bar is full-bleed so its background and border span the window;
-          the progress track and the controls below follow `main`'s column. */}
-      <div className="relative mx-auto max-w-3xl">
-        {/* The track stays a hairline, but a hairline is not a pointer target,
+      <div
+        className={clsx(
+          'absolute bottom-0 left-0 w-full border-t border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          {
+            'translate-y-full': !currentUrl,
+            'translate-y-0 drop-shadow-2xl': currentUrl,
+          },
+        )}
+      >
+        {/* The bar is full-bleed so its background and border span the window;
+          the progress track and the controls below keep to the content column. */}
+        <div className="relative mx-auto max-w-3xl">
+          {/* The track stays a hairline, but a hairline is not a pointer target,
             so the interactive strip is 12px tall with the track centred in it. */}
-        <div
-          role="slider"
-          aria-label="Seek"
-          aria-valuemin={0}
-          aria-valuemax={seekableDuration}
-          aria-valuenow={canSeek ? displayTime : undefined}
-          aria-valuetext={
-            canSeek ? formatTime(displayTime * 1000) : 'Unavailable'
-          }
-          aria-disabled={!canSeek}
-          tabIndex={canSeek ? 0 : -1}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onKeyDown={onKeyDown}
-          className={clsx(
-            'absolute top-0 left-0 flex h-3 w-full touch-none items-center outline-none',
-            'focus-visible:ring-2 focus-visible:ring-rose-500/50',
-            canSeek ? 'cursor-pointer' : 'cursor-default',
-          )}
-        >
-          <div className="h-1 w-full bg-transparent">
-            <div
-              className={clsx(
-                'h-full',
-                canSeek ? 'bg-rose-500' : 'bg-zinc-300 dark:bg-zinc-700',
-              )}
-              style={{ width: `${progress * 100}%` }}
-            />
+          <div
+            role="slider"
+            aria-label="Seek"
+            aria-valuemin={0}
+            aria-valuemax={seekableDuration}
+            aria-valuenow={canSeek ? displayTime : undefined}
+            aria-valuetext={
+              canSeek ? formatTime(displayTime * 1000) : 'Unavailable'
+            }
+            aria-disabled={!canSeek}
+            tabIndex={canSeek ? 0 : -1}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onKeyDown={onKeyDown}
+            className={clsx(
+              'absolute top-0 left-0 flex h-3 w-full touch-none items-center outline-none',
+              'focus-visible:ring-2 focus-visible:ring-rose-500/50',
+              canSeek ? 'cursor-pointer' : 'cursor-default',
+            )}
+          >
+            <div className="h-1 w-full bg-transparent">
+              <div
+                className={clsx(
+                  'h-full',
+                  canSeek ? 'bg-rose-500' : 'bg-zinc-300 dark:bg-zinc-700',
+                )}
+                style={{ width: `${progress * 100}%` }}
+              />
+            </div>
           </div>
         </div>
-      </div>
-      <div className="mx-auto flex h-20 w-full max-w-3xl items-center justify-between">
-        <div className="w-full p-4">
-          <p>{recording?.name}</p>
-          {/* Fetching a recording from the host is the one moment playback is
+        <div className="mx-auto flex h-20 w-full max-w-3xl items-center justify-between">
+          <div className="w-full p-4">
+            <p>{recording?.name}</p>
+            {/* Fetching a recording from the host is the one moment playback is
               not instant, and a failure used to clear the player silently. */}
-          {playbackState === 'loading' && (
-            <p className="text-xs text-zinc-400">Downloading…</p>
-          )}
-          {playbackState === 'error' && (
-            <p className="text-xs text-rose-500">
-              {FAILURE_MESSAGE[playbackFailure ?? 'unreachable']}
-            </p>
-          )}
-          <div className="flex w-full justify-between gap-2">
-            <p className="text-sm">
-              <FormattedTime time={displayTime * 1000} />
-            </p>
-            <p className="text-sm">
-              {isFinite(duration) && <FormattedTime time={duration * 1000} />}
-            </p>
+            {playbackState === 'loading' && (
+              <p className="text-xs text-zinc-400">Downloading…</p>
+            )}
+            {playbackState === 'error' && (
+              <p className="text-xs text-rose-500">
+                {FAILURE_MESSAGE[playbackFailure ?? 'unreachable']}
+              </p>
+            )}
+            <div className="flex w-full justify-between gap-2">
+              <p className="text-sm">
+                <FormattedTime time={displayTime * 1000} />
+              </p>
+              <p className="text-sm">
+                {isFinite(duration) && <FormattedTime time={duration * 1000} />}
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2 p-4">
-          <Button
-            title={isPlaying ? 'Pause' : 'Play'}
-            className="rounded-full p-2"
-            onClick={() => setIsPlaying(!isPlaying)}
-          >
-            {isPlaying ? <MdPause /> : <MdPlayArrow />}
-          </Button>
-          <Button
-            title="Stop"
-            className="rounded-full p-2"
-            onClick={() => {
-              setIsPlaying(false)
-              setCurrentUrl(undefined)
-              setCurrentSource(undefined)
-            }}
-          >
-            <MdStop />
-          </Button>
+          <div className="flex gap-2 p-4">
+            <Button
+              title={isPlaying ? 'Pause' : 'Play'}
+              className="rounded-full p-2"
+              onClick={() => setIsPlaying(!isPlaying)}
+            >
+              {isPlaying ? <MdPause /> : <MdPlayArrow />}
+            </Button>
+            <Button
+              title="Stop"
+              className="rounded-full p-2"
+              onClick={() => {
+                setIsPlaying(false)
+                setCurrentUrl(undefined)
+                setCurrentSource(undefined)
+              }}
+            >
+              <MdStop />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
