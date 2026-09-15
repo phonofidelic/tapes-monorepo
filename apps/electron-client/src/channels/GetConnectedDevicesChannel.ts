@@ -3,12 +3,11 @@ import { IpcChannel, IpcRequest } from '@/types'
 import { getSyncConnections, getSyncServerInfo } from '@/syncServer'
 
 /**
- * The initial snapshot of who is connected to this host.
+ * The first snapshot of who is connected to this host.
  *
- * Changes after this one arrive on the `sync:connected-devices` event instead
- * (see `connectedDevicesPush.ts`); this channel exists so a panel that has just
- * mounted does not have to wait for someone to connect or leave before it can
- * show anything.
+ * Later changes arrive as events instead, from `connectedDevicesPush`. This
+ * channel exists so a panel that has just mounted can show something without
+ * waiting for someone to connect or leave.
  */
 export class GetConnectedDevicesChannel implements IpcChannel {
   name: string = 'sync:get-connected-devices'
@@ -37,10 +36,9 @@ export class GetConnectedDevicesChannel implements IpcChannel {
         data: { connections: getSyncConnections() },
       })
     } catch (error) {
-      // Answering at all is the point. `IpcService.send` hands the caller a
-      // promise that settles only when a response arrives, so returning quietly
-      // here would leave the panel waiting forever — the shape TAP-88 records
-      // for the LAN and HTTPS toggles.
+      // Answering at all is the point. The renderer holds a promise that
+      // settles only when a response arrives. Returning quietly here would
+      // leave the panel waiting forever.
       console.error(error)
       event.sender.send(responseChannel, { success: false, error })
     }

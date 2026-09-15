@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * The push is the only reason the presence list can be trusted between
- * requests. If a change never leaves the main process, the panel shows whoever
- * was connected when it mounted and goes on showing them — which is exactly the
- * stale list this seam exists to remove.
+ * These cover the one job of the push. If a change never leaves the main
+ * process, the panel keeps showing whoever was connected when it mounted.
  */
 
 const { onSyncConnectionsChange } = vi.hoisted(() => ({
@@ -53,8 +51,8 @@ describe('the connected-devices push', () => {
     })
   })
 
-  // An empty list is a real answer here: the last guest left. The renderer has
-  // already been told the host is running, so it can show "nobody" honestly.
+  // An empty list is a real answer here. The last guest left, and the renderer
+  // already knows the host is running, so it can say nobody with confidence.
   it('sends an empty list when the last connection goes', async () => {
     const { startConnectedDevicesPush, CONNECTED_DEVICES_EVENT } =
       await import('./connectedDevicesPush')
@@ -68,8 +66,8 @@ describe('the connected-devices push', () => {
     })
   })
 
-  // The window is rebuilt when the dock icon is clicked, so the target is
-  // resolved per event rather than captured when the push starts.
+  // The window is rebuilt when the dock icon is clicked, so it is looked up
+  // per event rather than captured when the push starts.
   it('sends to whichever window exists at the time', async () => {
     const { startConnectedDevicesPush } = await import('./connectedDevicesPush')
     const first = target()
@@ -92,8 +90,8 @@ describe('the connected-devices push', () => {
     expect(() => emit([A_PHONE])).not.toThrow()
   })
 
-  // Sending to destroyed webContents throws. A quit mid-change must not take
-  // the process with it.
+  // Sending to a destroyed window throws. A quit during a change must not take
+  // the process down with it.
   it('drops the event when the window is destroyed', async () => {
     const { startConnectedDevicesPush } = await import('./connectedDevicesPush')
     const window = target()

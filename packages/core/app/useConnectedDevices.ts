@@ -7,49 +7,46 @@ import type {
 } from '@/IpcService'
 
 /**
- * Who is connected to this host's sync server, kept current without polling.
+ * Who is connected to this host's sync server.
  *
- * A snapshot request would have to be repeated on a timer to stay true, and
- * between ticks the list is wrong: a phone that walked out of range still shows
- * as here. So this asks once and then listens — the host pushes the whole new
- * list on every connect, disconnect and keepalive eviction.
+ * This asks for a snapshot once, then listens. The host sends the whole list on
+ * every connect, disconnect and keepalive eviction. Polling instead would keep
+ * showing a device that has already left until the next request.
  *
- * The subscription is set up before the snapshot is requested, deliberately. The
- * other order drops any change that lands while the request is in flight, and
- * the list would then stay wrong until the next unrelated change.
+ * Subscribe first and request the snapshot second. The other order drops any
+ * change that lands while the request is in flight.
  */
 
 export type ConnectedDevicesStatus =
-  /** Asked; no answer yet. Show that we are looking, not that nobody is here. */
+  /** Asked, with no answer yet. Show that we are still looking. */
   | 'loading'
-  /** The host answered. `connections` is the truth, empty or not. */
+  /** The host answered. The list is accurate, empty or not. */
   | 'ready'
   /**
-   * The host could not answer — not running a server, or the call failed.
-   * Distinct from `ready` with an empty list, because "nobody is connected" and
-   * "we could not ask" look identical in a blank panel and mean opposite
-   * things. TAP-88 is the same failure on the LAN and HTTPS toggles.
+   * The host could not answer. Either it runs no server or the call failed.
+   * Kept apart from an empty list under `ready`. Both show as a blank panel but
+   * mean opposite things.
    */
   | 'unavailable'
   /** Not a host. Only the desktop app runs a sync server for others to join. */
   | 'unsupported'
 
 export type ConnectedDevicesState = {
-  /** Oldest first. Only meaningful when `status` is `ready`. */
+  /** Oldest first. Only meaningful once the status is ready. */
   connections: SyncConnection[]
   status: ConnectedDevicesStatus
-  /** Why the host could not answer, for diagnostics rather than for the user. */
+  /** Why the host could not answer. For diagnostics, not for the user. */
   error?: Error
-  /** Re-reads the snapshot. The push keeps it current; this is for a retry. */
+  /** Asks for the snapshot again. Use it to retry after a failure. */
   refresh: () => void
 }
 
 const EMPTY: SyncConnection[] = []
 
 /**
- * What the host last told us, and which attempt it answered. Held together so
- * a retry reads as `loading` by derivation rather than by a write on the way
- * into the effect, which would cost a cascading render.
+ * What the host last told us, and which attempt it answered. Holding the two
+ * together lets a retry read as loading by derivation. Writing the status on
+ * the way into the effect would cost an extra render.
  */
 type Held = {
   attempt: number
@@ -62,9 +59,8 @@ export function useConnectedDevices(): ConnectedDevicesState {
   const appContext = useAppContext()
   const ipc = appContext.type === 'electron-client' ? appContext.ipc : undefined
 
-  // Bumped by `refresh` to re-run the effect below, which re-requests the
-  // snapshot. The subscription is torn down and remade with it, which is
-  // harmless and keeps the subscribe-then-request order intact.
+  // Bumped by a refresh to re-run the effect below. That also remakes the
+  // subscription, which is harmless and keeps the subscribe-first order.
   const [attempt, setAttempt] = useState(0)
   const [held, setHeld] = useState<Held | null>(null)
 
@@ -83,8 +79,8 @@ export function useConnectedDevices(): ConnectedDevicesState {
         if (cancelled) {
           return
         }
-        // A push is the host telling us the list changed, so it always answers
-        // the question — even when it arrives before the snapshot does.
+        // An event means the host read its registry, so it is always a real
+        // answer. That holds even when it arrives before the snapshot.
         setHeld({
           attempt,
           connections: payload?.connections ?? EMPTY,
@@ -95,8 +91,8 @@ export function useConnectedDevices(): ConnectedDevicesState {
 
     const failed = (error: Error) => {
       setHeld((current) =>
-        // A push may already have given us the real list while the request was
-        // in flight. Do not overwrite the truth with a stale failure.
+        // An event may have delivered the real list while the request was in
+        // flight. Do not overwrite it with a late failure.
         current?.attempt === attempt && current.status === 'ready'
           ? current
           : { attempt, connections: EMPTY, status: 'unavailable', error },
@@ -111,8 +107,8 @@ export function useConnectedDevices(): ConnectedDevicesState {
         if (cancelled) {
           return
         }
-        // `undefined` is the TAP-88 shape: a channel that answered with
-        // nothing. Treated as a failure, never as an empty list.
+        // A channel can answer with nothing at all. Treat that as a failure,
+        // never as an empty list.
         if (!response?.success) {
           failed(
             response?.error instanceof Error
@@ -144,7 +140,7 @@ export function useConnectedDevices(): ConnectedDevicesState {
     return { connections: EMPTY, status: 'unsupported', refresh }
   }
 
-  // An answer to an earlier attempt describes a question we have asked again.
+  // An answer to an earlier attempt describes a question we asked again.
   if (!held || held.attempt !== attempt) {
     return { connections: EMPTY, status: 'loading', refresh }
   }

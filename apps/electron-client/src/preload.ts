@@ -29,11 +29,11 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'events:get-aggregates': true,
 }
 
-// Main-process events the renderer may listen for. Kept apart from the
-// request/response allowlist above because these are not responses: they carry
-// no `:response:<timestamp>` suffix and arrive repeatedly, unprompted. Keyed by
-// the union for the same reason as the channels — a new event forgotten here
-// would be a listener that never fires rather than a type error.
+// Main-process events the renderer may listen for. These are not responses.
+// They carry no response suffix and arrive repeatedly, so the patterns below
+// reject them and they need their own list. Keyed by the union for the same
+// reason as the channels. An event forgotten here fails check-types instead of
+// becoming a listener that never fires.
 const EVENT_ALLOWLIST: Record<ValidIpcEvent, true> = {
   'sync:connected-devices': true,
 }
@@ -77,11 +77,9 @@ const api = {
     const forward = (_event: unknown, ...args: unknown[]) =>
       func(...(args as Parameters<typeof func>))
     ipcRenderer.on(event, forward)
-    // An unsubscribe, which `receive` has no need of: a response listener fires
-    // once and the request is over, but a subscriber outlives nothing on its
-    // own. Without this, every remount of the panel would add another listener
-    // to the same event and the renderer would leak them for the life of the
-    // window.
+    // An unsubscribe, which a response listener never needs. That one fires
+    // once and the request is over. Without this, every remount of a panel adds
+    // another listener for the life of the window.
     return () => {
       ipcRenderer.removeListener(event, forward)
     }

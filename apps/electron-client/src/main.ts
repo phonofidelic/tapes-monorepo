@@ -162,11 +162,9 @@ export class MainWindow {
   /**
    * Forwards connection changes to the renderer as they happen.
    *
-   * Subscribed once here rather than per window, because `onSyncConnectionsChange`
-   * outlives the server: the LAN and HTTPS toggles both restart it, and a
-   * subscription tied to a running server would go quiet after the first toggle.
-   * The window is looked up per event for the same reason — it is rebuilt when
-   * the dock icon is clicked.
+   * Subscribed once at startup rather than per server. The LAN and HTTPS
+   * toggles both restart the sync server, and a subscription tied to a running
+   * one would go quiet after the first toggle.
    */
   private startConnectedDevicesPush() {
     this.stopConnectedDevicesPush = startConnectedDevicesPush(

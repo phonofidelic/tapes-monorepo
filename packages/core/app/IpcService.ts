@@ -8,9 +8,8 @@ declare global {
       send(channel: ValidIpcChanel, data: IpcRequest): void
       receive(channel: string, func: (...args: unknown[]) => void): void
       /**
-       * Listens for a main-process event. Unlike `receive`, which waits for the
-       * one response to a request this renderer made, these arrive unprompted
-       * and repeatedly. Returns the unsubscribe.
+       * Listens for a main-process event. These arrive unprompted and repeat.
+       * A response listener fires once instead. Returns the unsubscribe.
        */
       subscribe(
         event: ValidIpcEvent,
@@ -66,19 +65,18 @@ export type SyncServerInfo = {
 }
 
 /**
- * Events the main process pushes to the renderer, unasked.
+ * Events the main process sends to the renderer.
  *
- * Deliberately one entry. The request/response surface above covers everything
- * the renderer pulls; this exists only for state that changes on its own, and
- * generalising it into an event bus for a single consumer would buy nothing.
+ * One entry on purpose. The channels above cover everything the renderer asks
+ * for. This is only for state that changes on its own.
  */
 export type ValidIpcEvent = 'sync:connected-devices'
 
 /**
- * One device connected to this host's sync server right now.
+ * One device connected to this host's sync server.
  *
- * Mirrors the host-side registry's shape, the way `SyncServerInfo` mirrors the
- * server's. Core never constructs one; it only renders what the host sends.
+ * Mirrors the shape the host's connection registry keeps. Core only renders
+ * these. It never builds one.
  */
 export type SyncConnection = {
   /** Stable for the life of the connection. Not a device identity. */
@@ -97,13 +95,11 @@ export type SyncConnection = {
 }
 
 /**
- * The connected-device list, or the reason there isn't one.
+ * The connected-device list, or the reason there is none.
  *
- * A union rather than a bare array on purpose. An empty array means the host
- * asked its registry and nobody is connected; a failure means it could not
- * ask. Those look identical to a user shown a blank panel and mean opposite
- * things, so the caller has to handle them apart — see TAP-88, where a toggle
- * that returned nothing failed silently.
+ * A union rather than a bare array. An empty array means the host read its
+ * registry and nobody is connected. A failure means it could not read it. Both
+ * show as a blank panel, so callers must tell them apart.
  */
 export type GetConnectedDevicesResponse =
   | {
@@ -118,8 +114,8 @@ export type GetConnectedDevicesResponse =
     }
 
 /**
- * The payload of a `sync:connected-devices` event: the whole new list, not a
- * delta. A renderer that misses one is corrected by the next.
+ * The payload of a connected-devices event. It carries the whole new list
+ * rather than a delta, so a renderer that misses one recovers on the next.
  */
 export type ConnectedDevicesEvent = { connections: SyncConnection[] }
 
@@ -330,10 +326,9 @@ export class IpcService {
   /**
    * Listens for a main-process event and returns the unsubscribe.
    *
-   * `send` is a question with one answer; this is a subscription to state that
-   * changes on its own. Nothing here resolves or rejects, so a caller waiting
-   * for a first value must ask for it with `send` as well — subscribe first,
-   * then request the snapshot, or a change landing between the two is lost.
+   * Nothing here resolves or rejects. A caller that needs a starting value must
+   * also request one with `send`. Subscribe first and request second. A change
+   * that lands between the two is otherwise lost.
    */
   public subscribe<T>(
     event: ValidIpcEvent,

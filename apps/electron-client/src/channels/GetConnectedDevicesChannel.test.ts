@@ -4,13 +4,11 @@ import { GetConnectedDevicesChannel } from './GetConnectedDevicesChannel'
 import { getSyncConnections, getSyncServerInfo } from '@/syncServer'
 
 /**
- * The snapshot the panel asks for when it mounts.
+ * The snapshot a panel asks for when it mounts.
  *
- * What these mostly guard is the difference between an empty list and no
- * answer. They read the same on screen — a panel with nobody in it — and mean
- * opposite things: "nobody has joined" versus "this device is not hosting" or
- * "the call failed". TAP-88 is the same confusion on the LAN and HTTPS toggles,
- * where a channel that answered with nothing left the switch looking fine.
+ * These mostly guard the difference between an empty list and no answer. Both
+ * show as a panel with nobody in it. One means nobody has joined. The other
+ * means this device is not hosting, or the call failed.
  */
 
 vi.mock('@/syncServer', () => ({
@@ -78,7 +76,7 @@ describe('the connected-devices channel', () => {
     })
   })
 
-  // The case that must not come back as an empty list.
+  // The case that must never come back as an empty list.
   it('reports a stopped server as a failure, not as nobody connected', () => {
     vi.mocked(getSyncServerInfo).mockReturnValue(stopped)
     const event = ipcEvent()
@@ -93,8 +91,8 @@ describe('the connected-devices channel', () => {
     expect(getSyncConnections).not.toHaveBeenCalled()
   })
 
-  // `IpcService.send` resolves only when a response arrives, so a handler that
-  // throws its way out leaves the panel awaiting a promise that never settles.
+  // The renderer's promise settles only when a response arrives. A handler
+  // that throws its way out leaves the panel waiting forever.
   it('answers rather than throwing when the registry read fails', () => {
     vi.mocked(getSyncServerInfo).mockReturnValue(running)
     vi.mocked(getSyncConnections).mockImplementation(() => {
