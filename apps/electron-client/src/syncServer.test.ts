@@ -3,7 +3,13 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { WebSocket } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { startSyncServer, stopSyncServer } from './syncServer'
+import {
+  getSyncConnections,
+  onSyncConnectionsChange,
+  startSyncServer,
+  stopSyncServer,
+  type SyncConnection,
+} from './syncServer'
 
 let storagePath: string | undefined
 
@@ -35,6 +41,15 @@ function connect(url: string, headers?: Record<string, string>) {
       socket.close()
       resolve()
     })
+    socket.on('error', reject)
+  })
+}
+
+/** Opens a socket and leaves it open, for the tests that need it connected. */
+function open(url: string) {
+  return new Promise<WebSocket>((resolve, reject) => {
+    const socket = new WebSocket(url)
+    socket.on('open', () => resolve(socket))
     socket.on('error', reject)
   })
 }
@@ -131,5 +146,107 @@ describe('guest device labels', () => {
       'Sync guest connected: iPad Sync guest connected: host',
     )
     logged.mockRestore()
+  })
+})
+
+// The host has to answer "who is connected right now" without polling, and the
+// answer has to empty out when a device goes away.
+describe('connected devices', () => {
+  it('lists a guest while its socket is open', async () => {
+    const info = await startForTest()
+
+    const socket = await open(`${info.url}/sync?d=Studio%20iPad`)
+
+    expect(getSyncConnections()).toEqual([
+      {
+        id: expect.any(String),
+        label: 'Studio iPad',
+        address: expect.any(String),
+        connectedAt: expect.any(Number),
+        self: false,
+      },
+    ])
+    socket.close()
+  })
+
+  it('lists a guest that sent no name without one', async () => {
+    const info = await startForTest()
+
+    const socket = await open(`${info.url}/sync`)
+
+    expect(getSyncConnections()[0].label).toBeUndefined()
+    socket.close()
+  })
+
+  it('drops a guest when its socket closes', async () => {
+    const info = await startForTest()
+    const socket = await open(`${info.url}/sync?d=Studio%20iPad`)
+
+    socket.close()
+
+    await vi.waitFor(() => expect(getSyncConnections()).toEqual([]))
+  })
+
+  it('lists nothing when no server is running', async () => {
+    const info = await startForTest()
+    const socket = await open(`${info.url}/sync`)
+
+    await stopSyncServer()
+    socket.terminate()
+
+    expect(getSyncConnections()).toEqual([])
+  })
+
+  // The host's own window connects here too. Listing it as a guest would tell
+  // the user a device is paired when none is.
+  it("marks the host's own client", async () => {
+    const info = await startForTest()
+
+    const socket = await open(`${info.url}/sync?h=1&d=Desk%20Mac`)
+
+    expect(getSyncConnections()[0]).toMatchObject({
+      label: 'Desk Mac',
+      self: true,
+    })
+    socket.close()
+  })
+
+  it('tells a listener about connects and disconnects', async () => {
+    const info = await startForTest()
+    const seen: SyncConnection[][] = []
+    const unsubscribe = onSyncConnectionsChange((connections) =>
+      seen.push(connections),
+    )
+
+    const socket = await open(`${info.url}/sync?d=Studio%20iPad`)
+    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    socket.close()
+    await vi.waitFor(() => expect(seen).toHaveLength(2))
+
+    expect(seen[0].map((connection) => connection.label)).toEqual([
+      'Studio iPad',
+    ])
+    expect(seen[1]).toEqual([])
+    unsubscribe()
+  })
+
+  // Subscriptions are set up once, and the LAN and HTTPS toggles both restart
+  // the server underneath them.
+  it('keeps a listener across a restart of the server', async () => {
+    let info = await startForTest()
+    const seen: SyncConnection[][] = []
+    const unsubscribe = onSyncConnectionsChange((connections) =>
+      seen.push(connections),
+    )
+    await stopSyncServer()
+    seen.length = 0
+
+    info = await startForTest()
+    const socket = await open(`${info.url}/sync?d=Studio%20iPad`)
+    await vi.waitFor(() => expect(seen).toHaveLength(1))
+
+    expect(seen[0]).toHaveLength(1)
+    socket.close()
+    unsubscribe()
   })
 })

@@ -13,3 +13,4 @@
  */
 
 export * from './deviceLabel'
+export * from './hostClient'

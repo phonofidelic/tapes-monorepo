@@ -48,7 +48,7 @@ describe('resolveSyncServerUrls', () => {
         deviceLabel: 'Desk Mac',
       }),
     ).toEqual({
-      localUrl: 'ws://127.0.0.1:9001/?t=host-token&d=Desk+Mac',
+      localUrl: 'ws://127.0.0.1:9001/?t=host-token&h=1&d=Desk+Mac',
       remoteUrl: 'wss://sync.example.com/sync?t=guest-token&d=Desk+Mac',
     })
   })
@@ -76,11 +76,27 @@ describe('resolveSyncServerUrls', () => {
         serverInfo: { ...runningServer, pairingToken: 'host-token' },
       }),
     ).toEqual({
-      localUrl: 'ws://127.0.0.1:9001/?t=host-token',
+      localUrl: 'ws://127.0.0.1:9001/?t=host-token&h=1',
       // The embedded server's own token is not a credential anywhere else, so
       // the remote never sees it.
       remoteUrl: 'wss://sync.example.com',
     })
+  })
+
+  // The embedded server lists its own window next to the guests. The mark is
+  // how it tells them apart, and a remote host must not see this app claim to
+  // be its host.
+  it("marks only the embedded server url as the host's own client", () => {
+    const urls = resolveSyncServerUrls({
+      settings: {
+        syncServerMode: 'remote',
+        remoteSyncServerUrl: 'wss://sync.example.com',
+      },
+      serverInfo: runningServer,
+    })
+
+    expect(urls.localUrl).toBe('ws://127.0.0.1:9001/?h=1')
+    expect(urls.remoteUrl).toBe('wss://sync.example.com')
   })
 
   // A remote server that is another Tapes host guards its socket exactly as
@@ -101,7 +117,7 @@ describe('resolveSyncServerUrls', () => {
   it('uses the embedded server when it is running', () => {
     expect(
       resolveSyncServerUrls({ settings: {}, serverInfo: runningServer }),
-    ).toEqual({ localUrl: 'ws://127.0.0.1:9001', remoteUrl: undefined })
+    ).toEqual({ localUrl: 'ws://127.0.0.1:9001/?h=1', remoteUrl: undefined })
   })
 
   // The renderer holds no storage of its own, so dropping the local url in
@@ -116,7 +132,7 @@ describe('resolveSyncServerUrls', () => {
         serverInfo: runningServer,
       }),
     ).toEqual({
-      localUrl: 'ws://127.0.0.1:9001',
+      localUrl: 'ws://127.0.0.1:9001/?h=1',
       remoteUrl: 'wss://sync.example.com',
     })
   })
