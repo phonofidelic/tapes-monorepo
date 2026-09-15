@@ -59,6 +59,7 @@ describe('useAutomergeUrl', () => {
   })
 
   it('stops notifying a reader once it has unmounted', () => {
+    localStorage.setItem('automergeUrl', STORED_URL)
     render(<Probe />)
     cleanup()
 
