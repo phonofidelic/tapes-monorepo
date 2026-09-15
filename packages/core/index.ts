@@ -18,3 +18,4 @@ export {
   subscribeToSettingsChange,
   type SettingKey,
 } from './app/context/SettingsContext'
+export { ErrorBoundary } from './app/components/ErrorBoundary'

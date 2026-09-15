@@ -160,7 +160,9 @@ if (!window.Worker) {
         })
 
         if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
-          handleRef.current = await _repo.find(automergeUrl)
+          handleRef.current = await _repo.find(automergeUrl, {
+            signal: AbortSignal.timeout(30 * 1000),
+          })
         } else {
           handleRef.current = _repo.create<RecordingRepoState>({
             recordings: [],
@@ -194,7 +196,7 @@ if (!window.Worker) {
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <div className="relative flex h-svh w-screen flex-col overflow-hidden">
+      <div className="relative flex h-svh w-screen touch-none flex-col overflow-hidden">
         <WebClientRoot />
         {!servedByHost && <ShellPrompts />}
       </div>

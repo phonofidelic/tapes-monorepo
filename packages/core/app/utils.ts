@@ -1,3 +1,4 @@
+import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
 
 /** The selected input device exists in settings but is no longer available. */
@@ -90,11 +91,34 @@ export function setAutomergeUrl(url: string) {
 }
 
 export function useAutomergeUrl() {
-  const automergeUrl = useSyncExternalStore(
+  const storedUrl = useSyncExternalStore(
     subscribeToAutomergeUrl,
     readAutomergeUrl,
     readAutomergeUrl,
   )
+
+  // A missing url is normal: a fresh client has not created its document yet,
+  // and a guest opens Settings with nothing stored to paste a host url in. A
+  // stored value that is not an automerge url is not normal, and silently
+  // treating it as missing would overwrite whatever the user pasted wrong.
+  if (storedUrl !== null && !isValidAutomergeUrl(storedUrl)) {
+    throw new Error('Invalid automerge URL')
+  }
+
+  return { automergeUrl: storedUrl, setAutomergeUrl }
+}
+
+/**
+ * For the views that read the document itself. They render below the shell's
+ * repo, which exists only once a url has been stored, so a missing url here
+ * is a bug rather than a state to render around.
+ */
+export function useRequiredAutomergeUrl() {
+  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
+
+  if (automergeUrl === null) {
+    throw new Error('No automerge URL')
+  }
 
   return { automergeUrl, setAutomergeUrl }
 }

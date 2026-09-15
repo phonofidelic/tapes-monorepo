@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
+import { AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import {
   MdEdit,
@@ -21,12 +21,13 @@ import { usePins } from '@/context/PinContext'
 import { deleteBlobEverywhere } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
 import { PlaybackSummary } from '@/components/PlaybackSummary'
-import { useAutomergeUrl } from '@/utils'
+import { useRequiredAutomergeUrl } from '@/utils'
 
 export function Library() {
-  const { automergeUrl } = useAutomergeUrl()
+  const { automergeUrl } = useRequiredAutomergeUrl()
   const [docState, changeDocState] = useDocument<RecordingRepoState>(
-    isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
+    automergeUrl,
+    { suspense: true },
   )
   const { currentUrl } = useAudioPlayer()
 
@@ -43,7 +44,7 @@ export function Library() {
 
   return (
     <>
-      <div className="flex flex-col">
+      <div className="flex touch-pan-y flex-col">
         <ul>
           {docState?.recordings.map((url) => {
             return (
@@ -91,7 +92,9 @@ function LibraryListItem({
   onOpenEditor: () => void
 }) {
   const appContext = useAppContext()
-  const [recording] = useDocument<RecordingData>(automergeUrl)
+  const [recording] = useDocument<RecordingData>(automergeUrl, {
+    suspense: true,
+  })
   const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
   const blobEndpoints = useBlobEndpoints()
   // Pinning is only meaningful for bytes that live somewhere other than this

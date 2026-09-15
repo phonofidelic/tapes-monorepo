@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Repo } from '@automerge/automerge-repo'
-import { Button } from '@tapes-monorepo/ui'
+import { AppIcon, Button } from '@tapes-monorepo/ui'
 import {
   useView,
   navigationConfig,
@@ -13,6 +13,7 @@ import Providers from './context/Providers'
 import { AppContextValue } from './context/AppContext'
 import type { BlobEndpoint } from './blobClient'
 import type { EventHost } from './eventTarget'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 /**
  * The shared app tree. Each shell builds its own Automerge repo and passes it
@@ -55,18 +56,34 @@ export function App({
         eventTarget,
       }}
     >
-      <div className="relative flex h-full flex-col overflow-hidden">
-        <Navigation mainRef={mainRef} />
+      <div className="relative flex h-full touch-none flex-col overflow-hidden">
+        <span className="inline *:border-t-0 pointer-coarse:hidden">
+          <Navigation mainRef={mainRef} />
+        </span>
         {repoContextValue ? (
           <>
             <Main mainRef={mainRef} />
             <AudioPlayer />
           </>
         ) : (
-          'Loading repo...'
+          <ScreenLoader message="Loading repo..." />
         )}
+        <span className="hidden touch-none *:border-b-0 pointer-coarse:block">
+          <Navigation mainRef={mainRef} />
+        </span>
       </div>
     </Providers>
+  )
+}
+
+function ScreenLoader({ message = 'Loading...' }: { message: string }) {
+  return (
+    <div className="flex size-full flex-col items-center justify-center gap-2">
+      <div className="size-39 opacity-75">
+        <AppIcon />
+      </div>
+      <div className="text-muted w-full text-center text-lg/7">{message}</div>
+    </div>
   )
 }
 
@@ -79,9 +96,12 @@ function Navigation({
   const isScrolled = useIsScrolled(mainRef)
   return (
     <nav
-      className={clsx('sticky top-0 z-50 w-full bg-white dark:bg-zinc-900', {
-        'border-b dark:border-b-zinc-800': isScrolled,
-      })}
+      className={clsx(
+        'sticky top-0 z-50 w-full touch-none bg-white dark:bg-zinc-900',
+        {
+          'border-y dark:border-y-zinc-800': isScrolled,
+        },
+      )}
     >
       {/* The bar stays full-bleed so its background and border still span the
           window; only the tabs are held to the content column. Below `max-w-3xl`
@@ -121,7 +141,13 @@ function Main({
       ref={mainRef}
       className="relative box-content flex w-full flex-1 flex-col overflow-y-auto sm:mx-auto sm:max-w-3xl"
     >
-      {viewComponentMap[currentView]}
+      <Suspense
+        fallback={<ScreenLoader message={`Loading ${currentView}...`} />}
+      >
+        <ErrorBoundary fallback={<p>Something went wrong</p>}>
+          {viewComponentMap[currentView]}
+        </ErrorBoundary>
+      </Suspense>
     </main>
   )
 }
