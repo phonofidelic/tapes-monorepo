@@ -5,6 +5,8 @@
  * be exercised in tests without a browser or a running Electron host.
  */
 
+import { withDeviceLabel } from '@tapes-monorepo/core'
+
 export type SyncUrlEnv = {
   VITE_SYNC_SERVER_URL?: string
   VITE_SERVED_BY_HOST?: string
@@ -21,6 +23,7 @@ export function resolveSyncServerUrl({
   location,
   storage,
   token,
+  deviceLabel,
 }: {
   env: SyncUrlEnv
   location: SyncUrlLocation
@@ -31,6 +34,28 @@ export function resolveSyncServerUrl({
    * remote or build-time server is a different deployment with a different
    * secret, and sending this one there would just leak it.
    */
+  token?: string
+  /**
+   * What this device calls itself on the host's connection list. It is not a
+   * secret, so unlike the token it goes to whichever server we sync with.
+   */
+  deviceLabel?: string
+}): string | undefined {
+  const url = resolveServer({ env, location, storage, token })
+  // Every server this bundle reaches is told what to call this device, so the
+  // name is added once here rather than in each branch below.
+  return url === undefined ? undefined : withDeviceLabel(url, deviceLabel)
+}
+
+function resolveServer({
+  env,
+  location,
+  storage,
+  token,
+}: {
+  env: SyncUrlEnv
+  location: SyncUrlLocation
+  storage: Pick<Storage, 'getItem'>
   token?: string
 }): string | undefined {
   // 1. Build-time env var: the Vercel deploy path.

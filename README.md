@@ -36,6 +36,7 @@ pick a different one.
 | Package                             | Description                                                                       |
 | ----------------------------------- | --------------------------------------------------------------------------------- |
 | `@tapes-monorepo/core`              | The Tapes application itself: `App`, views, context, sync helpers and QR pairing. |
+| `@tapes-monorepo/sync-protocol`     | What a guest and a host must agree on to open a sync socket. Plain TypeScript.    |
 | `@tapes-monorepo/ui`                | Shared presentational React components, styled with Tailwind.                     |
 | `@tapes-monorepo/tailwind-config`   | Shared Tailwind theme.                                                            |
 | `@tapes-monorepo/eslint-config`     | Shared ESLint configurations.                                                     |

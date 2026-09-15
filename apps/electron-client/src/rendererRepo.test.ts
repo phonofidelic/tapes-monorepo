@@ -34,6 +34,36 @@ const stoppedServer: SyncServerInfo = {
 }
 
 describe('resolveSyncServerUrls', () => {
+  // The desktop app is a guest of its own embedded server too, so its own
+  // window has to be nameable in the list.
+  it('carries the device label on every url it resolves', () => {
+    expect(
+      resolveSyncServerUrls({
+        settings: {
+          syncServerMode: 'remote',
+          remoteSyncServerUrl: 'wss://sync.example.com/sync',
+          pairingToken: 'guest-token',
+        },
+        serverInfo: { ...runningServer, pairingToken: 'host-token' },
+        deviceLabel: 'Desk Mac',
+      }),
+    ).toEqual({
+      localUrl: 'ws://127.0.0.1:9001/?t=host-token&d=Desk+Mac',
+      remoteUrl: 'wss://sync.example.com/sync?t=guest-token&d=Desk+Mac',
+    })
+  })
+
+  it('labels the build-time server it falls back to', () => {
+    expect(
+      resolveSyncServerUrls({
+        settings: {},
+        serverInfo: stoppedServer,
+        envSyncServerUrl: 'wss://sync.example.com',
+        deviceLabel: 'Desk Mac',
+      }),
+    ).toEqual({ remoteUrl: 'wss://sync.example.com/?d=Desk+Mac' })
+  })
+
   // The embedded server checks the token on every upgrade, its own renderer
   // included, and the adapter's browser WebSocket cannot send a header.
   it('carries the pairing token on the embedded server url', () => {

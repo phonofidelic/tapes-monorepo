@@ -11,6 +11,7 @@ import type {
   RecordingRepoState,
   SyncServerInfo,
 } from '@tapes-monorepo/core'
+import { withDeviceLabel } from '@tapes-monorepo/core'
 
 /**
  * Where the renderer's repo syncs. The renderer holds no storage of its own.
@@ -100,14 +101,29 @@ function withPairingToken(url: string, token?: string): string {
   return withToken.toString()
 }
 
+/**
+ * Adds this device's name to a sync url. The embedded server gets it too. The
+ * host's own window is a connection like any other, and a list that cannot
+ * name it looks broken.
+ */
+function labelled(url: string | undefined, label?: string): string | undefined {
+  return url === undefined ? undefined : withDeviceLabel(url, label)
+}
+
 export function resolveSyncServerUrls({
   settings,
   serverInfo,
   envSyncServerUrl,
+  deviceLabel,
 }: {
   settings: SyncSettings
   serverInfo: SyncServerInfo | undefined
   envSyncServerUrl?: string
+  /**
+   * The name this device presents on the socket handshake. The caller resolves
+   * it, so this function stays pure.
+   */
+  deviceLabel?: string
 }): SyncServerUrls {
   // The embedded server verifies the pairing token on the upgrade, so even
   // its own renderer has to present it. `?t=` rather than a bearer header
@@ -129,10 +145,13 @@ export function resolveSyncServerUrls({
   // No embedded server means nothing persists this session, so fall back to the
   // build-time server rather than leaving the app with no peer at all.
   if (!localUrl && !remoteUrl && envSyncServerUrl) {
-    return { remoteUrl: envSyncServerUrl }
+    return { remoteUrl: labelled(envSyncServerUrl, deviceLabel) }
   }
 
-  return { localUrl, remoteUrl }
+  return {
+    localUrl: labelled(localUrl, deviceLabel),
+    remoteUrl: labelled(remoteUrl, deviceLabel),
+  }
 }
 
 export function buildRendererNetwork({
@@ -247,6 +266,9 @@ const SYNC_SETTING_KEYS: ReadonlySet<string> = new Set([
   'pairingToken',
   'syncServerLanEnabled',
   'syncServerHttpsEnabled',
+  // The name rides the handshake, so renaming the device changes the url.
+  // Rebuilding is how the host learns the new name without a restart.
+  'deviceLabel',
 ])
 
 export function isSyncSetting(key: string): boolean {

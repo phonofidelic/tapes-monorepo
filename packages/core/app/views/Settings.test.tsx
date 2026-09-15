@@ -203,3 +203,50 @@ describe('Settings: the guest link to the trust page', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+describe('Settings: naming this device', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/')
+  })
+
+  afterEach(cleanup)
+
+  const rename = async (name: string) => {
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText("This device's name"), name)
+    await user.click(screen.getByTitle('Save device name'))
+  }
+
+  it('stores the name this device presents on the sync handshake', async () => {
+    renderSettings()
+
+    await rename('Studio iPad')
+
+    expect(readSettings().deviceLabel).toBe('Studio iPad')
+  })
+
+  it('stores nothing for an empty name, so the default applies again', async () => {
+    localStorage.setItem(
+      'settings',
+      JSON.stringify({ deviceLabel: 'Studio iPad' }),
+    )
+    renderSettings()
+    const user = userEvent.setup()
+
+    await user.clear(screen.getByLabelText("This device's name"))
+    await user.click(screen.getByTitle('Save device name'))
+
+    expect(readSettings()).not.toHaveProperty('deviceLabel')
+  })
+
+  // The name is display text on someone else's screen. What it can contain is
+  // decided before it is stored.
+  it('sanitizes the name before storing it', async () => {
+    renderSettings()
+
+    await rename('  Studio   iPad  ')
+
+    expect(readSettings().deviceLabel).toBe('Studio iPad')
+  })
+})

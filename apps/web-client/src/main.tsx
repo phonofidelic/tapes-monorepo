@@ -4,6 +4,7 @@ import {
   App,
   RecordingRepoState,
   resolveBlobEndpoints,
+  resolveDeviceLabel,
   resolveEventTarget,
   useAutomergeUrl,
 } from '@tapes-monorepo/core'
@@ -64,11 +65,20 @@ function capturePairingToken(): string | undefined {
 // this token on the socket upgrade, not just on `/blobs`.
 const pairingToken = capturePairingToken()
 
+// Read here for the same reason as the token. The name has to be on the
+// socket's upgrade request. It is the user's own name when they set one, and a
+// derived "iPhone · Safari" otherwise.
+const deviceLabel = resolveDeviceLabel({
+  storage: window.localStorage,
+  navigator: window.navigator,
+})
+
 const syncServerUrl = resolveSyncServerUrl({
   env: import.meta.env,
   location: window.location,
   storage: window.localStorage,
   token: pairingToken,
+  deviceLabel,
 })
 
 // Where this bundle sends and fetches recorded audio. Same shape as the sync

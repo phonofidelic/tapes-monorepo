@@ -17,17 +17,20 @@ function resolve({
   location = HTTP,
   settings,
   token,
+  deviceLabel,
 }: {
   env?: SyncUrlEnv
   location?: SyncUrlLocation
   settings?: string
   token?: string
+  deviceLabel?: string
 } = {}) {
   return resolveSyncServerUrl({
     env,
     location,
     storage: storageWith(settings),
     token,
+    deviceLabel,
   })
 }
 
@@ -131,5 +134,40 @@ describe('resolveSyncServerUrl', () => {
         token: 'host-token',
       }),
     ).toBe('ws://stored:1234')
+  })
+})
+
+// The host names a connection from what arrives on the upgrade request, so the
+// label has to be on whichever url this chain resolves, not just on the
+// same-origin one.
+describe('the device label', () => {
+  it('rides the same-origin url alongside the token', () => {
+    expect(
+      resolve({
+        env: { VITE_SERVED_BY_HOST: 'true' },
+        location: HTTPS,
+        token: 'secret',
+        deviceLabel: 'Studio iPad',
+      }),
+    ).toBe('wss://lan-host:3000/sync?t=secret&d=Studio+iPad')
+  })
+
+  it('rides a remote server the user configured', () => {
+    expect(
+      resolve({
+        settings: JSON.stringify({ remoteSyncServerUrl: 'ws://stored:1234' }),
+        deviceLabel: 'Studio iPad',
+      }),
+    ).toBe('ws://stored:1234/?d=Studio+iPad')
+  })
+
+  it('leaves the url alone when there is no label', () => {
+    expect(
+      resolve({ env: { VITE_SYNC_SERVER_URL: 'wss://sync.example.com' } }),
+    ).toBe('wss://sync.example.com')
+  })
+
+  it('adds nothing when there is no server to reach', () => {
+    expect(resolve({ deviceLabel: 'Studio iPad' })).toBeUndefined()
   })
 })

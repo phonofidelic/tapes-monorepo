@@ -92,6 +92,7 @@
     "@automerge/automerge-repo-storage-nodefs": "^2.0.0",
     "@dotenvx/dotenvx": "^2.0.0",
     "@tapes-monorepo/core": "*",
+    "@tapes-monorepo/sync-protocol": "*",
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
     "node-forge": "^1.3.1",

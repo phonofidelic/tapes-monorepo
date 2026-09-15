@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { WebSocket } from 'ws'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { startSyncServer, stopSyncServer } from './syncServer'
 
 let storagePath: string | undefined
@@ -91,5 +91,45 @@ describe('startSyncServer', () => {
         connect(`${info.url}/sync`, { authorization: `Bearer ${token}` }),
       ).resolves.toBeUndefined()
     })
+  })
+})
+
+// The name is read on the upgrade request, so the host has one for every
+// connection it accepts.
+describe('guest device labels', () => {
+  it('names a guest by the label on its upgrade request', async () => {
+    const info = await startForTest()
+    const logged = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    await connect(`${info.url}/sync?d=Studio%20iPad`)
+
+    expect(logged).toHaveBeenCalledWith('Sync guest connected: Studio iPad')
+    logged.mockRestore()
+  })
+
+  it('names a guest that sent nothing usable', async () => {
+    const info = await startForTest()
+    const logged = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    await connect(`${info.url}/sync?d=%20`)
+
+    expect(logged).toHaveBeenCalledWith('Sync guest connected: Unnamed device')
+    logged.mockRestore()
+  })
+
+  // A guest chooses this string, and it lands in a log line.
+  it('strips control characters out of a label before logging it', async () => {
+    const info = await startForTest()
+    const logged = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const forged = encodeURIComponent(
+      `iPad${String.fromCharCode(0x0a)}Sync guest connected: host`,
+    )
+
+    await connect(`${info.url}/sync?d=${forged}`)
+
+    expect(logged).toHaveBeenCalledWith(
+      'Sync guest connected: iPad Sync guest connected: host',
+    )
+    logged.mockRestore()
   })
 })
