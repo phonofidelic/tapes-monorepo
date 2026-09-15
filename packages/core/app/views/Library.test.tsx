@@ -116,7 +116,7 @@ vi.mock('@automerge/automerge-repo-react-hooks', () => ({
 }))
 
 vi.mock('@/utils', () => ({
-  useAutomergeUrl: () => ({ automergeUrl: REPO_URL }),
+  useRequiredAutomergeUrl: () => ({ automergeUrl: REPO_URL }),
 }))
 
 vi.mock('@/context/AudioPlayerContext', () => ({

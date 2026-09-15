@@ -46,7 +46,7 @@ vi.mock('@automerge/automerge-repo', () => ({
 }))
 
 vi.mock('@/utils', () => ({
-  useAutomergeUrl: () => ({ automergeUrl: REPO_URL }),
+  useRequiredAutomergeUrl: () => ({ automergeUrl: REPO_URL }),
   getAudioStream: vi.fn(),
 }))
 

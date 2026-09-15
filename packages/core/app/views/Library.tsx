@@ -21,10 +21,10 @@ import { usePins } from '@/context/PinContext'
 import { deleteBlobEverywhere } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
 import { PlaybackSummary } from '@/components/PlaybackSummary'
-import { useAutomergeUrl } from '@/utils'
+import { useRequiredAutomergeUrl } from '@/utils'
 
 export function Library() {
-  const { automergeUrl } = useAutomergeUrl()
+  const { automergeUrl } = useRequiredAutomergeUrl()
   const [docState, changeDocState] = useDocument<RecordingRepoState>(
     automergeUrl,
     { suspense: true },
