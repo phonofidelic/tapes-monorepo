@@ -7,6 +7,15 @@ declare global {
     api: {
       send(channel: ValidIpcChanel, data: IpcRequest): void
       receive(channel: string, func: (...args: unknown[]) => void): void
+      /**
+       * Listens for a main-process event. Unlike `receive`, which waits for the
+       * one response to a request this renderer made, these arrive unprompted
+       * and repeatedly. Returns the unsubscribe.
+       */
+      subscribe(
+        event: ValidIpcEvent,
+        func: (...args: unknown[]) => void,
+      ): () => void
     }
   }
 }
@@ -20,6 +29,7 @@ export type ValidIpcChanel =
   | 'recorder:start'
   | 'recorder:stop'
   | 'sync:get-server-info'
+  | 'sync:get-connected-devices'
   | 'sync:set-lan-enabled'
   | 'sync:set-https-enabled'
   | 'blob:put-file'
@@ -54,6 +64,64 @@ export type SyncServerInfo = {
   port: number
   host: string
 }
+
+/**
+ * Events the main process pushes to the renderer, unasked.
+ *
+ * Deliberately one entry. The request/response surface above covers everything
+ * the renderer pulls; this exists only for state that changes on its own, and
+ * generalising it into an event bus for a single consumer would buy nothing.
+ */
+export type ValidIpcEvent = 'sync:connected-devices'
+
+/**
+ * One device connected to this host's sync server right now.
+ *
+ * Mirrors the host-side registry's shape, the way `SyncServerInfo` mirrors the
+ * server's. Core never constructs one; it only renders what the host sends.
+ */
+export type SyncConnection = {
+  /** Stable for the life of the connection. Not a device identity. */
+  id: string
+  /**
+   * The name the guest gave on the handshake, already sanitized. Undefined
+   * when it sent nothing usable, so the UI picks what to show instead.
+   */
+  label?: string
+  /** Remote address of the socket, for telling same-named devices apart. */
+  address?: string
+  /** Epoch milliseconds, for "connected 3 minutes ago". */
+  connectedAt: number
+  /** This host's own window rather than a guest. */
+  self: boolean
+}
+
+/**
+ * The connected-device list, or the reason there isn't one.
+ *
+ * A union rather than a bare array on purpose. An empty array means the host
+ * asked its registry and nobody is connected; a failure means it could not
+ * ask. Those look identical to a user shown a blank panel and mean opposite
+ * things, so the caller has to handle them apart — see TAP-88, where a toggle
+ * that returned nothing failed silently.
+ */
+export type GetConnectedDevicesResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { connections: SyncConnection[] }
+      error: never
+    }
+
+/**
+ * The payload of a `sync:connected-devices` event: the whole new list, not a
+ * delta. A renderer that misses one is corrected by the next.
+ */
+export type ConnectedDevicesEvent = { connections: SyncConnection[] }
 
 type IpcRequest = {
   responseChannel?: string
@@ -191,6 +259,7 @@ type IpcSendArgs =
     ]
   | ['recorder:stop', IpcRequest]
   | ['sync:get-server-info']
+  | ['sync:get-connected-devices']
   | ['sync:set-lan-enabled', IpcRequest & { data: { enabled: boolean } }]
   | ['sync:set-https-enabled', IpcRequest & { data: { enabled: boolean } }]
   | [
@@ -255,6 +324,33 @@ export class IpcService {
           resolve(args[0] as T)
         },
       )
+    })
+  }
+
+  /**
+   * Listens for a main-process event and returns the unsubscribe.
+   *
+   * `send` is a question with one answer; this is a subscription to state that
+   * changes on its own. Nothing here resolves or rejects, so a caller waiting
+   * for a first value must ask for it with `send` as well — subscribe first,
+   * then request the snapshot, or a change landing between the two is lost.
+   */
+  public subscribe<T>(
+    event: ValidIpcEvent,
+    listener: (payload: T) => void,
+  ): () => void {
+    if (!this.ipcRenderer) {
+      this.initializeIpcRenderer()
+    }
+
+    if (!this.ipcRenderer) {
+      throw new Error(
+        `Unable to subscribe to ipc event: ipcRenderer was not initialized.`,
+      )
+    }
+
+    return this.ipcRenderer.subscribe(event, (...args: unknown[]) => {
+      listener(args[0] as T)
     })
   }
 }
