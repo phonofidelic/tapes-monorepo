@@ -26,6 +26,14 @@ import { createEventRequestHandler } from './eventHttp'
 import { createCaRequestHandler, TRUST_PAGE_PATH } from './caHttp'
 import { isAuthorized } from './tokenAuth'
 import { readDeviceLabel, UNNAMED_DEVICE_LABEL } from './deviceLabel'
+import {
+  createSyncConnectionRegistry,
+  type SyncConnection,
+  type SyncConnectionRegistry,
+} from './syncConnections'
+import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
+
+export type { SyncConnection } from './syncConnections'
 
 export const DEFAULT_SYNC_SERVER_PORT = 9001
 
@@ -131,6 +139,7 @@ type RunningSyncServer = {
   repo: Repo
   wss: WebSocketServer
   server: http.Server
+  connections: SyncConnectionRegistry
   blobStore?: BlobStore
   eventStore?: EventStore
   aggregateStore?: AggregateStore
@@ -147,6 +156,43 @@ export function getSyncServerInfo(): SyncServerInfo {
       host: '',
     }
   )
+}
+
+/**
+ * Listeners on the connection list. They live at module scope rather than on
+ * the running server, so a subscriber set up once at startup keeps hearing
+ * changes across a restart of the server (the LAN and HTTPS toggles both
+ * restart it). An empty list is emitted while nothing is running.
+ */
+const connectionListeners = new Set<(connections: SyncConnection[]) => void>()
+
+function emitConnections(connections: SyncConnection[]) {
+  for (const listener of connectionListeners) {
+    try {
+      listener(connections)
+    } catch (error) {
+      console.error('Sync connection listener failed:', error)
+    }
+  }
+}
+
+/** Who is connected to the running host right now, oldest first. */
+export function getSyncConnections(): SyncConnection[] {
+  return current?.connections.list() ?? []
+}
+
+/**
+ * Subscribes to connects, disconnects and keepalive evictions. Returns the
+ * unsubscribe. The listener is not called with the current list on
+ * subscription; pair it with `getSyncConnections` for the snapshot.
+ */
+export function onSyncConnectionsChange(
+  listener: (connections: SyncConnection[]) => void,
+): () => void {
+  connectionListeners.add(listener)
+  return () => {
+    connectionListeners.delete(listener)
+  }
 }
 
 /**
@@ -378,6 +424,18 @@ function createKnownRecordingCheck(storagePath: string) {
   }
 }
 
+/**
+ * Whether an address is this machine talking to itself. Used only to qualify a
+ * self-reported host claim, never to authorize anything.
+ */
+function isLoopback(address?: string): boolean {
+  return (
+    address === '127.0.0.1' ||
+    address === '::1' ||
+    address === '::ffff:127.0.0.1'
+  )
+}
+
 function listen(server: http.Server, host: string, port: number) {
   return new Promise<number>((resolve, reject) => {
     const onError = (error: NodeJS.ErrnoException) => {
@@ -550,6 +608,27 @@ export async function startSyncServer(
     })
   })
 
+  const connections = createSyncConnectionRegistry({
+    onChange: emitConnections,
+  })
+
+  // Registered on the server's own `connection` event, not inside the upgrade
+  // handler above, so the registry holds exactly the sockets the server
+  // considers open. The name and the host claim are read off the same request,
+  // as they were at upgrade.
+  wss.on('connection', (socket, request) => {
+    const url = new URL(request.url ?? '/', 'http://localhost')
+    connections.add(socket, {
+      label: readDeviceLabel(request, url),
+      address: request.socket.remoteAddress,
+      // A guest can send the claim too, so it only counts from loopback. That
+      // still admits another program on this machine, which is the honest
+      // answer anyway: the row means this machine, not this window.
+      self:
+        hasHostClientMarker(url) && isLoopback(request.socket.remoteAddress),
+    })
+  })
+
   // The adapter types its server via isomorphic-ws, which is the same ws
   // class at runtime but a structurally incompatible type.
   const adapterServer = wss as unknown as ConstructorParameters<
@@ -605,6 +684,7 @@ export async function startSyncServer(
     repo,
     wss,
     server,
+    connections,
     blobStore,
     eventStore,
     aggregateStore,
@@ -619,8 +699,12 @@ export async function stopSyncServer(): Promise<void> {
   if (!current) {
     return
   }
-  const { repo, wss, server } = current
+  const { repo, wss, server, connections } = current
   current = null
+
+  // Before the sockets are torn down, so the list empties once rather than
+  // draining socket by socket as each `close` fires.
+  connections.close()
 
   await repo.flush()
   for (const client of wss.clients) {

@@ -12,6 +12,7 @@ import type {
   SyncServerInfo,
 } from '@tapes-monorepo/core'
 import { withDeviceLabel } from '@tapes-monorepo/core'
+import { withHostClientMarker } from '@tapes-monorepo/sync-protocol'
 
 /**
  * Where the renderer's repo syncs. The renderer holds no storage of its own.
@@ -128,8 +129,13 @@ export function resolveSyncServerUrls({
   // The embedded server verifies the pairing token on the upgrade, so even
   // its own renderer has to present it. `?t=` rather than a bearer header
   // because the adapter builds a browser `WebSocket`, which cannot set one.
+  // Marked as the host's own client so the embedded server can tell this
+  // window apart from the guests it is listing. The mark only reaches the
+  // local url: on a remote host this app is a guest like any other.
   const localUrl = serverInfo?.running
-    ? withPairingToken(serverInfo.url, serverInfo.pairingToken)
+    ? withHostClientMarker(
+        withPairingToken(serverInfo.url, serverInfo.pairingToken),
+      )
     : undefined
 
   // A remote Tapes host guards its socket the same way ours does, so present
