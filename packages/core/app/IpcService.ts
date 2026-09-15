@@ -7,6 +7,14 @@ declare global {
     api: {
       send(channel: ValidIpcChanel, data: IpcRequest): void
       receive(channel: string, func: (...args: unknown[]) => void): void
+      /**
+       * Listens for a main-process event. These arrive unprompted and repeat.
+       * A response listener fires once instead. Returns the unsubscribe.
+       */
+      subscribe(
+        event: ValidIpcEvent,
+        func: (...args: unknown[]) => void,
+      ): () => void
     }
   }
 }
@@ -20,6 +28,7 @@ export type ValidIpcChanel =
   | 'recorder:start'
   | 'recorder:stop'
   | 'sync:get-server-info'
+  | 'sync:get-connected-devices'
   | 'sync:set-lan-enabled'
   | 'sync:set-https-enabled'
   | 'blob:put-file'
@@ -54,6 +63,61 @@ export type SyncServerInfo = {
   port: number
   host: string
 }
+
+/**
+ * Events the main process sends to the renderer.
+ *
+ * One entry on purpose. The channels above cover everything the renderer asks
+ * for. This is only for state that changes on its own.
+ */
+export type ValidIpcEvent = 'sync:connected-devices'
+
+/**
+ * One device connected to this host's sync server.
+ *
+ * Mirrors the shape the host's connection registry keeps. Core only renders
+ * these. It never builds one.
+ */
+export type SyncConnection = {
+  /** Stable for the life of the connection. Not a device identity. */
+  id: string
+  /**
+   * The name the guest gave on the handshake, already sanitized. Undefined
+   * when it sent nothing usable, so the UI picks what to show instead.
+   */
+  label?: string
+  /** Remote address of the socket, for telling same-named devices apart. */
+  address?: string
+  /** Epoch milliseconds, for "connected 3 minutes ago". */
+  connectedAt: number
+  /** This host's own window rather than a guest. */
+  self: boolean
+}
+
+/**
+ * The connected-device list, or the reason there is none.
+ *
+ * A union rather than a bare array. An empty array means the host read its
+ * registry and nobody is connected. A failure means it could not read it. Both
+ * show as a blank panel, so callers must tell them apart.
+ */
+export type GetConnectedDevicesResponse =
+  | {
+      success: false
+      data: never
+      error: Error
+    }
+  | {
+      success: true
+      data: { connections: SyncConnection[] }
+      error: never
+    }
+
+/**
+ * The payload of a connected-devices event. It carries the whole new list
+ * rather than a delta, so a renderer that misses one recovers on the next.
+ */
+export type ConnectedDevicesEvent = { connections: SyncConnection[] }
 
 type IpcRequest = {
   responseChannel?: string
@@ -191,6 +255,7 @@ type IpcSendArgs =
     ]
   | ['recorder:stop', IpcRequest]
   | ['sync:get-server-info']
+  | ['sync:get-connected-devices']
   | ['sync:set-lan-enabled', IpcRequest & { data: { enabled: boolean } }]
   | ['sync:set-https-enabled', IpcRequest & { data: { enabled: boolean } }]
   | [
@@ -255,6 +320,32 @@ export class IpcService {
           resolve(args[0] as T)
         },
       )
+    })
+  }
+
+  /**
+   * Listens for a main-process event and returns the unsubscribe.
+   *
+   * Nothing here resolves or rejects. A caller that needs a starting value must
+   * also request one with `send`. Subscribe first and request second. A change
+   * that lands between the two is otherwise lost.
+   */
+  public subscribe<T>(
+    event: ValidIpcEvent,
+    listener: (payload: T) => void,
+  ): () => void {
+    if (!this.ipcRenderer) {
+      this.initializeIpcRenderer()
+    }
+
+    if (!this.ipcRenderer) {
+      throw new Error(
+        `Unable to subscribe to ipc event: ipcRenderer was not initialized.`,
+      )
+    }
+
+    return this.ipcRenderer.subscribe(event, (...args: unknown[]) => {
+      listener(args[0] as T)
     })
   }
 }

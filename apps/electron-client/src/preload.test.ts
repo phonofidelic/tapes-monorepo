@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { ValidIpcChanel } from '@tapes-monorepo/core'
+import type { ValidIpcChanel, ValidIpcEvent } from '@tapes-monorepo/core'
 
 /**
  * The renderer never reaches the main process directly: every request goes
@@ -15,15 +15,23 @@ import type { ValidIpcChanel } from '@tapes-monorepo/core'
  * that a rejected one fails loudly instead of being dropped.
  */
 
-const { send, on } = vi.hoisted(() => ({ send: vi.fn(), on: vi.fn() }))
+const { send, on, removeListener } = vi.hoisted(() => ({
+  send: vi.fn(),
+  on: vi.fn(),
+  removeListener: vi.fn(),
+}))
 
 let exposed: {
   send: (channel: ValidIpcChanel, data: unknown) => void
   receive: (channel: string, func: (...args: unknown[]) => void) => void
+  subscribe: (
+    event: ValidIpcEvent,
+    func: (...args: unknown[]) => void,
+  ) => () => void
 }
 
 vi.mock('electron', () => ({
-  ipcRenderer: { send, on },
+  ipcRenderer: { send, on, removeListener },
   contextBridge: {
     exposeInMainWorld: (_key: string, api: typeof exposed) => {
       exposed = api
@@ -34,6 +42,7 @@ vi.mock('electron', () => ({
 beforeEach(async () => {
   send.mockClear()
   on.mockClear()
+  removeListener.mockClear()
   vi.resetModules()
   await import('./preload')
 })
@@ -101,6 +110,73 @@ describe('the ipc bridge', () => {
     expect(() =>
       exposed.receive('attacker:blob:put-file:response:1', vi.fn()),
     ).toThrow(/unknown channel/)
+    expect(on).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Main-process events are the other half of the bridge. They are not responses:
+ * nothing asked for them, they arrive repeatedly, and they carry no
+ * `:response:<timestamp>` suffix — so `receive`'s patterns reject them and they
+ * need their own allowlist.
+ */
+describe('the ipc event bridge', () => {
+  it('registers a listener for an allowed event', () => {
+    const listener = vi.fn()
+
+    exposed.subscribe('sync:connected-devices', listener)
+
+    expect(on).toHaveBeenCalledWith(
+      'sync:connected-devices',
+      expect.any(Function),
+    )
+  })
+
+  it('hands the listener the payload without the sender', () => {
+    const listener = vi.fn()
+    exposed.subscribe('sync:connected-devices', listener)
+    const [, forward] = on.mock.calls[0] as [
+      string,
+      (event: unknown, ...args: unknown[]) => void,
+    ]
+
+    forward(
+      { sender: 'the whole main-process webContents' },
+      {
+        connections: [],
+      },
+    )
+
+    expect(listener).toHaveBeenCalledWith({ connections: [] })
+  })
+
+  // Without an unsubscribe, every remount of the panel adds another listener to
+  // the same event and the renderer leaks them for the life of the window.
+  it('returns an unsubscribe that removes the listener it added', () => {
+    const stop = exposed.subscribe('sync:connected-devices', vi.fn())
+    const [, forward] = on.mock.calls[0] as [string, () => void]
+
+    stop()
+
+    expect(removeListener).toHaveBeenCalledWith(
+      'sync:connected-devices',
+      forward,
+    )
+  })
+
+  it('throws on an event it did not authorise', () => {
+    expect(() =>
+      exposed.subscribe('sync:everything' as ValidIpcEvent, vi.fn()),
+    ).toThrow(/unknown event/)
+    expect(on).not.toHaveBeenCalled()
+  })
+
+  // The two allowlists stay separate: a request channel is not something the
+  // renderer may sit and listen on.
+  it('throws when a request channel is subscribed to as an event', () => {
+    expect(() =>
+      exposed.subscribe('sync:get-connected-devices' as ValidIpcEvent, vi.fn()),
+    ).toThrow(/unknown event/)
     expect(on).not.toHaveBeenCalled()
   })
 })

@@ -2,7 +2,7 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ValidIpcChanel } from '@tapes-monorepo/core'
+import type { ValidIpcChanel, ValidIpcEvent } from '@tapes-monorepo/core'
 
 // A Record keyed by the union rather than a hand-kept array: a channel added
 // to `ValidIpcChanel` and forgotten here is a `check-types` failure instead of
@@ -19,6 +19,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'recorder:start': true,
   'recorder:stop': true,
   'sync:get-server-info': true,
+  'sync:get-connected-devices': true,
   'sync:set-lan-enabled': true,
   'sync:set-https-enabled': true,
   'blob:put-file': true,
@@ -28,7 +29,18 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'events:get-aggregates': true,
 }
 
+// Main-process events the renderer may listen for. These are not responses.
+// They carry no response suffix and arrive repeatedly, so the patterns below
+// reject them and they need their own list. Keyed by the union for the same
+// reason as the channels. An event forgotten here fails check-types instead of
+// becoming a listener that never fires.
+const EVENT_ALLOWLIST: Record<ValidIpcEvent, true> = {
+  'sync:connected-devices': true,
+}
+
 const validChannels = Object.keys(CHANNEL_ALLOWLIST) as ValidIpcChanel[]
+
+const validEvents = Object.keys(EVENT_ALLOWLIST) as ValidIpcEvent[]
 
 const validResponseChannels = validChannels.map(
   (channel) => `${channel}:response:.*`,
@@ -56,6 +68,21 @@ const api = {
     ipcRenderer.on(channel, (_event, ...args: unknown[]) =>
       func(...(args as Parameters<typeof func>)),
     )
+  },
+  subscribe: (event: ValidIpcEvent, func: (...args: unknown[]) => void) => {
+    if (!validEvents.includes(event)) {
+      throw new Error(`Blocked ipc listener on unknown event: ${event}`)
+    }
+    // Deliberately strip event as it includes `sender`
+    const forward = (_event: unknown, ...args: unknown[]) =>
+      func(...(args as Parameters<typeof func>))
+    ipcRenderer.on(event, forward)
+    // An unsubscribe, which a response listener never needs. That one fires
+    // once and the request is over. Without this, every remount of a panel adds
+    // another listener for the life of the window.
+    return () => {
+      ipcRenderer.removeListener(event, forward)
+    }
   },
 }
 

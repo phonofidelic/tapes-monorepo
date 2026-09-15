@@ -12,6 +12,7 @@ import { IpcChannel } from './types'
 import { cacheServer } from './cacheServer'
 import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
+import { startConnectedDevicesPush } from './connectedDevicesPush'
 import { isSyncServerCert } from './certManager'
 import { filepathFromTapesUrl, hashFromTapesBlobUrl } from './protocolUrls'
 
@@ -79,6 +80,7 @@ export class MainWindow {
     app.on('will-quit', this.onWillQuit)
     this.registerSyncServerCertTrust()
     this.registerIpcChannels(ipcChannels)
+    this.startConnectedDevicesPush()
   }
 
   // When the embedded sync server runs over HTTPS, the host's own renderer
@@ -155,6 +157,21 @@ export class MainWindow {
     }
   }
 
+  private stopConnectedDevicesPush?: () => void
+
+  /**
+   * Forwards connection changes to the renderer as they happen.
+   *
+   * Subscribed once at startup rather than per server. The LAN and HTTPS
+   * toggles both restart the sync server, and a subscription tied to a running
+   * one would go quiet after the first toggle.
+   */
+  private startConnectedDevicesPush() {
+    this.stopConnectedDevicesPush = startConnectedDevicesPush(
+      () => this.window?.webContents,
+    )
+  }
+
   private registerIpcChannels(ipcChannels: IpcChannel[]) {
     ipcMain.setMaxListeners(1)
 
@@ -182,6 +199,7 @@ export class MainWindow {
     }
     event.preventDefault()
     this.syncServerStopped = true
+    this.stopConnectedDevicesPush?.()
     stopSyncServer()
       .catch((error) => {
         console.error('Failed to stop sync server:', error)

@@ -10,6 +10,11 @@ export * from './app/blobUpload'
 export * from './app/deviceLabel'
 export { useAutomergeUrl } from './app/utils'
 export {
+  useConnectedDevices,
+  type ConnectedDevicesState,
+  type ConnectedDevicesStatus,
+} from './app/useConnectedDevices'
+export {
   useAggregates,
   useRecordingPlayback,
   type RecordingPlayback,
