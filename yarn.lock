@@ -5738,6 +5738,7 @@ __metadata:
     "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/sync-protocol": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
     "@tapes-monorepo/ui": "npm:*"
@@ -5784,6 +5785,22 @@ __metadata:
     globals: "npm:^17.0.0"
     typescript: "npm:^6.0.0"
     typescript-eslint: "npm:^8.15.0"
+  languageName: unknown
+  linkType: soft
+
+"@tapes-monorepo/sync-protocol@npm:*, @tapes-monorepo/sync-protocol@workspace:packages/sync-protocol":
+  version: 0.0.0-use.local
+  resolution: "@tapes-monorepo/sync-protocol@workspace:packages/sync-protocol"
+  dependencies:
+    "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/typescript-config": "npm:*"
+    "@types/node": "npm:^24.0.0"
+    eslint: "npm:^9.16.0"
+    rollup: "npm:^4.62.2"
+    typescript: "npm:6.0.3"
+    vite: "npm:^8.1.5"
+    vite-plugin-dts: "npm:^5.0.3"
+    vitest: "npm:^3.0.0"
   languageName: unknown
   linkType: soft
 
@@ -9563,6 +9580,7 @@ __metadata:
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@tapes-monorepo/core": "npm:*"
     "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/sync-protocol": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
     "@types/electron-squirrel-startup": "npm:^1.0.2"

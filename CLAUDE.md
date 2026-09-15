@@ -18,6 +18,10 @@ agent needs on top of that:
 
 - `packages/core` — the Tapes app itself (`app/`), plus sync and QR pairing.
   Mounted by both `web-client` and the electron renderer.
+- `packages/sync-protocol` — what a guest and a host must agree on to open a
+  sync socket. Plain TypeScript, no React, no Node. The Electron main process
+  cannot import `core` (its entry is the React app), so shared wire rules live
+  here instead of being copied into both sides.
 - `packages/ui` — shared React components. `packages/{eslint,tailwind,typescript}-config` — shared config.
 - `apps/web-client` — browser shell. Owns mic capture and a Playwright e2e suite.
 - `apps/electron-client` — desktop host. Embedded sync server, native audio,

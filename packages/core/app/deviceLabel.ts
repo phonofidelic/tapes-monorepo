@@ -5,38 +5,27 @@
  * host needs it before any document traffic, and a browser cannot set headers
  * on a WebSocket.
  *
+ * The cap, the parameter name and the sanitizer live in
+ * `@tapes-monorepo/sync-protocol`, because the host applies the same rules to
+ * whatever arrives and the two must not drift. What is here is the guest half:
+ * deriving a default, reading the user's own name, and putting it on a url.
+ *
  * The name is self-reported and unverified. Two devices can claim the same one.
- * The host re-sanitizes whatever arrives (see the electron client's own
- * `deviceLabel.ts`).
  */
 
-/** Long enough for a name like "Studio iPad", short enough to list. */
-export const MAX_DEVICE_LABEL_LENGTH = 64
+export {
+  DEVICE_LABEL_PARAM,
+  MAX_DEVICE_LABEL_LENGTH,
+  sanitizeDeviceLabel,
+} from '@tapes-monorepo/sync-protocol'
+
+import {
+  DEVICE_LABEL_PARAM,
+  sanitizeDeviceLabel,
+} from '@tapes-monorepo/sync-protocol'
 
 /** Used when nothing can be derived and the user has set nothing. */
 export const FALLBACK_DEVICE_LABEL = 'Unknown device'
-
-/**
- * Reduces a label to one line of plain text. Returns undefined when nothing
- * printable is left, so the caller can fall back instead of showing a blank
- * name.
- */
-export function sanitizeDeviceLabel(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined
-  }
-  const cleaned = value
-    // Cc is the control characters, Cf the invisible formatting ones, Zl and Zp
-    // the line and paragraph separators. Stripping them stops a name from
-    // forging a log line or reordering the text around it.
-    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_DEVICE_LABEL_LENGTH)
-    // Cutting by code unit can leave a trailing space or half a surrogate pair.
-    .replace(/[\s\p{Cs}]+$/gu, '')
-  return cleaned.length > 0 ? cleaned : undefined
-}
 
 /** The parts of `navigator` this derivation reads. */
 export type DeviceLabelNavigator = {
@@ -150,9 +139,6 @@ export function readStoredDeviceLabel(
   }
   return sanitizeDeviceLabel((parsed as { deviceLabel?: unknown }).deviceLabel)
 }
-
-/** Query parameter carrying the name on the upgrade request. */
-export const DEVICE_LABEL_PARAM = 'd'
 
 /**
  * Adds the name to a sync server url. A no-op when there is no usable name, so

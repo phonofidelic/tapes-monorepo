@@ -1,0 +1,40 @@
+{
+  "name": "@tapes-monorepo/sync-protocol",
+  "version": "0.0.0",
+  "type": "module",
+  "files": [
+    "package.json",
+    "dist"
+  ],
+  "sideEffects": false,
+  "main": "./dist/sync-protocol.js",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "default": "./dist/sync-protocol.js"
+    }
+  },
+  "types": "./dist/lib/index.d.ts",
+  "private": true,
+  "scripts": {
+    "lint": "eslint .",
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "dev:https": "vite build --watch",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@tapes-monorepo/eslint-config": "*",
+    "@tapes-monorepo/typescript-config": "*",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.16.0",
+    "rollup": "^4.62.2",
+    "typescript": "6.0.3",
+    "vite": "^8.1.5",
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^3.0.0"
+  }
+}
