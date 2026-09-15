@@ -5,6 +5,7 @@ import {
   IpcService,
   SyncServerInfo,
   resolveBlobEndpoints,
+  resolveDeviceLabel,
   resolveEventTarget,
   sameEventTarget,
   subscribeToSettingsChange,
@@ -70,6 +71,9 @@ function ElectronAppRoot() {
           settings,
           serverInfo: info,
           envSyncServerUrl: import.meta.env.VITE_SYNC_SERVER_URL,
+          // Read on every resolve. Renaming the device is a sync setting, so
+          // the write lands here and the repo reconnects with the new name.
+          deviceLabel: resolveDeviceLabel({ storage: localStorage, navigator }),
         })
         if (!urls.localUrl) {
           console.error(

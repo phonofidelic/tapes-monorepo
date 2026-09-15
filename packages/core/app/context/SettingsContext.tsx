@@ -13,6 +13,12 @@ export type Settings = {
    * It opens that host's sync socket and its `/blobs` surface alike.
    */
   pairingToken: string | undefined
+  /**
+   * What this device calls itself on a host's connection list. Unset means the
+   * derived default (see `deviceLabel.ts`). It is per device, like the pins.
+   * What this phone calls itself is not a fact about the library.
+   */
+  deviceLabel: string | undefined
   syncServerLanEnabled: 'true' | 'false' | undefined
   syncServerHttpsEnabled: 'true' | 'false' | undefined
 }

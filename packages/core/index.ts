@@ -7,6 +7,7 @@ export * from './app/aggregatesClient'
 export * from './app/workerClient'
 export * from './app/blobCache'
 export * from './app/blobUpload'
+export * from './app/deviceLabel'
 export { useAutomergeUrl } from './app/utils'
 export {
   useAggregates,

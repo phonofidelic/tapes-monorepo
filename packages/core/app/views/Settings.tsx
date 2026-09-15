@@ -13,6 +13,11 @@ import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useAutomergeUrl } from '@/utils'
 import { SyncServerInfo } from '@/IpcService'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
+import {
+  deriveDeviceLabel,
+  sanitizeDeviceLabel,
+  MAX_DEVICE_LABEL_LENGTH,
+} from '@/deviceLabel'
 
 export function Settings() {
   const appContext = useAppContext()
@@ -200,6 +205,7 @@ function SyncSettings() {
   return (
     <div className="flex flex-col gap-4">
       <h2>Sync</h2>
+      <DeviceLabelSetting />
       {trustPageUrl && (
         <div className="flex flex-col gap-1">
           <a className="text-sm underline" href={trustPageUrl}>
@@ -480,6 +486,55 @@ function SyncSettings() {
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Names this device for the hosts it syncs with. The name is sent on the socket
+ * handshake (see `deviceLabel.ts`), so a host can list its guests by something
+ * a person recognises. It is stored per device, not in the Automerge document.
+ */
+function DeviceLabelSetting() {
+  const [deviceLabel, setDeviceLabel] = useSetting('deviceLabel')
+  const [labelDraft, setLabelDraft] = useState(deviceLabel ?? '')
+
+  // Shown, not written. A device that has never been renamed keeps tracking
+  // the derived name instead of freezing the first one it saw.
+  const derivedLabel = deriveDeviceLabel(
+    typeof navigator === 'undefined' ? undefined : navigator,
+  )
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex w-full items-center justify-between gap-5 text-sm">
+        <TextInput
+          label="This device's name"
+          type="text"
+          name="device-label"
+          id="device-label"
+          value={labelDraft}
+          onChange={(event) =>
+            setLabelDraft(event.target.value.slice(0, MAX_DEVICE_LABEL_LENGTH))
+          }
+        />
+        <Button
+          className="w-fit p-2"
+          title="Save device name"
+          onClick={() => {
+            // An empty field means "use the default". That is an absent key,
+            // not a stored empty string.
+            setDeviceLabel(sanitizeDeviceLabel(labelDraft))
+          }}
+        >
+          Save
+        </Button>
+      </div>
+      <p className="pl-2 text-xs text-zinc-500">
+        How this device names itself to a host it syncs with. Leave it empty to
+        use <span className="text-zinc-400">{derivedLabel}</span>. The host sees
+        a new name the next time this device connects.
+      </p>
     </div>
   )
 }

@@ -25,6 +25,7 @@ import { createBlobRequestHandler } from './blobHttp'
 import { createEventRequestHandler } from './eventHttp'
 import { createCaRequestHandler, TRUST_PAGE_PATH } from './caHttp'
 import { isAuthorized } from './tokenAuth'
+import { readDeviceLabel, UNNAMED_DEVICE_LABEL } from './deviceLabel'
 
 export const DEFAULT_SYNC_SERVER_PORT = 9001
 
@@ -537,7 +538,14 @@ export async function startSyncServer(
       socket.destroy()
       return
     }
+    // Read on the upgrade, not after the connection is up, so the host has a
+    // name for every connection it accepts. The name is self-reported and
+    // grants nothing on its own.
+    const deviceLabel = readDeviceLabel(request, url)
     wss.handleUpgrade(request, socket, head, (client) => {
+      console.info(
+        `Sync guest connected: ${deviceLabel ?? UNNAMED_DEVICE_LABEL}`,
+      )
       wss.emit('connection', client, request)
     })
   })
