@@ -1,3 +1,4 @@
+import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
 
 /** The selected input device exists in settings but is no longer available. */
@@ -95,6 +96,10 @@ export function useAutomergeUrl() {
     readAutomergeUrl,
     readAutomergeUrl,
   )
+
+  if (!isValidAutomergeUrl(automergeUrl)) {
+    throw new Error('Invalid automerge URL')
+  }
 
   return { automergeUrl, setAutomergeUrl }
 }

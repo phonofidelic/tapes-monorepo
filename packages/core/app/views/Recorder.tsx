@@ -4,10 +4,7 @@ import { AiFillAudio, AiOutlineAudioMuted } from 'react-icons/ai'
 import { MdOutlineCancel, MdEdit, MdCheck } from 'react-icons/md'
 import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
-import {
-  isValidAutomergeUrl,
-  type AutomergeUrl,
-} from '@automerge/automerge-repo'
+import { type AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData, RecordingRepoState } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
@@ -38,9 +35,9 @@ export function Recorder() {
   const { automergeUrl } = useAutomergeUrl()
   const repo = useRepo()
   const blobEndpoint = useUploadEndpoint()
-  const [, changeDocState] = useDocument<RecordingRepoState>(
-    isValidAutomergeUrl(automergeUrl) ? automergeUrl : undefined,
-  )
+  const [, changeDocState] = useDocument<RecordingRepoState>(automergeUrl, {
+    suspense: true,
+  })
 
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
   const { time, isRecording, handleFilename, setIsRecording } = useRecorder()

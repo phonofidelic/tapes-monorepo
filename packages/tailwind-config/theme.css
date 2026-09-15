@@ -27,3 +27,15 @@
     #e92a67 360deg
   );
 }
+
+:root {
+  --surface: #fff;
+}
+[data-theme='dark'] {
+  --surface: #18181b;
+}
+
+@theme {
+  --color-surface: var(--surface);
+  --color-muted: #9f9fa9;
+}
