@@ -11,6 +11,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+button {
+  cursor: pointer;
+}
+
+select {
+  cursor: pointer;
+}
+
 #titlebar {
   -webkit-app-region: drag;
   -webkit-user-select: none;
