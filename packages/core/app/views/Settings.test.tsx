@@ -101,6 +101,7 @@ const serverInfo: SyncServerInfo = {
 const renderHostSettings = (info: SyncServerInfo) => {
   const ipc = {
     send: vi.fn().mockResolvedValue(info),
+    subscribe: vi.fn().mockReturnValue(vi.fn()),
   } as unknown as IpcService
 
   return render(

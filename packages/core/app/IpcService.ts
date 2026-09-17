@@ -113,6 +113,12 @@ export type GetConnectedDevicesResponse =
       error: never
     }
 
+export class GetConnectedDevicesError extends Error {
+  constructor() {
+    super('Could not get connected devices')
+  }
+}
+
 /**
  * The payload of a connected-devices event. It carries the whole new list
  * rather than a delta, so a renderer that misses one recovers on the next.
