@@ -1,17 +1,24 @@
+import { useEffect, useState } from 'react'
 import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import {
   deriveDeviceLabel,
+  FALLBACK_DEVICE_LABEL,
   MAX_DEVICE_LABEL_LENGTH,
   sanitizeDeviceLabel,
 } from '@/deviceLabel'
-import { SyncServerInfo } from '@/IpcService'
+import {
+  ConnectedDevicesEvent,
+  GetConnectedDevicesError,
+  GetConnectedDevicesResponse,
+  SyncConnection,
+  SyncServerInfo,
+} from '@/IpcService'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
 import { useAutomergeUrl } from '@/utils'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
 import { MdOutlineContentCopy, MdOutlineFileUpload } from 'react-icons/md'
 
 export function SyncSettings() {
@@ -62,6 +69,11 @@ function HostSettings() {
   const [pairingToken, setPairingToken] = useSetting('pairingToken')
   const { automergeUrl } = useAutomergeUrl()
   const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
+  const [syncConnections, setSyncConnections] = useState<
+    SyncConnection[] | null
+  >(null)
+  const [getConnectedDevicesError, setGetConnectedDevicesError] =
+    useState<Error | null>(null)
   const [remoteUrlDraft, setRemoteUrlDraft] = useState(
     remoteSyncServerUrl ?? '',
   )
@@ -69,10 +81,9 @@ function HostSettings() {
 
   const resolvedSyncServerMode = syncServerMode ?? 'embedded'
 
-  // On the desktop app, guests should load the web-client from this host
-  // (same origin as the sync server) rather than the deployed Vercel build,
-  // so they don't hit HTTPS-vs-ws mixed-content. Only the LAN-reachable URL
-  // works for another device; without it we fall back to the hosted build.
+  // Handle effects for the electron hosted sync server:
+  // - Get server info on mount and update on changes to sync server settings.
+  // - Subscribe to device connection events
   useEffect(() => {
     if (
       appContext.type !== 'electron-client' ||
@@ -92,8 +103,45 @@ function HostSettings() {
       setServerInfo(info)
     })
 
+    // Flag to prevent a stale snapshot fetch from overwriting a more recent push event
+    let pushed = false
+
+    const onConnectedDevicesPush = (payload: ConnectedDevicesEvent) => {
+      setSyncConnections(payload.connections)
+      pushed = true
+    }
+
+    const unsubscribeConnectedDevicesPush =
+      appContext.ipc.subscribe<ConnectedDevicesEvent>(
+        'sync:connected-devices',
+        onConnectedDevicesPush,
+      )
+
+    appContext.ipc
+      .send<GetConnectedDevicesResponse>('sync:get-connected-devices')
+      .then((response) => {
+        // Skip setting the initial sync connection snapshot if a push event has already landed
+        if (cancelled || pushed) {
+          return
+        }
+
+        if (!response.success) {
+          throw new GetConnectedDevicesError()
+        }
+
+        setSyncConnections(response.data.connections)
+      })
+      .catch((error: unknown) => {
+        if (error instanceof GetConnectedDevicesError) {
+          setGetConnectedDevicesError(error)
+          return
+        }
+        throw error
+      })
+
     return () => {
       cancelled = true
+      unsubscribeConnectedDevicesPush()
     }
   }, [
     appContext,
@@ -302,8 +350,119 @@ function HostSettings() {
               )}
             </div>
           )}
+          {getConnectedDevicesError ? (
+            <ConnectedDevicesEmptyOrErrorMessage
+              title="Can't tell who is connected."
+              body="Tapes lost contact with its sync server, so this list may be wrong. It returns on its own once contact is back. Restart Tapes if it does not."
+            />
+          ) : (
+            syncConnections && (
+              <div className="flex flex-col gap-2">
+                <h4 className="text-sm">Connected devices:</h4>
+                <div className="flex flex-col gap-2">
+                  {(() => {
+                    const hostConnection = syncConnections.find(
+                      (connection) => connection.self,
+                    )
+                    return hostConnection ? (
+                      <ConnectionRow connection={hostConnection} />
+                    ) : null
+                  })()}
+
+                  {(() => {
+                    const guestConnections = syncConnections.filter(
+                      (connection) => !connection.self,
+                    )
+                    return guestConnections.length > 0 ? (
+                      <ul className="flex flex-col gap-2">
+                        {guestConnections.map((guestConnection) => (
+                          <li key={guestConnection.id}>
+                            <ConnectionRow connection={guestConnection} />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <ConnectedDevicesEmptyOrErrorMessage
+                        title="No guest devices connected."
+                        body="Show the QR code above to a phone or laptop on this network, or send it the link. A device appears here the moment it connects."
+                      />
+                    )
+                  })()}
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+function ConnectedDevicesEmptyOrErrorMessage({
+  title,
+  body,
+}: {
+  title: string
+  body: string
+}) {
+  return (
+    <div className="flex flex-col gap-2 p-4">
+      <p>{title}</p>
+      <p className="text-muted text-sm">{body}</p>
+    </div>
+  )
+}
+
+function ConnectionRow({ connection }: { connection: SyncConnection }) {
+  const getFormattedDuration = (connectedAt: number) =>
+    new Intl.DurationFormat('en', {
+      style: 'long',
+    }).format(
+      Temporal.Now.instant().since(
+        Temporal.Instant.fromEpochMilliseconds(connectedAt),
+        {
+          smallestUnit: 'minutes',
+          largestUnit: 'hours',
+        },
+      ),
+    )
+  const [formattedDuration, setFormattedDuration] = useState(() =>
+    getFormattedDuration(connection.connectedAt),
+  )
+
+  useEffect(() => {
+    const connectionDurationInterval = setInterval(
+      () => setFormattedDuration(getFormattedDuration(connection.connectedAt)),
+      60_000,
+    )
+
+    return () => {
+      clearInterval(connectionDurationInterval)
+    }
+  }, [connection.connectedAt])
+
+  return (
+    <div className="border-subtle bg-surface flex gap-3 rounded-sm border px-3 py-2">
+      <div className="flex items-center">
+        <div className="size-2 rounded-full bg-green-400" />
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex gap-2">
+          <p>{connection.label ?? FALLBACK_DEVICE_LABEL}</p>
+          {connection.self && (
+            <div className="bg-subtle rounded-full px-2 py-0.5 text-xs">
+              This device
+            </div>
+          )}
+        </div>
+        <p className="text-muted">
+          Connected{' '}
+          {formattedDuration.length > 0
+            ? formattedDuration + ' ago'
+            : 'just now'}
+          {connection.address && ` · ${connection.address}`}
+        </p>
+      </div>
     </div>
   )
 }

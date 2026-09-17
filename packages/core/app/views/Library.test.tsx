@@ -377,3 +377,57 @@ describe('playback numbers on a row', () => {
     expect(screen.getByText('Plays unknown')).toBeInTheDocument()
   })
 })
+
+// The backdrop behind the name editor. It is a click target, not a control:
+// it carries no label of its own and duplicates the editor's own close button,
+// so exposing it as a button puts an unnamed stop in the tab order.
+describe('the editor backdrop', () => {
+  beforeEach(() => {
+    recording = baseRecording
+    cleanup()
+  })
+
+  const openEditor = async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    // The editor panel carries a field by the same name. The row's control
+    // is the button, and its accessible name is the recording's.
+    const openControl = screen
+      .getAllByTitle('Edit recording name')
+      .find((element) => element.tagName === 'BUTTON')!
+    await user.click(openControl)
+    await screen.findByTitle('Close editor')
+    return user
+  }
+
+  it('is not offered as a control of its own', async () => {
+    await openEditor()
+
+    expect(
+      screen.queryByRole('button', { name: 'Close editor' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByTitle('Close editor')).toBeInTheDocument()
+  })
+
+  it('closes the editor when clicked', async () => {
+    const user = await openEditor()
+
+    await user.click(screen.getByTitle('Close editor'))
+
+    await waitFor(() =>
+      expect(screen.queryByTitle('Close editor')).not.toBeInTheDocument(),
+    )
+  })
+
+  // Clicking away is the mouse gesture. Escape is the one a keyboard has, and
+  // it is the only way out now that the backdrop takes no focus.
+  it('closes the editor on Escape', async () => {
+    const user = await openEditor()
+
+    await user.keyboard('{Escape}')
+
+    await waitFor(() =>
+      expect(screen.queryByTitle('Close editor')).not.toBeInTheDocument(),
+    )
+  })
+})

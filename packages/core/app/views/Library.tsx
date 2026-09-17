@@ -592,13 +592,14 @@ function Backdrop({
   }, [isOpen, onClose])
 
   return (
-    <button
+    <div
+      role="presentation"
       title={isOpen ? title : ''}
       className={clsx(
         'fixed top-0 left-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
         {
           'hidden opacity-0': !isOpen,
-          'z-40 opacity-50': isOpen,
+          'z-40 opacity-75': isOpen,
         },
       )}
       onClick={() => onClose()}

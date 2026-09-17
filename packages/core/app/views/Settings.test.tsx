@@ -98,9 +98,19 @@ const serverInfo: SyncServerInfo = {
   host: '0.0.0.0',
 }
 
+// Answer per channel. One blanket answer hands the connected-device panel a
+// response with no `success` on it, which it reads as a host that could not
+// answer — a state none of these tests mean to be in.
 const renderHostSettings = (info: SyncServerInfo) => {
   const ipc = {
-    send: vi.fn().mockResolvedValue(info),
+    send: vi.fn((channel: string) =>
+      Promise.resolve(
+        channel === 'sync:get-connected-devices'
+          ? { success: true, data: { connections: [] } }
+          : info,
+      ),
+    ),
+    subscribe: vi.fn().mockReturnValue(vi.fn()),
   } as unknown as IpcService
 
   return render(

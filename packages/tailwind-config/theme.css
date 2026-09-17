@@ -28,14 +28,30 @@
   );
 }
 
+/* Design token definitions */
 :root {
+  --background: #ffffff;
+  --foreground: #171717;
   --surface: #fff;
+  --subtle: #f4f4f5;
+  --on-subtle: #27272a;
+  --scrim: rgba(253, 253, 253, 0.74);
 }
-[data-theme='dark'] {
-  --surface: #18181b;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #18181b;
+    --foreground: #ededed;
+    --surface: #18181b;
+    --subtle: #27272a;
+    --on-subtle: #f4f4f5;
+    --scrim: rgba(27, 27, 29, 0.74);
+  }
 }
 
-@theme {
+@theme inline {
   --color-surface: var(--surface);
   --color-muted: #9f9fa9;
+  --color-subtle: var(--subtle);
+  --color-on-subtle: var(--subtle);
+  --color-scrim: var(--scrim);
 }
