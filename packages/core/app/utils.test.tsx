@@ -71,6 +71,7 @@ describe('useAutomergeUrl', () => {
 describe('isSyncServerUrl', () => {
   it('returns false if the value is not a valid sync server URL', () => {
     expect(isSyncServerUrl(123)).toBe(false)
+    expect(isSyncServerUrl('')).toBe(false)
     expect(isSyncServerUrl('abc')).toBe(false)
     expect(isSyncServerUrl('https://example.com')).toBe(false)
   })
