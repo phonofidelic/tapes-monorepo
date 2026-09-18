@@ -211,7 +211,8 @@ export function authHeaders(endpoint: BlobEndpoint): Record<string, string> {
   return endpoint.token ? { Authorization: `Bearer ${endpoint.token}` } : {}
 }
 
-function blobUrl(endpoint: BlobEndpoint, hash: string): string {
+/** Where a host serves one blob. Exported so a player can stream from it. */
+export function blobUrl(endpoint: BlobEndpoint, hash: string): string {
   return `${endpoint.baseUrl}/blobs/${hash}`
 }
 
@@ -266,15 +267,20 @@ export async function uploadBlob(
   }
 }
 
-export async function fetchBlob(
+/**
+ * Runs one request to a host under the response deadline. The callback calls
+ * `responseStarted` once headers land, which stops the clock. Only reaching
+ * the host is timed, so a long download is left alone.
+ *
+ * A host that times out is reported as a 408, so it classifies like any other
+ * status. The caller withdrawing the question is not a host failure, and that
+ * abort keeps propagating.
+ */
+async function withResponseDeadline<T>(
   endpoint: BlobEndpoint,
-  hash: string,
-  options: { signal?: AbortSignal; timeoutMs?: number } = {},
-): Promise<Blob> {
-  // Without a deadline, a host that accepts the connection and then says
-  // nothing leaves playback spinning forever instead of failing over to the
-  // next host. The timer is cleared the moment the headers land, so only
-  // reaching the host is on the clock and a long download is left alone.
+  options: { signal?: AbortSignal; timeoutMs?: number },
+  run: (signal: AbortSignal, responseStarted: () => void) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController()
   const unlink = linkAbort(controller, options.signal)
   let timedOut = false
@@ -284,20 +290,8 @@ export async function fetchBlob(
   }, options.timeoutMs ?? BLOB_RESPONSE_TIMEOUT_MS)
 
   try {
-    const response = await fetch(blobUrl(endpoint, hash), {
-      headers: authHeaders(endpoint),
-      signal: controller.signal,
-    })
-    clearTimeout(timer)
-    if (!response.ok) {
-      throw await failure(response)
-    }
-    // Awaited inside the `try` so the body is read before `finally` unlinks
-    // the caller's signal, which is what still cancels a download in flight.
-    return await response.blob()
+    return await run(controller.signal, () => clearTimeout(timer))
   } catch (error) {
-    // A timeout is this host failing to answer; the caller withdrawing the
-    // question is not, and has to keep propagating as an abort.
     if (timedOut && !options.signal?.aborted) {
       throw new BlobRequestError(408, `${endpoint.baseUrl} did not respond`)
     }
@@ -308,26 +302,59 @@ export async function fetchBlob(
   }
 }
 
+export async function fetchBlob(
+  endpoint: BlobEndpoint,
+  hash: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<Blob> {
+  return withResponseDeadline(
+    endpoint,
+    options,
+    async (signal, responseStarted) => {
+      const response = await fetch(blobUrl(endpoint, hash), {
+        headers: authHeaders(endpoint),
+        signal,
+      })
+      responseStarted()
+      if (!response.ok) {
+        throw await failure(response)
+      }
+      // Awaited here so the body is read while the caller's signal is still
+      // linked, which is what still cancels a download in flight.
+      return await response.blob()
+    },
+  )
+}
+
 /** Presence check without transferring the body. Null when the host has no such blob. */
 export async function headBlob(
   endpoint: BlobEndpoint,
   hash: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<{ size: number; mimeType: string } | null> {
-  const response = await fetch(blobUrl(endpoint, hash), {
-    method: 'HEAD',
-    headers: authHeaders(endpoint),
-  })
-  if (response.status === 404) {
-    return null
-  }
-  if (!response.ok) {
-    throw await failure(response)
-  }
-  return {
-    size: Number(response.headers.get('content-length') ?? 0),
-    mimeType:
-      response.headers.get('content-type') ?? 'application/octet-stream',
-  }
+  return withResponseDeadline(
+    endpoint,
+    options,
+    async (signal, responseStarted) => {
+      const response = await fetch(blobUrl(endpoint, hash), {
+        method: 'HEAD',
+        headers: authHeaders(endpoint),
+        signal,
+      })
+      responseStarted()
+      if (response.status === 404) {
+        return null
+      }
+      if (!response.ok) {
+        throw await failure(response)
+      }
+      return {
+        size: Number(response.headers.get('content-length') ?? 0),
+        mimeType:
+          response.headers.get('content-type') ?? 'application/octet-stream',
+      }
+    },
+  )
 }
 
 /**
@@ -401,6 +428,71 @@ export async function fetchBlobFromAny(
         }
       } else {
         // A rejected `fetch` with no status: refused, DNS, CORS, offline.
+        attempts.push({ kind: 'network' })
+      }
+      lastError = error
+    }
+  }
+
+  throw new BlobFetchError(classifyBlobFailure(attempts), attempts, {
+    cause: lastError,
+  })
+}
+
+/** Which host holds a blob, and what it says about the bytes. */
+export type BlobProbeResult = {
+  /** The endpoint that answered with the blob. */
+  from: BlobEndpoint
+  /** Size in bytes, as that host reported it. */
+  size: number
+  mimeType: string
+  /** Endpoints that answered 404 before this one. See `BlobFetchResult`. */
+  missingFrom: BlobEndpoint[]
+}
+
+/**
+ * Finds the first host holding a blob without transferring it.
+ *
+ * `fetchBlobFromAny` picks a host and downloads the body. Streaming playback
+ * needs only the first half, so this walks the same hosts with HEAD requests
+ * and stops at the one that answers.
+ *
+ * Failures are collected and classified exactly as they are for a whole-body
+ * fetch, so a host that rejected our token still outranks one that simply
+ * lacks the bytes.
+ */
+export async function probeBlobEndpoints(
+  endpoints: readonly BlobEndpoint[],
+  hash: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<BlobProbeResult> {
+  if (endpoints.length === 0) {
+    throw new BlobFetchError('unpaired', [])
+  }
+
+  const missingFrom: BlobEndpoint[] = []
+  const attempts: BlobAttempt[] = []
+  let lastError: unknown
+
+  for (const endpoint of endpoints) {
+    try {
+      const head = await headBlob(endpoint, hash, options)
+      if (head) {
+        return { from: endpoint, ...head, missingFrom }
+      }
+      // `headBlob` reports a missing blob as null rather than throwing, so
+      // record the 404 the classifier would otherwise never see.
+      attempts.push({ kind: 'status', status: 404 })
+      missingFrom.push(endpoint)
+    } catch (error) {
+      // An aborted request is the caller withdrawing the question, not a host
+      // failing to answer it.
+      if (options.signal?.aborted) {
+        throw error
+      }
+      if (error instanceof BlobRequestError) {
+        attempts.push({ kind: 'status', status: error.status })
+      } else {
         attempts.push({ kind: 'network' })
       }
       lastError = error
