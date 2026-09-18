@@ -89,14 +89,20 @@ export function useConnectedDevices(): ConnectedDevicesState {
       },
     )
 
-    const failed = (error: Error) => {
+    // Writes what the snapshot answered, unless an event already answered this
+    // same attempt. A device can join between the request and its answer, so
+    // the snapshot is the older list by then. That holds whether the snapshot
+    // came back with a list or with a failure.
+    const answered = (next: Held) => {
       setHeld((current) =>
-        // An event may have delivered the real list while the request was in
-        // flight. Do not overwrite it with a late failure.
         current?.attempt === attempt && current.status === 'ready'
           ? current
-          : { attempt, connections: EMPTY, status: 'unavailable', error },
+          : next,
       )
+    }
+
+    const failed = (error: Error) => {
+      answered({ attempt, connections: EMPTY, status: 'unavailable', error })
     }
 
     ipc
@@ -117,7 +123,7 @@ export function useConnectedDevices(): ConnectedDevicesState {
           )
           return
         }
-        setHeld({
+        answered({
           attempt,
           connections: response.data.connections ?? EMPTY,
           status: 'ready',

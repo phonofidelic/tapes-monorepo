@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -339,6 +340,40 @@ describe('SyncSettings: an empty or unreadable device list', () => {
     expect(
       screen.queryByText('No guest devices connected.'),
     ).not.toBeInTheDocument()
+  })
+
+  // The server may not have been running when the panel mounted. A push is
+  // proof that it is now, so the message must give way to the list.
+  it('shows the list once a push arrives after a failed snapshot', async () => {
+    const { ipc, emit } = fakeIpc(failed())
+
+    renderHostSyncSettings(ipc)
+    await screen.findByText("Can't tell who is connected.")
+
+    act(() => emit({ connections: [thisDevice] }))
+
+    expect(await screen.findByText('Studio Mac')).toBeInTheDocument()
+    expect(
+      screen.queryByText("Can't tell who is connected."),
+    ).not.toBeInTheDocument()
+  })
+
+  it('asks the host again when the retry button is pressed', async () => {
+    const { ipc } = fakeIpc(failed())
+    const asked = () =>
+      vi
+        .mocked(ipc.send)
+        .mock.calls.filter(
+          ([channel]) => channel === 'sync:get-connected-devices',
+        ).length
+
+    renderHostSyncSettings(ipc)
+    await screen.findByText("Can't tell who is connected.")
+    expect(asked()).toBe(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() => expect(asked()).toBe(2))
   })
 })
 

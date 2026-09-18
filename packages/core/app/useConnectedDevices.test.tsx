@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AppContextProvider } from '@/context/AppContext'
 import { useConnectedDevices } from '@/useConnectedDevices'
 import type { IpcService } from '@/IpcService'
@@ -22,9 +22,10 @@ const A_PHONE = {
 const worker = { postMessage: () => {} } as unknown as Worker
 
 function Probe() {
-  const { connections, status } = useConnectedDevices()
+  const { connections, status, refresh } = useConnectedDevices()
   return (
     <div>
+      <button onClick={refresh}>Try again</button>
       <span data-testid="status">{status}</span>
       <span data-testid="labels">
         {connections.map((connection) => connection.label).join(',')}
@@ -138,6 +139,56 @@ describe('useConnectedDevices', () => {
     await waitFor(() =>
       expect(screen.getByTestId('status')).toHaveTextContent('ready'),
     )
+  })
+
+  // A device can join between the request and its answer. The snapshot is the
+  // older list by then, even though it came back successfully.
+  it('keeps a pushed list when the snapshot then answers with an older one', async () => {
+    let resolveSnapshot: (response: unknown) => void = () => {}
+    const snapshot = new Promise<unknown>((resolve) => {
+      resolveSnapshot = resolve
+    })
+    const { ipc, push } = fakeIpc(snapshot)
+    renderWithIpc(ipc)
+    await waitFor(() => expect(ipc.subscribe).toHaveBeenCalled())
+
+    push({ connections: [A_PHONE] })
+    await waitFor(() =>
+      expect(screen.getByTestId('labels')).toHaveTextContent('Studio phone'),
+    )
+
+    resolveSnapshot({ success: true, data: { connections: [] } })
+    await act(async () => {
+      await snapshot
+    })
+
+    expect(screen.getByTestId('labels')).toHaveTextContent('Studio phone')
+  })
+
+  // The host may not have been hosting yet when the panel mounted. Asking
+  // again is the way back, so the answer to the second question is the one
+  // that counts.
+  it('asks the host again on a refresh', async () => {
+    let response: unknown = {
+      success: false,
+      error: new Error('The sync server is not running on this device'),
+    }
+    const ipc = {
+      send: vi.fn(() => Promise.resolve(response)),
+      subscribe: vi.fn(() => vi.fn()),
+    } as unknown as IpcService
+    renderWithIpc(ipc)
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unavailable'),
+    )
+
+    response = { success: true, data: { connections: [A_PHONE] } }
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('ready'),
+    )
+    expect(screen.getByTestId('labels')).toHaveTextContent('Studio phone')
   })
 
   it('unsubscribes when the panel unmounts', async () => {
