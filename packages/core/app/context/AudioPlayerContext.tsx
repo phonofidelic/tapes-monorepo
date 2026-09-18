@@ -11,18 +11,24 @@ import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { RecordingData } from '@/types'
 import {
   BlobFetchError,
+  BlobRequestError,
+  blobUrl,
+  canStreamBlob,
+  classifyBlobFailure,
+  fetchBlob,
   fetchBlobFromAny,
-  replicateBlob,
+  probeBlobEndpoints,
   type BlobFailureReason,
 } from '@/blobClient'
-import { cacheBlob, cachedBlobSource, recordCacheHit } from '@/blobCache'
+import { cachedBlobSource } from '@/blobCache'
 import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
 
 /**
- * `loading` covers fetching a recording's audio from the host on first play,
- * which can take a moment for a long tape. `error` means it could not be
- * resolved at all.
+ * `loading` covers finding a recording's audio: a lookup in local storage,
+ * then asking the hosts. `ready` means the element has a source, not that the
+ * audio has arrived, since a streamed source keeps loading as it plays.
+ * `error` means it could not be resolved, or that the source failed later.
  */
 export type PlaybackState = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -127,6 +133,32 @@ const isOpfsName = (filepath: string): boolean =>
   filepath !== '.' &&
   filepath !== '..'
 
+/**
+ * Why a blob could not be resolved, whichever client call reported it. A
+ * whole-body fetch classifies across every host it tried; a request to one
+ * named host carries only its status.
+ */
+const failureReason = (error: unknown): PlaybackFailure => {
+  if (error instanceof BlobFetchError) {
+    return error.reason
+  }
+  if (error instanceof BlobRequestError) {
+    return classifyBlobFailure([{ kind: 'status', status: error.status }])
+  }
+  return 'unreachable'
+}
+
+/**
+ * Whether a service worker is currently handling this page's requests, which
+ * is what lets the element fetch a blob with the pairing token attached. Read
+ * when a recording loads rather than once, because the worker claims the page
+ * shortly after the first paint.
+ */
+const streamContext = () => ({
+  controlled: Boolean(globalThis.navigator?.serviceWorker?.controller),
+  origin: globalThis.location?.origin,
+})
+
 export const AudioPlayerProvider = ({
   children,
   onPlaySession,
@@ -170,6 +202,10 @@ export const AudioPlayerProvider = ({
   // Declared up here because the play-session helpers below read the length
   // through it; kept in step with `seekableDuration` further down.
   const seekableDurationRef = useRef(0)
+  // What the player last handed the element. Cleared while a recording is
+  // being detached, so a media error arriving from a source we have already
+  // moved on from is not reported against the next one.
+  const loadedSrcRef = useRef<string | undefined>(undefined)
   const sessionRef = useRef<OpenSession | null>(null)
   // Where `currentTime` was when we last looked, so playback can be told from
   // a jump.
@@ -188,6 +224,7 @@ export const AudioPlayerProvider = ({
     audio.pause()
     audio.removeAttribute('src')
     audio.load()
+    loadedSrcRef.current = undefined
 
     if (!currentUrl) {
       return
@@ -221,6 +258,7 @@ export const AudioPlayerProvider = ({
       if (audioRef.current) {
         audioRef.current.src = src
       }
+      loadedSrcRef.current = src
       setPlaybackState('ready')
     }
 
@@ -273,18 +311,47 @@ export const AudioPlayerProvider = ({
         return
       }
 
-      // 4. Fetch from whichever host has it and keep what comes back, so a
-      //    guest's storage grows with what it has played rather than with the
-      //    whole library. More than one host is in play when this device syncs
-      //    with a remote server as well as its own embedded one. The doc can
-      //    then carry a hash the nearest store has never seen.
+      // 4. Ask the hosts. More than one is in play when this device syncs with
+      //    a remote server as well as its own embedded one, so the doc can
+      //    carry a hash the nearest store has never seen. Nothing is kept:
+      //    pinning is what puts a recording in the local cache.
       // Nothing local answered. What the user is told depends on why, so carry
       // the reason rather than reporting everything as offline.
       let failure: PlaybackFailure = descriptor ? 'unpaired' : 'not-uploaded'
 
       if (descriptor && blobEndpoints.length > 0) {
+        const streaming = streamContext()
         try {
-          const { blob, missingFrom } = await fetchBlobFromAny(
+          if (
+            blobEndpoints.some((endpoint) => canStreamBlob(endpoint, streaming))
+          ) {
+            // HEAD first. It picks the host that holds the bytes without
+            // moving any of them, and the element range-requests the rest.
+            const { from } = await probeBlobEndpoints(
+              blobEndpoints,
+              descriptor.hash,
+              { signal: controller.signal },
+            )
+            if (cancelled) {
+              return
+            }
+            if (canStreamBlob(from, streaming)) {
+              play(blobUrl(from, descriptor.hash))
+              return
+            }
+            // The host with the bytes is one the element cannot authenticate
+            // against. Buffer from it rather than walking the list again.
+            const blob = await fetchBlob(from, descriptor.hash, {
+              signal: controller.signal,
+            })
+            if (cancelled) {
+              return
+            }
+            play(URL.createObjectURL(blob), true)
+            return
+          }
+
+          const { blob } = await fetchBlobFromAny(
             blobEndpoints,
             descriptor.hash,
             { signal: controller.signal },
@@ -293,27 +360,13 @@ export const AudioPlayerProvider = ({
             return
           }
           play(URL.createObjectURL(blob), true)
-          // Now that the bytes are here, hand them to the hosts that did not
-          // have them, so the next device to ask does not depend on which one
-          // happens to be awake. Ahead of the local cache write, which is a
-          // separate promise that can fail on its own.
-          if (missingFrom.length > 0) {
-            void replicateBlob(missingFrom, blob, {
-              mimeType: descriptor.mimeType,
-              docUrl: recordingDoc.url,
-              expectedHash: descriptor.hash,
-            })
-          }
-          await cacheBlob(appContext, descriptor, blob, recordingDoc.url)
-          recordCacheHit(descriptor.hash, descriptor.size, localStorage)
           return
         } catch (error) {
           // We withdrew the question ourselves; the cleanup already handled it.
           if (controller.signal.aborted) {
             return
           }
-          failure =
-            error instanceof BlobFetchError ? error.reason : 'unreachable'
+          failure = failureReason(error)
           console.error('Could not fetch recording audio:', error)
         }
       }
@@ -380,6 +433,7 @@ export const AudioPlayerProvider = ({
     return () => {
       cancelled = true
       controller.abort()
+      loadedSrcRef.current = undefined
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl)
       }
@@ -506,6 +560,20 @@ export const AudioPlayerProvider = ({
 
     const onError = () => {
       console.error('Audio error:', audio.error)
+      // A streamed source can fail at any point, not just when it is first
+      // handed over, so a media error has to land on the playback state
+      // exactly as a failed fetch does. The element also reports the source it
+      // is losing while the next recording resolves; that one is not a
+      // failure of anything the user asked for.
+      if (!loadedSrcRef.current) {
+        return
+      }
+      loadedSrcRef.current = undefined
+      // The element never says what the host answered, so this is as much as
+      // can honestly be claimed.
+      setPlaybackFailure('unreachable')
+      setPlaybackState('error')
+      setIsPlaying(false)
     }
 
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
