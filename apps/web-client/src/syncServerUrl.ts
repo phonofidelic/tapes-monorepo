@@ -5,7 +5,7 @@
  * be exercised in tests without a browser or a running Electron host.
  */
 
-import { withDeviceLabel } from '@tapes-monorepo/core'
+import { isSyncServerUrl, withDeviceLabel } from '@tapes-monorepo/core'
 
 export type SyncUrlEnv = {
   VITE_SYNC_SERVER_URL?: string
@@ -115,17 +115,5 @@ function readRemoteSyncServerUrl(
     remoteSyncServerUrl?: unknown
   }
 
-  if (typeof remoteSyncServerUrl !== 'string') {
-    return undefined
-  }
-
-  // The same validation the Settings UI applies before storing a value.
-  try {
-    const { protocol } = new URL(remoteSyncServerUrl)
-    return protocol === 'ws:' || protocol === 'wss:'
-      ? remoteSyncServerUrl
-      : undefined
-  } catch {
-    return undefined
-  }
+  return isSyncServerUrl(remoteSyncServerUrl) ? remoteSyncServerUrl : undefined
 }
