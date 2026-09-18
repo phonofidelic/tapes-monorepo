@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-import { copyFile } from 'fs/promises'
 import { Readable } from 'stream'
 import { app, BrowserWindow, ipcMain, protocol } from 'electron'
 import path from 'path'
@@ -9,34 +7,19 @@ import installExtension, {
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
 import { IpcChannel } from './types'
-import { cacheServer } from './cacheServer'
 import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
 import { isSyncServerCert } from './certManager'
-import { filepathFromTapesUrl, hashFromTapesBlobUrl } from './protocolUrls'
+import { hashFromTapesBlobUrl } from './protocolUrls'
 
-// Both custom schemes must be declared before the app is ready — Electron
-// reads this list once, on startup, so it cannot live inside `MainWindow`.
-// `stream` and `supportFetchAPI` are what audio actually needs: chunked
-// responses and range behaviour on the scheme, and `fetch()` against it.
+// The scheme must be declared before the app is ready. Electron reads this
+// list once, on startup, so it cannot live inside `MainWindow`.
 //
-// `standard` is asked for only where it helps. It buys `tapes-blob` real
-// origin and path parsing, which a hash-shaped authority takes cleanly. On
-// `tapes` it is actively wrong: that scheme carries an absolute filesystem
-// path, and standard parsing rewrites `tapes:///Users/…` to `tapes://Users/…`
-// — first segment promoted to a lowercased host, leading slash gone — leaving
-// a relative path that no longer names a file. Measured, not assumed: with
-// `standard` on, playback of a locally recorded tape fails to load.
+// `standard` gives the scheme real origin and path parsing, which a
+// hash-shaped authority takes cleanly. `stream` and `supportFetchAPI` are what
+// audio needs: chunked responses with range behavior, and `fetch()`.
 protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'tapes',
-    privileges: {
-      secure: true,
-      stream: true,
-      supportFetchAPI: true,
-    },
-  },
   {
     scheme: 'tapes-blob',
     privileges: {
@@ -70,7 +53,6 @@ export class MainWindow {
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
     app.on('ready', () => {
-      this.startCacheServer()
       this.startSyncServer()
       this.registerCustomProtocols()
       this.createWindow()
@@ -209,39 +191,8 @@ export class MainWindow {
       })
   }
 
-  private startCacheServer() {
-    const cachePath =
-      process.env.NODE_ENV !== 'development'
-        ? path.resolve(process.resourcesPath, 'cache')
-        : path.resolve(app.getAppPath(), 'cache')
-
-    cacheServer(cachePath)
-  }
-
   private registerCustomProtocols() {
-    protocol.handle('tapes', async (request) => {
-      const filepath = filepathFromTapesUrl(request.url)
-
-      const filename = crypto
-        .createHash('sha256')
-        .update(filepath)
-        .digest('hex')
-      const extension = path.extname(filepath)
-
-      const cachePath =
-        process.env.NODE_ENV !== 'development'
-          ? path.resolve(process.resourcesPath, 'cache')
-          : path.resolve(app.getAppPath(), 'cache')
-
-      await copyFile(filepath, path.join(cachePath, filename + extension))
-
-      return Response.redirect(`http://localhost:9000/${filename + extension}`)
-    })
-
-    // Content-addressed audio, served straight out of the blob store. Unlike
-    // `tapes://` above there is no copy into a cache directory and no hop
-    // through the port-9000 server: the store already holds the bytes under
-    // this exact name, and the name is a hash, so it can never be stale.
+    // Content-addressed audio, served straight out of the blob store.
     protocol.handle('tapes-blob', async (request) => {
       const hash = hashFromTapesBlobUrl(request.url)
       const store = getBlobStore()

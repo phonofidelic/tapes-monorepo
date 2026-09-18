@@ -4,7 +4,7 @@ import { IpcMainEvent } from 'electron'
 import { IpcChannel, IpcRequest } from '@/types'
 
 // Maps recording file extensions to the MIME type playback needs to build a
-// correctly-typed Blob. Mirrors the map in cacheServer.ts.
+// correctly-typed Blob.
 const mimeTypeByExtension: Record<string, string> = {
   '.wav': 'audio/wav',
   '.mp3': 'audio/mpeg',

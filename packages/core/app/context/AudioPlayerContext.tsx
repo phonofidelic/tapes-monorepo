@@ -21,6 +21,7 @@ import {
   type BlobFailureReason,
 } from '@/blobClient'
 import { cachedBlobSource } from '@/blobCache'
+import { ingestHostFile } from '@/blobUpload'
 import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
 
@@ -187,7 +188,7 @@ export const AudioPlayerProvider = ({
   // The recording doc for whatever is loaded in the player. When it carries
   // embedded `audio` bytes (synced from another device) we play those directly,
   // so a guest can play a recording it never made.
-  const [recordingDoc] = useDocument<RecordingData>(
+  const [recordingDoc, changeRecordingDoc] = useDocument<RecordingData>(
     isValidAutomergeUrl(currentUrl) ? currentUrl : undefined,
   )
   const [currentTime, setCurrentTime] = useState(0)
@@ -214,6 +215,13 @@ export const AudioPlayerProvider = ({
   useEffect(() => {
     onPlaySessionRef.current = onPlaySession
   }, [onPlaySession])
+  // Held in a ref because the hook returns a fresh function on every render.
+  // In the resolution effect's dependencies it would re-run the effect each
+  // render, which detaches the element and restarts playback.
+  const changeRecordingDocRef = useRef(changeRecordingDoc)
+  useEffect(() => {
+    changeRecordingDocRef.current = changeRecordingDoc
+  }, [changeRecordingDoc])
 
   useEffect(() => {
     // Detach whatever the player is holding before resolving anything.
@@ -392,11 +400,31 @@ export const AudioPlayerProvider = ({
         return null
       }
       if (appContext.type === 'electron-client') {
-        // The protocol handler resolves a path this device knows about; a
-        // recording made elsewhere has a filepath that means nothing here.
-        return recordingDoc.filepath
-          ? { src: `tapes://${currentSource}`, revoke: false }
-          : null
+        // A recording made elsewhere has a filepath that means nothing here.
+        if (!recordingDoc.filepath || !currentUrl) {
+          return null
+        }
+        // A doc written before audio moved out of band has a file but no
+        // hash. Add the file to the store now and record the descriptor, so
+        // this recording is content-addressed from here on. Renaming a
+        // recording renames its file, which a filepath-keyed source would
+        // then fail to find.
+        try {
+          const ingested = await ingestHostFile(appContext.ipc, {
+            filepath: currentSource,
+            docUrl: currentUrl,
+          })
+          if (cancelled) {
+            return null
+          }
+          changeRecordingDocRef.current((doc) => {
+            doc.blob = ingested
+          })
+          return { src: `tapes-blob://${ingested.hash}`, revoke: false }
+        } catch (error) {
+          console.error('Could not add a legacy recording to the store:', error)
+          return null
+        }
       }
       // OPFS names are flat. A recording made on an electron host carries an
       // absolute filesystem path, which `getFileHandle` rejects with a
