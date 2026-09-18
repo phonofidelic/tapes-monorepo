@@ -30,8 +30,17 @@ const plugins = [
     // cert (electron-client/src/certManager.ts), where a wedged service worker
     // is hard for a guest to clear.
     disable: servedByHost,
+    // The worker is ours, not generated: src/sw.ts is built to dist/sw.js and
+    // the precache manifest is injected into it. Later work adds an
+    // Authorization header to blob requests, which cannot live in generated
+    // code. The routing and lifecycle rules Workbox used to generate are
+    // written out in that file.
+    strategies: 'injectManifest',
+    srcDir: 'src',
+    filename: 'sw.ts',
     // Never swap the bundle out from under a recording in progress. The user
     // is told an update is ready and chooses when to take it (PwaUpdatePrompt).
+    // src/sw.ts holds the message listener this relies on.
     registerType: 'prompt',
     // Registration happens explicitly in ShellPrompts, not via an injected
     // script, so it stays on one code path with the update UI.
@@ -84,32 +93,17 @@ const plugins = [
         },
       ],
     },
-    workbox: {
-      // Both settings are required for offline boot. Automerge's wasm is a
-      // ~3.2 MB hashed asset that the bundle fetches at module-init time under
-      // a top-level await. Workbox's defaults would drop it silently: `wasm`
-      // is not in the default glob set, and the default 2 MiB size cap would
-      // exclude it even if it were. The result would be a cached shell that
-      // never mounts offline. scripts/verifyPrecache.mjs fails the build if
-      // the wasm ever leaves the generated manifest.
+    // These two settings decide what the manifest injected into src/sw.ts
+    // contains. Both are required for offline boot. Automerge's wasm is a
+    // ~3.2 MB hashed asset that the bundle fetches at module-init time under a
+    // top-level await. Workbox's defaults would drop it silently: `wasm` is not
+    // in the default glob set, and the default 2 MiB size cap would exclude it
+    // even if it were. The result would be a cached shell that never mounts
+    // offline. scripts/verifyPrecache.mjs fails the build if the wasm ever
+    // leaves the injected manifest.
+    injectManifest: {
       globPatterns: ['**/*.{js,css,html,wasm,ico,png,svg,webmanifest}'],
       maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-      navigateFallback: 'index.html',
-      // The Automerge socket connects to `/sync` on this origin. WebSocket
-      // upgrades are not fetch events, so a worker never sees them, but this
-      // guarantees the shell is never served in their place. `/blobs` requests
-      // are fetches rather than navigations, so the fallback should not apply
-      // to them either. Serving the app shell instead of audio bytes fails as
-      // an opaque decode error, so it is ruled out explicitly.
-      // `/trust` and `/ca.crt` are answered by the host, not this bundle.
-      // Handing the app shell to a certificate install is a confusing failure.
-      navigateFallbackDenylist: [
-        /^\/sync/,
-        /^\/blobs/,
-        /^\/trust/,
-        /^\/ca\.crt/,
-      ],
-      cleanupOutdatedCaches: true,
     },
     // Off on purpose. A worker on the dev server would fight the LAN-guest HMR
     // flow and the Playwright suite, which runs against `vite` dev by design.

@@ -38,13 +38,18 @@ Microphone access needs a secure context, so LAN guests need HTTPS. The
 The standalone build is an installable, offline-capable PWA. The plugin is
 `vite-plugin-pwa`, configured in `vite.config.ts`.
 
+The worker itself is `src/sw.ts`, built to `dist/sw.js`. The plugin runs in its
+`injectManifest` mode, so the precache manifest is injected into that file and
+nothing about the worker is generated. Precaching, the navigation fallback and
+the skip-waiting message all live in that one file.
+
 **The Automerge WebAssembly module must stay precached.** The bundle fetches
 that asset, about 3.2 MB, at module-init time under a top-level await. If it is
 missing from the cache, the app installs and launches offline but never mounts.
 Workbox would exclude it twice over by default: `wasm` is not in the default
 glob patterns, and the default 2 MiB size cap would drop it anyway. The Vite
 config overrides both. The `build` script then runs `scripts/verifyPrecache.mjs`,
-which fails the build if the module ever falls out of the generated manifest.
+which fails the build if the module ever falls out of the injected manifest.
 
 The service worker is off in two places:
 
@@ -58,7 +63,8 @@ The service worker is off in two places:
 
 Updates are prompted, never silent. A new deploy installs in the background and
 waits for the user, so the bundle is never swapped out under a recording in
-progress. See `src/PwaUpdatePrompt.tsx`.
+progress. See `src/PwaUpdatePrompt.tsx` for the toast, and the message listener
+in `src/sw.ts` for the worker side of it.
 
 ### Icons
 

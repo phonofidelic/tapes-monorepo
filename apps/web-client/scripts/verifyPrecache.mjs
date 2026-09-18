@@ -1,10 +1,11 @@
 /**
  * Build gate: fails if Automerge's WebAssembly module is missing from the
- * generated Workbox precache manifest. The bundle fetches that ~3.2 MB asset at
- * module-init time under a top-level await, so without it the app installs,
- * launches offline, and never mounts. Workbox drops it silently under its own
- * defaults: `wasm` is not in the default globs and the default size cap is
- * 2 MiB. vite.config.ts overrides both. This script checks the override took.
+ * precache manifest injected into the built service worker. The bundle fetches
+ * that ~3.2 MB asset at module-init time under a top-level await, so without it
+ * the app installs, launches offline, and never mounts. Workbox drops it
+ * silently under its own defaults: `wasm` is not in the default globs and the
+ * default size cap is 2 MiB. vite.config.ts overrides both. This script checks
+ * the override took.
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -31,17 +32,20 @@ try {
   process.exit(1)
 }
 
-// Workbox inlines the manifest as `precacheAndRoute([{url,revision},...])`, so
-// matching the quoted URLs is enough and avoids parsing the bundle.
-const precachedWasm = [...serviceWorker.matchAll(/"(\/?[^"]+\.wasm)"/g)].map(
-  ([, url]) => url,
-)
+// The injected manifest is an array of `{url, revision}` objects in place of
+// `self.__WB_MANIFEST`, so matching the quoted URLs is enough and avoids
+// parsing the bundle. Rollup decides the quote style when it builds src/sw.ts,
+// so accept either.
+const precachedWasm = [
+  ...serviceWorker.matchAll(/["'](\/?[^"']+\.wasm)["']/g),
+].map(([, url]) => url)
 
 if (precachedWasm.length === 0) {
   console.error(
     'verifyPrecache: no .wasm entry in the precache manifest — the app will not boot offline.\n' +
-      'Check `workbox.globPatterns` includes `wasm` and `workbox.maximumFileSizeToCacheInBytes`\n' +
-      'is above the size of dist/assets/automerge_wasm_bg-*.wasm.',
+      'Check `injectManifest.globPatterns` includes `wasm` and\n' +
+      '`injectManifest.maximumFileSizeToCacheInBytes` is above the size of\n' +
+      'dist/assets/automerge_wasm_bg-*.wasm.',
   )
   process.exit(1)
 }
