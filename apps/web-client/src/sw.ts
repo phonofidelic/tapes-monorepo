@@ -1,10 +1,11 @@
 /// <reference lib="webworker" />
 /**
- * The web client's service worker. Built from this file by vite-plugin-pwa's
- * injectManifest strategy and emitted as `dist/sw.js`.
+ * The standalone deploy's service worker. Built from this file by
+ * vite-plugin-pwa's injectManifest strategy and emitted as `dist/sw.js`.
  *
  * It precaches the app shell and answers navigations from that cache when the
- * network is gone. Nothing is cached at runtime.
+ * network is gone. Nothing is cached at runtime. The bundle the desktop host
+ * serves to LAN guests runs src/blobAuthSw.ts instead.
  *
  * The build injects the precache manifest by replacing the text
  * `self.__WB_MANIFEST`, so that expression has to survive into the built
