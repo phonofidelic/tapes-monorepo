@@ -26,6 +26,9 @@ coverage
 out/
 build
 dist
+# The web client built as the desktop host serves it, for the streaming e2e
+# project (apps/web-client/e2e/hostBundle.ts).
+dist-host
 *.tsbuildinfo
 
 

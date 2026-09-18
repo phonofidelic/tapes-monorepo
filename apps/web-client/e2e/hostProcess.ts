@@ -27,7 +27,7 @@ import { HOST_PORT, PAIRING_TOKEN } from './ports'
  */
 
 type Command =
-  | { id: number; type: 'start' }
+  | { id: number; type: 'start'; webClientPath?: string }
   | {
       id: number
       type: 'seed'
@@ -51,6 +51,12 @@ type Paths = {
 
 let disposing = false
 let paths: Paths | undefined
+/**
+ * Directory of a built web-client bundle for the server to serve over its own
+ * origin, or undefined to leave the HTTP surface as API routes alone. Kept
+ * here rather than passed through `listen` so a restart serves it again.
+ */
+let webClientPath: string | undefined
 let libraryUrl: AutomergeUrl | undefined
 let peer: { repo: Repo; disconnect: () => void } | undefined
 
@@ -84,6 +90,10 @@ async function listen(where: Paths) {
     // queue never clears. The desktop app always passes it.
     eventStorePath: where.eventRoot,
     pairingToken: PAIRING_TOKEN,
+    // Only the streaming suite sets this. Serving the bundle from the host
+    // puts the app on the same origin as `/blobs`, which is the condition the
+    // blob-auth service worker registers under.
+    webClientPath,
   })
   if (info.port !== HOST_PORT) {
     // `startSyncServer` falls back to an OS-assigned port on EADDRINUSE, which
@@ -98,7 +108,8 @@ async function listen(where: Paths) {
   return info
 }
 
-async function start() {
+async function start(command: Extract<Command, { type: 'start' }>) {
+  webClientPath = command.webClientPath
   const root = await mkdtemp(path.join(os.tmpdir(), 'tapes-e2e-host-'))
   paths = {
     root,
@@ -301,7 +312,7 @@ function wavBytes(seconds: number, frequency: number): ArrayBuffer {
 async function run(command: Command): Promise<unknown> {
   switch (command.type) {
     case 'start':
-      return start()
+      return start(command)
     case 'seed':
       return seed(command)
     case 'objects':

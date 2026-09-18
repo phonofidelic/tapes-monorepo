@@ -1,6 +1,12 @@
 import { defineConfig } from '@playwright/test'
 import { GUEST_PORT, HOST_PORT } from './e2e/ports'
 
+// The streaming suite loads the app from the host itself, which serves a build
+// of this workspace over the same origin as `/blobs`. Loopback counts as a
+// secure context, so the service worker that suite is about registers over
+// plain http.
+const STREAMING_URL = `http://127.0.0.1:${HOST_PORT}`
+
 const PORT = 4173
 // `localhost`, not `127.0.0.1`: Vite's dev server binds the hostname, and the
 // webServer health check fails against the bare loopback address.
@@ -58,6 +64,8 @@ export default defineConfig({
         /pwa\.spec\.ts/,
         /two-device\.spec\.ts/,
         /playback-events\.spec\.ts/,
+        /streaming\.spec\.ts/,
+        /hostBundle\.setup\.ts/,
       ],
       use: {
         browserName: 'chromium',
@@ -89,6 +97,29 @@ export default defineConfig({
             '--use-fake-ui-for-media-stream',
             '--autoplay-policy=no-user-gesture-required',
           ],
+        },
+      },
+    },
+    {
+      // Builds the bundle the streaming suite's host serves. Its own project
+      // so the build has a timeout of its own and reports as a step rather
+      // than as the first test's startup cost.
+      name: 'streaming-setup',
+      testMatch: /hostBundle\.setup\.ts/,
+    },
+    {
+      name: 'streaming',
+      testMatch: /streaming\.spec\.ts/,
+      dependencies: ['streaming-setup'],
+      use: {
+        browserName: 'chromium',
+        // No webServer entry: the host this points at is started by the spec.
+        baseURL: STREAMING_URL,
+        launchOptions: {
+          // Nothing records here, so the fake capture device the other
+          // projects ask for is not needed. This one is: the specs assert that
+          // audio actually advances.
+          args: ['--autoplay-policy=no-user-gesture-required'],
         },
       },
     },

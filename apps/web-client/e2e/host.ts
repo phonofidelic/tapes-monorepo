@@ -42,6 +42,15 @@ function send<T>(command: Record<string, unknown>): Promise<T> {
   return settled
 }
 
+export type HostOptions = {
+  /**
+   * Directory of a built web-client bundle for the host to serve over its own
+   * origin. Without one the host answers API routes only, and a guest loads
+   * the app from a Vite server instead.
+   */
+  webClientPath?: string
+}
+
 /**
  * Starts the host and creates the library document guests pair with.
  *
@@ -49,7 +58,9 @@ function send<T>(command: Record<string, unknown>): Promise<T> {
  * covers the extensionless relative imports the app's sources are written with
  * (see `tsExtensionHooks.mjs`). Nothing is built or bundled for this.
  */
-export async function startHost(): Promise<{ libraryUrl: AutomergeUrl }> {
+export async function startHost(
+  options: HostOptions = {},
+): Promise<{ libraryUrl: AutomergeUrl }> {
   const here = path.dirname(fileURLToPath(import.meta.url))
   child = spawn(
     process.execPath,
@@ -105,7 +116,10 @@ export async function startHost(): Promise<{ libraryUrl: AutomergeUrl }> {
     pending.clear()
   })
 
-  return send<{ libraryUrl: AutomergeUrl }>({ type: 'start' })
+  return send<{ libraryUrl: AutomergeUrl }>({
+    type: 'start',
+    webClientPath: options.webClientPath,
+  })
 }
 
 /**
