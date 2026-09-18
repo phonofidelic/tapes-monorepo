@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import { generateAutomergeUrl } from '@automerge/automerge-repo'
-import { setAutomergeUrl, useAutomergeUrl } from './utils'
+import { isSyncServerUrl, setAutomergeUrl, useAutomergeUrl } from './utils'
 
 const STORED_URL = generateAutomergeUrl()
 const SEED_URL = generateAutomergeUrl()
@@ -65,5 +65,18 @@ describe('useAutomergeUrl', () => {
 
     expect(() => setAutomergeUrl(IMPORTED_URL)).not.toThrow()
     expect(localStorage.getItem('automergeUrl')).toBe(IMPORTED_URL)
+  })
+})
+
+describe('isSyncServerUrl', () => {
+  it('returns false if the value is not a valid sync server URL', () => {
+    expect(isSyncServerUrl(123)).toBe(false)
+    expect(isSyncServerUrl('abc')).toBe(false)
+    expect(isSyncServerUrl('https://example.com')).toBe(false)
+  })
+
+  it('returns true if the value is a valid sync server URL', () => {
+    expect(isSyncServerUrl('wss://example.com')).toBe(true)
+    expect(isSyncServerUrl('ws://example.com')).toBe(true)
   })
 })

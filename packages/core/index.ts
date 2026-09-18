@@ -8,7 +8,7 @@ export * from './app/workerClient'
 export * from './app/blobCache'
 export * from './app/blobUpload'
 export * from './app/deviceLabel'
-export { useAutomergeUrl } from './app/utils'
+export { useAutomergeUrl, isSyncServerUrl } from './app/utils'
 export {
   useConnectedDevices,
   type ConnectedDevicesState,

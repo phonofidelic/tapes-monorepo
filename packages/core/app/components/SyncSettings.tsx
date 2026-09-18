@@ -15,7 +15,7 @@ import {
   SyncServerInfo,
 } from '@/IpcService'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
-import { useAutomergeUrl } from '@/utils'
+import { isSyncServerUrl, useAutomergeUrl } from '@/utils'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { QRCodeSVG } from 'qrcode.react'
@@ -216,15 +216,9 @@ function HostSettings() {
               className="w-fit p-2"
               title="Save sync server URL"
               onClick={() => {
-                try {
-                  const url = new URL(remoteUrlDraft)
-                  if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-                    return
-                  }
-                } catch {
-                  return
+                if (isSyncServerUrl(remoteUrlDraft)) {
+                  setRemoteSyncServerUrl(remoteUrlDraft)
                 }
-                setRemoteSyncServerUrl(remoteUrlDraft)
               }}
             >
               Save

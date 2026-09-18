@@ -11,7 +11,7 @@ import type {
   RecordingRepoState,
   SyncServerInfo,
 } from '@tapes-monorepo/core'
-import { withDeviceLabel } from '@tapes-monorepo/core'
+import { isSyncServerUrl, withDeviceLabel } from '@tapes-monorepo/core'
 import { withHostClientMarker } from '@tapes-monorepo/sync-protocol'
 
 /**
@@ -77,19 +77,6 @@ export function readSyncSettings(
       typeof pairingToken === 'string' && pairingToken.length > 0
         ? pairingToken
         : undefined,
-  }
-}
-
-/** The same validation the Settings UI applies before storing a value. */
-function isSyncServerUrl(value: unknown): value is string {
-  if (typeof value !== 'string') {
-    return false
-  }
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'ws:' || protocol === 'wss:'
-  } catch {
-    return false
   }
 }
 
