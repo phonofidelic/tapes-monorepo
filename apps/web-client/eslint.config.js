@@ -15,6 +15,13 @@ export default [
     },
   },
   {
-    ignores: ["dist/**", "playwright-report/**", "test-results/**"],
+    // dist-host is the same app built as the host serves it, for the
+    // streaming e2e project (e2e/hostBundle.ts).
+    ignores: [
+      "dist/**",
+      "dist-host/**",
+      "playwright-report/**",
+      "test-results/**",
+    ],
   },
 ];
