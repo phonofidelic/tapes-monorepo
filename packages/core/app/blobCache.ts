@@ -4,8 +4,10 @@ import type { HasBlobResponse, IpcResponse } from './IpcService'
 import { callWorker } from './workerClient'
 
 /**
- * The device-local copy of blobs fetched from the host. A guest's storage
- * grows with what it has played, not with the size of the library.
+ * The device-local copy of blobs held for offline playback. Pinning is the
+ * only thing that writes here. Playback streams from the host and keeps
+ * nothing, so a guest's storage holds what the user asked to keep rather than
+ * everything they have played.
  *
  * Web keeps blobs in an OPFS `blobs/` directory keyed by hash. Electron hands
  * them to its own blob store, which for a host is already where the bytes
@@ -51,6 +53,9 @@ export function forgetCacheEntry(hash: string, storage: Storage) {
 /**
  * Least recently played first, skipping anything the user pinned. A pin is a
  * promise that the recording stays playable with the host switched off.
+ *
+ * Nothing but a pin writes to the cache now, so every entry is exempt and this
+ * selects nothing. Kept for whatever writes here next.
  */
 export function selectEvictions(
   storage: Storage,

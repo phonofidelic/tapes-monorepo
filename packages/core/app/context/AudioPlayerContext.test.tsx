@@ -160,6 +160,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'serviceWorker')
 })
 
 describe('legacy recordings with embedded audio', () => {
@@ -202,7 +203,7 @@ describe('recordings stored out of band', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('fetches from the host once when nothing local has it, and caches it', async () => {
+  it('fetches from the host once when nothing local has it', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response('audio', { status: 200 }))
@@ -228,8 +229,9 @@ describe('recordings stored out of band', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       `http://127.0.0.1:9001/blobs/${HASH}`,
     )
-    // Kept locally, so a guest's storage grows with what it played.
-    await waitFor(() => expect(sent).toContain('blob:put'))
+    // Playing no longer fills the local cache. Pinning is the one way a
+    // recording is kept for offline use.
+    expect(sent).not.toContain('blob:put')
   })
 
   // A recording made on the electron host carries that machine's absolute
@@ -310,14 +312,11 @@ describe('recordings stored out of band', () => {
     expect(fetchMock.mock.calls[1][0]).toBe(
       `https://sync.example.com/blobs/${HASH}`,
     )
-    // And the host that was missing it gets a copy, so the next device to ask
-    // does not depend on which host is awake.
-    await waitFor(() => {
-      const upload = fetchMock.mock.calls.find(
-        ([, init]) => init?.method === 'POST',
-      )
-      expect(upload?.[0]).toContain('http://127.0.0.1:9001/blobs?doc=')
-    })
+    // The host that was missing it is no longer repaired from here. Playback
+    // may hold no bytes at all now, so pinning does the copying.
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === 'POST'),
+    ).toBe(false)
   })
 
   it('reports an error rather than silently clearing the player', async () => {
@@ -437,6 +436,151 @@ describe('recordings stored out of band', () => {
         expect(screen.getByTestId('failure')).toHaveTextContent('unreachable'),
       )
     })
+  })
+})
+
+/** A host on the page's own origin, which the service worker can authenticate. */
+const ORIGIN_ENDPOINT: BlobEndpoint = {
+  baseUrl: window.location.origin,
+  token: 'pair-token',
+}
+
+/**
+ * Stands in for the worker the host-served bundle registers. Only its presence
+ * matters to the player; adding the header is the worker's own job.
+ */
+const controlPage = () => {
+  Object.defineProperty(navigator, 'serviceWorker', {
+    value: { controller: {} },
+    configurable: true,
+  })
+}
+
+/** A host answering HEAD for a blob it holds. */
+const held = () =>
+  new Response(null, {
+    status: 200,
+    headers: { 'content-length': '5000000', 'content-type': 'audio/wav' },
+  })
+
+const notHeld = () =>
+  new Response(JSON.stringify({ error: 'Unknown blob' }), { status: 404 })
+
+/** A long recording, which is the case streaming exists for. */
+const longRecording = (): RecordingData => ({
+  ...base,
+  filepath: '',
+  blob: { hash: HASH, size: 5000000, mimeType: 'audio/wav', ext: '.wav' },
+})
+
+describe('streaming from the host', () => {
+  it('points the element at the host rather than buffering the file', async () => {
+    controlPage()
+    const fetchMock = vi.fn().mockResolvedValue(held())
+    vi.stubGlobal('fetch', fetchMock)
+    recording = longRecording()
+
+    const sent: string[] = []
+    const worker = workerAnswering((message) => {
+      sent.push(message.type)
+      return { success: false, error: 'NotFoundError' }
+    })
+    renderPlayer({ type: 'web-client', worker }, [ORIGIN_ENDPOINT])
+
+    await waitFor(() =>
+      expect(srcText()).toBe(`${window.location.origin}/blobs/${HASH}`),
+    )
+    // One HEAD and nothing else. The body arrives through the element, which
+    // range-requests it, so none of it passes through here.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('HEAD')
+    expect(sent).not.toContain('blob:put')
+  })
+
+  it('buffers the whole file when no worker is controlling the page', async () => {
+    // Registration needs a secure context, which the plain-HTTP LAN mode is
+    // not. Those guests keep the old path.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('audio', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    recording = longRecording()
+
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [
+      ORIGIN_ENDPOINT,
+    ])
+
+    await waitFor(() => expect(srcText()).toMatch(/^blob:/))
+    expect(fetchMock.mock.calls[0][1]?.method).toBeUndefined()
+  })
+
+  it('streams from the next host when the nearest one has never seen the blob', async () => {
+    controlPage()
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.startsWith(window.location.origin) ? held() : notHeld(),
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    recording = longRecording()
+
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [
+      { ...ENDPOINT, local: true },
+      ORIGIN_ENDPOINT,
+    ])
+
+    await waitFor(() =>
+      expect(srcText()).toBe(`${window.location.origin}/blobs/${HASH}`),
+    )
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:9001/blobs/${HASH}`,
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('buffers from a host the worker cannot authenticate for', async () => {
+    // The worker adds the token to its own origin only. A remote host still
+    // needs the page to fetch the bytes and set the header itself.
+    controlPage()
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (!url.startsWith(REMOTE_ENDPOINT.baseUrl)) {
+        return Promise.resolve(notHeld())
+      }
+      return Promise.resolve(
+        init?.method === 'HEAD'
+          ? held()
+          : new Response('audio', { status: 200 }),
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    recording = longRecording()
+
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [
+      ORIGIN_ENDPOINT,
+      REMOTE_ENDPOINT,
+    ])
+
+    await waitFor(() => expect(srcText()).toMatch(/^blob:/))
+    const body = fetchMock.mock.calls.find(([, init]) => !init?.method)
+    expect(body?.[0]).toBe(`https://sync.example.com/blobs/${HASH}`)
+  })
+
+  it('reports a host that rejects the probe', async () => {
+    controlPage()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    )
+    recording = longRecording()
+
+    renderPlayer({ type: 'web-client', worker: emptyWorker() }, [
+      ORIGIN_ENDPOINT,
+    ])
+
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('error'),
+    )
+    expect(screen.getByTestId('failure')).toHaveTextContent('unauthorized')
   })
 })
 
@@ -674,6 +818,90 @@ describe('seeking', () => {
     expect(audio.currentTime).toBe(10)
     await waitFor(() =>
       expect(screen.getByTestId('time')).toHaveTextContent('10'),
+    )
+  })
+})
+
+/** The player's element, alongside what it reports about playback. */
+function MediaProbe() {
+  const {
+    audioRef,
+    setCurrentSource,
+    setCurrentUrl,
+    playbackState,
+    playbackFailure,
+  } = useAudioPlayer()
+
+  useEffect(() => {
+    audioElement = audioRef.current
+  }, [audioRef])
+
+  useEffect(() => {
+    setCurrentSource(base.filepath)
+    setCurrentUrl(RECORDING_URL)
+  }, [setCurrentSource, setCurrentUrl])
+
+  return (
+    <>
+      <output data-testid="state">{playbackState}</output>
+      <output data-testid="failure">{playbackFailure ?? ''}</output>
+    </>
+  )
+}
+
+const renderMedia = () => {
+  audioElement = null
+  render(
+    <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
+      <BlobProvider endpoints={[]}>
+        <AudioPlayerProvider>
+          <MediaProbe />
+        </AudioPlayerProvider>
+      </BlobProvider>
+    </AppContextProvider>,
+  )
+  const audio = currentAudioElement()
+  if (!audio) {
+    throw new Error('the provider never exposed its audio element')
+  }
+  return audio
+}
+
+describe('media errors', () => {
+  beforeEach(() => {
+    // Resolves without a host, so these tests are about the element alone.
+    recording = { ...base, audio: new Uint8Array([1, 2, 3]) }
+  })
+
+  // A streamed source is fetched by the element over the whole of playback, so
+  // it can fail long after it was handed over. That used to be logged and
+  // nothing else, leaving a play button over a source that would never play.
+  it('reports a source that fails after it was handed over', async () => {
+    const audio = renderMedia()
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('ready'),
+    )
+
+    fireEvent(audio, new Event('error'))
+
+    expect(screen.getByTestId('state')).toHaveTextContent('error')
+    expect(screen.getByTestId('failure')).toHaveTextContent('unreachable')
+  })
+
+  it('ignores an error from a source already detached', async () => {
+    const audio = renderMedia()
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('ready'),
+    )
+
+    // What the element reports while the player swaps recordings. Treating it
+    // as a failure would blame the new recording for the old one going away.
+    cleanup()
+    fireEvent(audio, new Event('error'))
+
+    renderMedia()
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('ready'),
     )
   })
 })

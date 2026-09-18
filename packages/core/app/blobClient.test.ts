@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BlobFetchError,
   BlobRequestError,
+  canStreamBlob,
   classifyBlobFailure,
   deleteBlob,
   fetchBlob,
@@ -554,5 +555,48 @@ describe('deleteBlobEverywhere', () => {
       deleteBlobEverywhere([LOCAL, REMOTE], HASH, DOC),
     ).resolves.toBeUndefined()
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('canStreamBlob', () => {
+  const PAGE = 'https://host.local:5173'
+
+  it('lets the element fetch a same-origin host under a service worker', () => {
+    expect(
+      canStreamBlob(
+        { baseUrl: PAGE, token: 'pair-token' },
+        { controlled: true, origin: PAGE },
+      ),
+    ).toBe(true)
+  })
+
+  it('holds back a host on another origin', () => {
+    // The worker only adds the header to requests for its own origin, so the
+    // element would send this one unauthenticated.
+    expect(
+      canStreamBlob(
+        { baseUrl: 'https://sync.example.com', token: 'pair-token' },
+        { controlled: true, origin: PAGE },
+      ),
+    ).toBe(false)
+  })
+
+  it('holds back every host when no worker is controlling the page', () => {
+    expect(
+      canStreamBlob(
+        { baseUrl: PAGE, token: 'pair-token' },
+        { controlled: false, origin: PAGE },
+      ),
+    ).toBe(false)
+  })
+
+  it('allows a host that asks for no token', () => {
+    // Nothing has to be added, so there is nothing a worker is needed for.
+    expect(
+      canStreamBlob(
+        { baseUrl: 'http://127.0.0.1:9001' },
+        { controlled: false, origin: PAGE },
+      ),
+    ).toBe(true)
   })
 })

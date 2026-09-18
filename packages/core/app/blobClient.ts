@@ -216,6 +216,35 @@ export function blobUrl(endpoint: BlobEndpoint, hash: string): string {
   return `${endpoint.baseUrl}/blobs/${hash}`
 }
 
+/**
+ * Whether an `<audio>` element can be pointed straight at this host.
+ *
+ * The element cannot set an Authorization header. On a host-served build a
+ * service worker adds it, but only to requests for its own origin, so a host
+ * on another origin still needs the page to fetch the bytes itself. A host
+ * that asks for no token needs neither.
+ */
+export function canStreamBlob(
+  endpoint: BlobEndpoint,
+  options: { controlled: boolean; origin?: string },
+): boolean {
+  if (!endpoint.token) {
+    return true
+  }
+  if (!options.controlled || !options.origin) {
+    return false
+  }
+  return sameOrigin(endpoint.baseUrl, options.origin)
+}
+
+function sameOrigin(baseUrl: string, origin: string): boolean {
+  try {
+    return new URL(baseUrl).origin === new URL(origin).origin
+  } catch {
+    return false
+  }
+}
+
 async function failure(response: Response): Promise<BlobRequestError> {
   let message = response.statusText
   try {
