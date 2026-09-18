@@ -19012,6 +19012,8 @@ __metadata:
     vite-plugin-wasm: "npm:^3.6.0"
     vitest: "npm:^3.0.0"
     workbox-build: "npm:^7.4.1"
+    workbox-precaching: "npm:^7.4.1"
+    workbox-routing: "npm:^7.4.1"
     workbox-window: "npm:^7.4.1"
   languageName: unknown
   linkType: soft
@@ -19413,7 +19415,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"workbox-precaching@npm:7.4.1":
+"workbox-precaching@npm:7.4.1, workbox-precaching@npm:^7.4.1":
   version: 7.4.1
   resolution: "workbox-precaching@npm:7.4.1"
   dependencies:
@@ -19447,7 +19449,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"workbox-routing@npm:7.4.1":
+"workbox-routing@npm:7.4.1, workbox-routing@npm:^7.4.1":
   version: 7.4.1
   resolution: "workbox-routing@npm:7.4.1"
   dependencies:

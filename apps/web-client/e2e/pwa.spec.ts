@@ -87,8 +87,9 @@ test('launches and mounts offline after one load', async ({
   await waitForActiveServiceWorker(page)
 
   // A freshly installed worker activates but does not claim open pages
-  // (generateSW leaves clientsClaim off), so the first reload is what puts the
-  // page under its control. Without it, going offline would just fail the nav.
+  // (src/sw.ts does not call clientsClaim), so the first reload is what puts
+  // the page under its control. Without it, going offline would just fail the
+  // nav.
   await page.reload()
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
 
