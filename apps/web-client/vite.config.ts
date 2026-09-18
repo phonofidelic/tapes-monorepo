@@ -4,11 +4,11 @@ import wasm from 'vite-plugin-wasm'
 import topLevelAwait from 'vite-plugin-top-level-await'
 import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
-import { VitePWA } from 'vite-plugin-pwa'
+import { VitePWA, type VitePWAOptions } from 'vite-plugin-pwa'
 
 // This bundle is also staged into electron-client and served to LAN guests
-// (`stage-web-client` sets this). Those guests get no service worker at all.
-// See the `disable` option below and the unregister in src/main.tsx.
+// (`stage-web-client` sets this). Those guests get a different service worker
+// from the standalone deploy's. The two option sets below say how they differ.
 const servedByHost = process.env.VITE_SERVED_BY_HOST === 'true'
 
 // Loopback port the `/sync` and `/blobs` proxies below hop to. The Electron
@@ -18,96 +18,115 @@ const servedByHost = process.env.VITE_SERVED_BY_HOST === 'true'
 // so it never collides with a desktop app that is already running.
 const syncServerPort = process.env.TAPES_SYNC_SERVER_PORT ?? '9001'
 
+// What the host-served bundle gets. The worker has one job: add the pairing
+// token to `/blobs` requests, so an audio element can stream from the host.
+// See src/blobAuthSw.ts.
+//
+// A worker was refused here before, and most of that reasoning is answered by
+// precaching nothing. This one holds no bundle, so it cannot serve a stale one
+// after the host it came from has moved on. What still stands is plain-HTTP LAN
+// mode: it is not a secure context, so nothing registers there at all.
+const hostServedPwa: Partial<VitePWAOptions> = {
+  strategies: 'injectManifest',
+  srcDir: 'src',
+  filename: 'blobAuthSw.ts',
+  // There is no precache manifest to inject. Without this the build looks for
+  // `self.__WB_MANIFEST` in the worker and fails when it is not there.
+  injectManifest: { injectionPoint: undefined },
+  // No web app manifest and no injected head tags. A LAN guest has nothing to
+  // install: the app only works while the host it is paired with is running.
+  manifest: false,
+  // Registration happens in src/main.tsx, which writes the token first.
+  injectRegister: null,
+  devOptions: { enabled: false },
+}
+
+// What the standalone deploy gets: the app shell precached for offline boot.
+const standalonePwa: Partial<VitePWAOptions> = {
+  // The worker is src/sw.ts, built to dist/sw.js with the precache manifest
+  // injected into it. The routing and lifecycle rules Workbox used to
+  // generate from options here are written out in that file.
+  strategies: 'injectManifest',
+  srcDir: 'src',
+  filename: 'sw.ts',
+  // Never swap the bundle out from under a recording in progress. The user
+  // is told an update is ready and chooses when to take it (PwaUpdatePrompt).
+  // src/sw.ts holds the message listener this relies on.
+  registerType: 'prompt',
+  // Registration happens explicitly in ShellPrompts, not via an injected
+  // script, so it stays on one code path with the update UI.
+  injectRegister: null,
+  includeAssets: [
+    'favicon-16.png',
+    'favicon-32.png',
+    'favicon-48.ico',
+    'apple-touch-icon-180x180.png',
+    'icon.svg',
+    'tapes-mobile-ui.webp',
+  ],
+  manifest: {
+    name: 'Tapes',
+    short_name: 'Tapes',
+    description: 'Local-first audio recording',
+    id: 'tapes.phonofidelic',
+    display: 'standalone',
+    orientation: 'any',
+    background_color: '#ffffff',
+    theme_color: '#18181b',
+    icons: [
+      {
+        src: 'pwa-64x64.png',
+        sizes: '64x64',
+        type: 'image/png',
+      },
+      {
+        src: 'pwa-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: 'pwa-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: 'maskable-icon-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+    screenshots: [
+      {
+        src: 'tapes-mobile-ui.webp',
+        sizes: '1002x1772',
+        type: 'image/webp',
+      },
+    ],
+  },
+  // These two settings decide what the manifest injected into src/sw.ts
+  // contains. Both are required for offline boot. Automerge's wasm is a
+  // ~3.2 MB hashed asset that the bundle fetches at module-init time under a
+  // top-level await. Workbox's defaults would drop it silently: `wasm` is not
+  // in the default glob set, and the default 2 MiB size cap would exclude it
+  // even if it were. The result would be a cached shell that never mounts
+  // offline. scripts/verifyPrecache.mjs fails the build if the wasm ever
+  // leaves the injected manifest.
+  injectManifest: {
+    globPatterns: ['**/*.{js,css,html,wasm,ico,png,svg,webmanifest}'],
+    maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+  },
+  // Off on purpose. A worker on the dev server would fight the LAN-guest HMR
+  // flow and the Playwright suite, which runs against `vite` dev by design.
+  // See the webServer comment in playwright.config.ts.
+  devOptions: { enabled: false },
+}
+
 const plugins = [
   wasm(),
   topLevelAwait(),
   react(),
-  VitePWA({
-    // A host-served build emits no sw.js, no manifest and no injected head
-    // tags. A LAN guest exists to sync with a live host, so offline caching
-    // buys nothing. Plain-HTTP LAN mode is not a secure context, so a worker
-    // could not register there anyway. HTTPS LAN mode runs on a self-signed
-    // cert (electron-client/src/certManager.ts), where a wedged service worker
-    // is hard for a guest to clear.
-    disable: servedByHost,
-    // The worker is src/sw.ts, built to dist/sw.js with the precache manifest
-    // injected into it. The routing and lifecycle rules Workbox used to
-    // generate from options here are written out in that file.
-    strategies: 'injectManifest',
-    srcDir: 'src',
-    filename: 'sw.ts',
-    // Never swap the bundle out from under a recording in progress. The user
-    // is told an update is ready and chooses when to take it (PwaUpdatePrompt).
-    // src/sw.ts holds the message listener this relies on.
-    registerType: 'prompt',
-    // Registration happens explicitly in ShellPrompts, not via an injected
-    // script, so it stays on one code path with the update UI.
-    injectRegister: null,
-    includeAssets: [
-      'favicon-16.png',
-      'favicon-32.png',
-      'favicon-48.ico',
-      'apple-touch-icon-180x180.png',
-      'icon.svg',
-      'tapes-mobile-ui.webp',
-    ],
-    manifest: {
-      name: 'Tapes',
-      short_name: 'Tapes',
-      description: 'Local-first audio recording',
-      id: 'tapes.phonofidelic',
-      display: 'standalone',
-      orientation: 'any',
-      background_color: '#ffffff',
-      theme_color: '#18181b',
-      icons: [
-        {
-          src: 'pwa-64x64.png',
-          sizes: '64x64',
-          type: 'image/png',
-        },
-        {
-          src: 'pwa-192x192.png',
-          sizes: '192x192',
-          type: 'image/png',
-        },
-        {
-          src: 'pwa-512x512.png',
-          sizes: '512x512',
-          type: 'image/png',
-        },
-        {
-          src: 'maskable-icon-512x512.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'maskable',
-        },
-      ],
-      screenshots: [
-        {
-          src: 'tapes-mobile-ui.webp',
-          sizes: '1002x1772',
-          type: 'image/webp',
-        },
-      ],
-    },
-    // These two settings decide what the manifest injected into src/sw.ts
-    // contains. Both are required for offline boot. Automerge's wasm is a
-    // ~3.2 MB hashed asset that the bundle fetches at module-init time under a
-    // top-level await. Workbox's defaults would drop it silently: `wasm` is not
-    // in the default glob set, and the default 2 MiB size cap would exclude it
-    // even if it were. The result would be a cached shell that never mounts
-    // offline. scripts/verifyPrecache.mjs fails the build if the wasm ever
-    // leaves the injected manifest.
-    injectManifest: {
-      globPatterns: ['**/*.{js,css,html,wasm,ico,png,svg,webmanifest}'],
-      maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-    },
-    // Off on purpose. A worker on the dev server would fight the LAN-guest HMR
-    // flow and the Playwright suite, which runs against `vite` dev by design.
-    // See the webServer comment in playwright.config.ts.
-    devOptions: { enabled: false },
-  }),
+  VitePWA(servedByHost ? hostServedPwa : standalonePwa),
 ]
 
 if (process.env.HTTPS === 'true') {

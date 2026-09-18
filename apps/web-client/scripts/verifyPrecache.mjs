@@ -11,12 +11,15 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const webClientRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const webClientRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+)
 const serviceWorkerPath = path.join(webClientRoot, 'dist', 'sw.js')
 
-// The host-served build disables vite-plugin-pwa entirely and emits no service
-// worker, so there is nothing to check. Staying quiet here keeps
-// `yarn workspace electron-client stage-web-client` working.
+// The host-served build emits a different worker, and that one precaches
+// nothing by design (src/blobAuthSw.ts). There is nothing to check. Staying
+// quiet here keeps `yarn workspace electron-client stage-web-client` working.
 if (process.env.VITE_SERVED_BY_HOST === 'true') {
   process.exit(0)
 }

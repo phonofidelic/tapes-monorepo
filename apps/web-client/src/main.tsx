@@ -9,6 +9,7 @@ import {
   useAutomergeUrl,
 } from '@tapes-monorepo/core'
 import './index.css'
+import { storePairingToken } from './blobAuth'
 import ShellPrompts from './ShellPrompts'
 import { resolveSyncServerUrl } from './syncServerUrl'
 import {
@@ -34,10 +35,6 @@ import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-index
 //   5. Nothing matched: a standalone deploy with no server to reach. Core runs
 //      local-only (IndexedDB plus cross-tab BroadcastChannel).
 
-// A bundle the Electron host serves to LAN guests gets no service worker; the
-// plugin is disabled for that build (see vite.config.ts for why). Tear down any
-// worker a guest registered from this origin before that was true, so it can't
-// keep serving a cached bundle from a host it may no longer be able to reach.
 const servedByHost = import.meta.env.VITE_SERVED_BY_HOST === 'true'
 
 // The QR/copy link a host shows for pairing carries its token as `pt`. Stash
@@ -105,16 +102,20 @@ const eventTarget = resolveEventTarget({
   token: pairingToken,
 })
 
+// The host-served bundle runs a service worker whose only job is to add the
+// pairing token to `/blobs` requests (src/blobAuthSw.ts). An audio element
+// cannot set headers, so without it streaming playback would have to put the
+// token in the query string, where the DOM and the host's access log would
+// both keep a copy.
+//
+// The token is written before the worker is registered, so the worker finds it
+// on its first fetch. Registration can fail: plain-HTTP LAN mode is not a
+// secure context. Those guests go without and buffer whole files instead.
 if (servedByHost && 'serviceWorker' in navigator) {
-  navigator.serviceWorker
-    .getRegistrations()
-    .then((registrations) =>
-      Promise.all(
-        registrations.map((registration) => registration.unregister()),
-      ),
-    )
+  storePairingToken(pairingToken)
+    .then(() => navigator.serviceWorker.register('/blobAuthSw.js'))
     .catch((error) => {
-      console.error('Failed to unregister service workers', error)
+      console.error('Blob auth service worker unavailable', error)
     })
 }
 
