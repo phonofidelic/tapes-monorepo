@@ -7,14 +7,9 @@ import {
   MAX_DEVICE_LABEL_LENGTH,
   sanitizeDeviceLabel,
 } from '@/deviceLabel'
-import {
-  ConnectedDevicesEvent,
-  GetConnectedDevicesError,
-  GetConnectedDevicesResponse,
-  SyncConnection,
-  SyncServerInfo,
-} from '@/IpcService'
+import { SyncConnection, SyncServerInfo } from '@/IpcService'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
+import { useConnectedDevices } from '@/useConnectedDevices'
 import { isSyncServerUrl, useAutomergeUrl } from '@/utils'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { Button, TextInput } from '@tapes-monorepo/ui'
@@ -69,11 +64,6 @@ function HostSettings() {
   const [pairingToken, setPairingToken] = useSetting('pairingToken')
   const { automergeUrl } = useAutomergeUrl()
   const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
-  const [syncConnections, setSyncConnections] = useState<
-    SyncConnection[] | null
-  >(null)
-  const [getConnectedDevicesError, setGetConnectedDevicesError] =
-    useState<Error | null>(null)
   const [remoteUrlDraft, setRemoteUrlDraft] = useState(
     remoteSyncServerUrl ?? '',
   )
@@ -81,9 +71,9 @@ function HostSettings() {
 
   const resolvedSyncServerMode = syncServerMode ?? 'embedded'
 
-  // Handle effects for the electron hosted sync server:
-  // - Get server info on mount and update on changes to sync server settings.
-  // - Subscribe to device connection events
+  // Reads the server's own address, token and fingerprint. The LAN and HTTPS
+  // toggles change all three, so they are deps rather than one-time reads.
+  // Who is connected is not read here: `ConnectedDevices` asks for that.
   useEffect(() => {
     if (
       appContext.type !== 'electron-client' ||
@@ -103,45 +93,8 @@ function HostSettings() {
       setServerInfo(info)
     })
 
-    // Flag to prevent a stale snapshot fetch from overwriting a more recent push event
-    let pushed = false
-
-    const onConnectedDevicesPush = (payload: ConnectedDevicesEvent) => {
-      setSyncConnections(payload.connections)
-      pushed = true
-    }
-
-    const unsubscribeConnectedDevicesPush =
-      appContext.ipc.subscribe<ConnectedDevicesEvent>(
-        'sync:connected-devices',
-        onConnectedDevicesPush,
-      )
-
-    appContext.ipc
-      .send<GetConnectedDevicesResponse>('sync:get-connected-devices')
-      .then((response) => {
-        // Skip setting the initial sync connection snapshot if a push event has already landed
-        if (cancelled || pushed) {
-          return
-        }
-
-        if (!response.success) {
-          throw new GetConnectedDevicesError()
-        }
-
-        setSyncConnections(response.data.connections)
-      })
-      .catch((error: unknown) => {
-        if (error instanceof GetConnectedDevicesError) {
-          setGetConnectedDevicesError(error)
-          return
-        }
-        throw error
-      })
-
     return () => {
       cancelled = true
-      unsubscribeConnectedDevicesPush()
     }
   }, [
     appContext,
@@ -344,50 +297,71 @@ function HostSettings() {
               )}
             </div>
           )}
-          {getConnectedDevicesError ? (
-            <ConnectedDevicesEmptyOrErrorMessage
-              title="Can't tell who is connected."
-              body="Tapes lost contact with its sync server, so this list may be wrong. It returns on its own once contact is back. Restart Tapes if it does not."
-            />
-          ) : (
-            syncConnections && (
-              <div className="flex flex-col gap-2">
-                <h4 className="text-sm">Connected devices:</h4>
-                <div className="flex flex-col gap-2">
-                  {(() => {
-                    const hostConnection = syncConnections.find(
-                      (connection) => connection.self,
-                    )
-                    return hostConnection ? (
-                      <ConnectionRow connection={hostConnection} />
-                    ) : null
-                  })()}
-
-                  {(() => {
-                    const guestConnections = syncConnections.filter(
-                      (connection) => !connection.self,
-                    )
-                    return guestConnections.length > 0 ? (
-                      <ul className="flex flex-col gap-2">
-                        {guestConnections.map((guestConnection) => (
-                          <li key={guestConnection.id}>
-                            <ConnectionRow connection={guestConnection} />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <ConnectedDevicesEmptyOrErrorMessage
-                        title="No guest devices connected."
-                        body="Show the QR code above to a phone or laptop on this network, or send it the link. A device appears here the moment it connects."
-                      />
-                    )
-                  })()}
-                </div>
-              </div>
-            )
-          )}
+          <ConnectedDevices />
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Who is connected to this host's sync server.
+ *
+ * Rendered only under the embedded-mode branch above. `useConnectedDevices`
+ * subscribes as soon as it has an ipc service, so a host pointed at a remote
+ * server must not reach this component at all: it would ask a question this
+ * device has no server to answer.
+ */
+function ConnectedDevices() {
+  const { connections, status, refresh } = useConnectedDevices()
+
+  // Nothing to say yet. An empty panel beats a list that is about to be
+  // replaced, and `unsupported` cannot happen from a host-only call site.
+  if (status === 'loading' || status === 'unsupported') {
+    return null
+  }
+
+  if (status === 'unavailable') {
+    return (
+      <ConnectedDevicesEmptyOrErrorMessage
+        title="Can't tell who is connected."
+        body="Tapes lost contact with its sync server, so this list may be wrong. It returns on its own once contact is back, or you can ask again."
+      >
+        <Button
+          className="w-fit p-2"
+          title="Ask the host again"
+          onClick={refresh}
+        >
+          Try again
+        </Button>
+      </ConnectedDevicesEmptyOrErrorMessage>
+    )
+  }
+
+  const hostConnection = connections.find((connection) => connection.self)
+  const guestConnections = connections.filter((connection) => !connection.self)
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h4 className="text-sm">Connected devices:</h4>
+      <div className="flex flex-col gap-2">
+        {hostConnection && <ConnectionRow connection={hostConnection} />}
+
+        {guestConnections.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {guestConnections.map((guestConnection) => (
+              <li key={guestConnection.id}>
+                <ConnectionRow connection={guestConnection} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ConnectedDevicesEmptyOrErrorMessage
+            title="No guest devices connected."
+            body="Show the QR code above to a phone or laptop on this network, or send it the link. A device appears here the moment it connects."
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -395,14 +369,17 @@ function HostSettings() {
 function ConnectedDevicesEmptyOrErrorMessage({
   title,
   body,
+  children,
 }: {
   title: string
   body: string
+  children?: React.ReactNode
 }) {
   return (
     <div className="flex flex-col gap-2 p-4">
       <p>{title}</p>
       <p className="text-muted text-sm">{body}</p>
+      {children}
     </div>
   )
 }
