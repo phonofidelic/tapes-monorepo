@@ -8,6 +8,7 @@ import {
   headBlob,
   deleteBlobEverywhere,
   fetchBlobFromAny,
+  probeBlobEndpoints,
   replicateBlob,
   resolveBlobEndpoints,
   uploadBlob,
@@ -388,6 +389,117 @@ describe('fetchBlobFromAny', () => {
 
   it('says this device is paired with nothing when it has no endpoints', async () => {
     await expect(fetchBlobFromAny([], HASH)).rejects.toMatchObject({
+      reason: 'unpaired',
+    })
+  })
+})
+
+describe('probeBlobEndpoints', () => {
+  it('sends HEAD requests and reports what the host said about the bytes', async () => {
+    const asked: { url: string; method?: string }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init: RequestInit) => {
+        asked.push({ url, method: init.method })
+        return Promise.resolve(
+          new Response(null, {
+            status: 200,
+            headers: { 'Content-Length': '2048', 'Content-Type': 'audio/mp4' },
+          }),
+        )
+      }),
+    )
+
+    const result = await probeBlobEndpoints([LOCAL], HASH)
+
+    expect(result).toEqual({
+      from: LOCAL,
+      size: 2048,
+      mimeType: 'audio/mp4',
+      missingFrom: [],
+    })
+    expect(asked).toEqual([
+      { url: `${LOCAL.baseUrl}/blobs/${HASH}`, method: 'HEAD' },
+    ])
+  })
+
+  it('falls back to the next host when the first has never seen the blob', async () => {
+    const fetchMock = stubHosts({
+      [LOCAL.baseUrl]: () => new Response(null, { status: 404 }),
+      [REMOTE.baseUrl]: () =>
+        new Response(null, {
+          status: 200,
+          headers: { 'Content-Length': '64', 'Content-Type': 'audio/webm' },
+        }),
+    })
+
+    const result = await probeBlobEndpoints([LOCAL, REMOTE], HASH)
+
+    expect(result.from).toBe(REMOTE)
+    expect(result.missingFrom).toEqual([LOCAL])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a rejected token ahead of a host that lacks the bytes', async () => {
+    stubHosts({
+      [LOCAL.baseUrl]: () => jsonResponse(401, { error: 'Unauthorized' }),
+      [REMOTE.baseUrl]: () => new Response(null, { status: 404 }),
+    })
+
+    await expect(
+      probeBlobEndpoints([LOCAL, REMOTE], HASH),
+    ).rejects.toMatchObject({ reason: 'unauthorized' })
+  })
+
+  it('gives up on a host that accepts the connection and never answers', async () => {
+    // The hanging host is asked first. Playback must not stall there when
+    // another host is ready to serve the blob.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init: RequestInit) => {
+        if (url.startsWith(REMOTE.baseUrl)) {
+          return Promise.resolve(
+            new Response(null, {
+              status: 200,
+              headers: { 'Content-Length': '8', 'Content-Type': 'audio/mp4' },
+            }),
+          )
+        }
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          )
+        })
+      }),
+    )
+
+    const result = await probeBlobEndpoints([LOCAL, REMOTE], HASH, {
+      timeoutMs: 5,
+    })
+
+    expect(result.from).toBe(REMOTE)
+  })
+
+  it('reports a silent host as unreachable when no host answers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')),
+            )
+          }),
+      ),
+    )
+
+    await expect(
+      probeBlobEndpoints([LOCAL], HASH, { timeoutMs: 5 }),
+    ).rejects.toMatchObject({ reason: 'unreachable' })
+  })
+
+  it('says this device is paired with nothing when it has no endpoints', async () => {
+    await expect(probeBlobEndpoints([], HASH)).rejects.toMatchObject({
       reason: 'unpaired',
     })
   })
