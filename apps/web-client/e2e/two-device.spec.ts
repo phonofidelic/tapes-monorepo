@@ -27,12 +27,11 @@ import {
  * process (see host.ts), the guest's dev server proxies `/sync` and `/blobs`
  * to it, and the browser is a genuine second device with its own origin and
  * OPFS. Each test gets a fresh browser context, so "this device holds only
- * what it played" is a real assertion rather than an artifact of ordering.
+ * what it pinned" is a real assertion rather than an artifact of ordering.
  */
 
 let libraryUrl: string
 let tapeOne: SeededRecording
-let tapeTwo: SeededRecording
 let longTape: SeededRecording
 let orphanTape: SeededRecording
 
@@ -49,7 +48,7 @@ const failureLine = (page: Page) => page.getByText(PLAYBACK_FAILURE)
 test.beforeAll(async () => {
   ;({ libraryUrl } = await startHost())
   tapeOne = await seedRecording({ name: 'Host tape one', seconds: 2 })
-  tapeTwo = await seedRecording({
+  await seedRecording({
     name: 'Host tape two',
     seconds: 1,
     frequency: 660,
@@ -107,25 +106,20 @@ test.describe('host and guest', () => {
     // its own and had never seen this hash.
     await expect(failureLine(page)).toBeHidden()
     await expect(playerDuration(page)).not.toHaveText('00:00:00')
-    // Polled: the fetched bytes are handed to the cache after playback has
-    // already started, so this lands slightly after the audio does.
-    await expect
-      .poll(() => cachedBlobHashes(page))
-      .toContain(tapeOne.descriptor.hash)
   })
 
-  test('a guest keeps only what it played, not the library', async ({
-    page,
-  }) => {
+  test('a guest keeps nothing it has only played', async ({ page }) => {
     await pair(page)
 
     await play(page, 'Host tape two')
-    await expect
-      .poll(() => cachedBlobHashes(page))
-      .toContain(tapeTwo.descriptor.hash)
+    await expect(failureLine(page)).toBeHidden()
+    await expect(playerDuration(page)).not.toHaveText('00:00:00')
 
-    // Two other tapes are in this library and stayed on the host.
-    expect(await cachedBlobHashes(page)).toEqual([tapeTwo.descriptor.hash])
+    // Playback streams from the host, so the audio never lands in storage
+    // here. Pinning is the only thing that writes to the cache. The wait is
+    // for a late write: the assertion would pass on its own before one.
+    await page.waitForTimeout(2000)
+    expect(await cachedBlobHashes(page)).toEqual([])
     // Nor did playing one leave a recording file behind: those are for audio
     // this device captured.
     expect(await opfsFiles(page)).toEqual([])
