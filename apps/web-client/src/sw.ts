@@ -6,9 +6,9 @@
  * It precaches the app shell and answers navigations from that cache when the
  * network is gone. Nothing is cached at runtime.
  *
- * The build replaces `self.__WB_MANIFEST` with the generated precache
- * manifest, so that expression has to reach the bundle unchanged. What lands in
- * the manifest is decided by the glob and size rules in vite.config.ts.
+ * The build injects the precache manifest by replacing the text
+ * `self.__WB_MANIFEST`, so that expression has to survive into the built
+ * worker. What lands in the manifest is decided in vite.config.ts.
  */
 import {
   cleanupOutdatedCaches,
@@ -19,38 +19,30 @@ import {
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 
 // `self` is typed as `Window` here, because the tsconfig loads the DOM lib
-// alongside WebWorker. Assert to the service worker scope for the lifecycle
-// calls below.
+// alongside WebWorker.
 const serviceWorker = self as unknown as ServiceWorkerGlobalScope
 
-// A new worker installs and then waits, because registration uses
-// `registerType: 'prompt'` (see vite.config.ts). It takes over only when the
-// page asks, which is the Reload button in PwaUpdatePrompt. Activating on
-// install instead would swap the bundle out from under a recording.
+// A new worker installs and then waits. This message is how the page hands it
+// the go-ahead, and `registerType: 'prompt'` in vite.config.ts says why.
 serviceWorker.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     serviceWorker.skipWaiting()
   }
 })
 
-// The assertion is written inline rather than reusing `serviceWorker` above
-// because the build injects the manifest by replacing the text
-// `self.__WB_MANIFEST`. A type assertion compiles away and leaves it intact.
+// The assertion is inline, and not on `serviceWorker` above, so that the
+// injection point still reads `self.__WB_MANIFEST` after it compiles away.
 precacheAndRoute(
   (self as unknown as { __WB_MANIFEST: (PrecacheEntry | string)[] })
     .__WB_MANIFEST,
 )
 
-// Deletes precaches left behind by older versions of this worker.
 cleanupOutdatedCaches()
 
-// Navigations are answered with the cached app shell, so a reload works
-// offline. The denied paths are answered by the Electron host, not by this
-// bundle. `/sync` is a websocket upgrade, which a worker never sees as a fetch,
-// but denying it guarantees the shell is never served in its place. `/blobs` is
-// a fetch rather than a navigation, and handing back HTML instead of audio
-// bytes fails as an opaque decode error. `/trust` and `/ca.crt` serve the
-// host's root certificate, where the app shell is a confusing answer.
+// Navigations are answered from the precache, so a reload works offline. The
+// denied paths belong to the Electron host, not to this bundle, and the app
+// shell is a confusing answer for all four. `/blobs` is the worst of them: HTML
+// where audio bytes were expected fails as an opaque decode error.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('index.html'), {
     denylist: [/^\/sync/, /^\/blobs/, /^\/trust/, /^\/ca\.crt/],

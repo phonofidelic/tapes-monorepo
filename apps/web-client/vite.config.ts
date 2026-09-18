@@ -30,11 +30,9 @@ const plugins = [
     // cert (electron-client/src/certManager.ts), where a wedged service worker
     // is hard for a guest to clear.
     disable: servedByHost,
-    // The worker is ours, not generated: src/sw.ts is built to dist/sw.js and
-    // the precache manifest is injected into it. Later work adds an
-    // Authorization header to blob requests, which cannot live in generated
-    // code. The routing and lifecycle rules Workbox used to generate are
-    // written out in that file.
+    // The worker is src/sw.ts, built to dist/sw.js with the precache manifest
+    // injected into it. The routing and lifecycle rules Workbox used to
+    // generate from options here are written out in that file.
     strategies: 'injectManifest',
     srcDir: 'src',
     filename: 'sw.ts',

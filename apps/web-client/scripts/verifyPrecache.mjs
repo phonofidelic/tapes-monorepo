@@ -32,10 +32,9 @@ try {
   process.exit(1)
 }
 
-// The injected manifest is an array of `{url, revision}` objects in place of
-// `self.__WB_MANIFEST`, so matching the quoted URLs is enough and avoids
-// parsing the bundle. Rollup decides the quote style when it builds src/sw.ts,
-// so accept either.
+// The injected manifest is an array of `{url, revision}` objects, so matching
+// the quoted URLs is enough and avoids parsing the bundle. Either quote style,
+// because the worker's own bundler picks it.
 const precachedWasm = [
   ...serviceWorker.matchAll(/["'](\/?[^"']+\.wasm)["']/g),
 ].map(([, url]) => url)
