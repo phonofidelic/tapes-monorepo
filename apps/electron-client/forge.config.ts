@@ -66,7 +66,6 @@ const config: ForgeConfig = {
     extraResource: [
       'bin/sox-14.4.2-macOS',
       'bin/SwitchAudioSource-1.2.2-macOS',
-      'cache',
       // Built web-client bundle, staged by the `stage-web-client` script and
       // served to LAN guests by the embedded sync server (see syncServer.ts).
       'web-client',

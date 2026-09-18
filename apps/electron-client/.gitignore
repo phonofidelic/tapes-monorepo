@@ -96,8 +96,6 @@ out-e2e/
 bin/*
 !bin/.gitkeep
 
-cache/*
-!cache/.gitkeep
 
 web-client/*
 !web-client/.gitkeep

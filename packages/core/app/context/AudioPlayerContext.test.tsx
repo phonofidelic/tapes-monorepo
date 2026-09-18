@@ -699,10 +699,21 @@ describe('electron', () => {
     await waitFor(() => expect(srcText()).toBe(`tapes-blob://${HASH}`))
   })
 
-  it('falls back to the local file when the store does not have the blob', async () => {
-    const send = vi
-      .fn()
-      .mockResolvedValue({ success: true, data: { present: false } })
+  it('adds a recording that predates the store, then plays it by hash', async () => {
+    const send = ipcAnswering({ present: false })
+    // No descriptor at all: a document written before audio moved out of band.
+    recording = base
+
+    renderPlayer(electronContext(send), [])
+
+    await waitFor(() => expect(srcText()).toBe(`tapes-blob://${HASH}`))
+    expect(send).toHaveBeenCalledWith('blob:put-file', {
+      data: { filepath: 'take-one.wav', docUrl: RECORDING_URL },
+    })
+  })
+
+  it('re-adds the local file when the store has lost the bytes', async () => {
+    const send = ipcAnswering({ present: false })
     recording = {
       ...base,
       blob: { hash: HASH, size: 4, mimeType: 'audio/wav', ext: '.wav' },
@@ -710,9 +721,42 @@ describe('electron', () => {
 
     renderPlayer(electronContext(send), [])
 
-    await waitFor(() => expect(srcText()).toContain('tapes://take-one.wav'))
+    await waitFor(() => expect(srcText()).toBe(`tapes-blob://${HASH}`))
+  })
+
+  it('reports the recording as not uploaded when the store rejects it', async () => {
+    const send = vi.fn().mockImplementation((channel: string) =>
+      channel === 'blob:put-file'
+        ? Promise.resolve({
+            success: false,
+            error: new Error('Blob store is not available'),
+          })
+        : Promise.resolve({ success: true, data: { present: false } }),
+    )
+    recording = base
+
+    renderPlayer(electronContext(send), [])
+
+    await waitFor(() =>
+      expect(screen.getByTestId('failure')).toHaveTextContent('not-uploaded'),
+    )
   })
 })
+
+/**
+ * An electron IPC stub. Ingesting always succeeds and returns the one
+ * descriptor these tests use; every other channel gets `data`.
+ */
+function ipcAnswering(data: unknown) {
+  return vi.fn().mockImplementation((channel: string) =>
+    channel === 'blob:put-file'
+      ? Promise.resolve({
+          success: true,
+          data: { hash: HASH, size: 4, mimeType: 'audio/wav', ext: '.wav' },
+        })
+      : Promise.resolve({ success: true, data }),
+  )
+}
 
 /**
  * Exposes the transport itself: the element the provider plays through, the

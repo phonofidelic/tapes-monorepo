@@ -1,6 +1,6 @@
 import type { AppContextValue } from './context/AppContext'
 import type { BlobDescriptor } from './types'
-import type { PutBlobResponse } from './IpcService'
+import type { IpcService, PutBlobResponse } from './IpcService'
 import { uploadBlob, type BlobEndpoint } from './blobClient'
 import { callWorker } from './workerClient'
 
@@ -67,15 +67,7 @@ export async function uploadRecordingBlob({
   mimeType: string
 }): Promise<BlobDescriptor> {
   if (appContext.type === 'electron-client') {
-    // The host hardlinks the file into its store rather than copying it.
-    const response = await appContext.ipc.send<PutBlobResponse>(
-      'blob:put-file',
-      { data: { filepath, docUrl } },
-    )
-    if (!response.success) {
-      throw response.error
-    }
-    return response.data
+    return ingestHostFile(appContext.ipc, { filepath, docUrl })
   }
 
   const { file } = await callWorker<{ file: File }>(
@@ -87,4 +79,24 @@ export async function uploadRecordingBlob({
     mimeType: file.type || mimeType,
     docUrl,
   })
+}
+
+/**
+ * Adds a file that is already on the host's disk to its blob store and returns
+ * the descriptor to write into the recording's doc. The store hardlinks the
+ * file, so the bytes are neither copied nor sent over the network.
+ *
+ * Electron only. A web guest has no host filesystem to name.
+ */
+export async function ingestHostFile(
+  ipc: IpcService,
+  { filepath, docUrl }: { filepath: string; docUrl: string },
+): Promise<BlobDescriptor> {
+  const response = await ipc.send<PutBlobResponse>('blob:put-file', {
+    data: { filepath, docUrl },
+  })
+  if (!response.success) {
+    throw response.error
+  }
+  return response.data
 }
