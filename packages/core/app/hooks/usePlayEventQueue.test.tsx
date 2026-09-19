@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
-import { BlobProvider } from './context/BlobContext'
-import type { BlobEndpoint } from './blobClient'
-import { readQueue, type PlaybackEvent } from './eventQueue'
+import { BlobProvider } from '@/context/BlobContext'
+import type { BlobEndpoint } from '@/blobClient'
+import { readQueue, type PlaybackEvent } from '@/eventQueue'
 import { usePlayEventQueue } from './usePlayEventQueue'
 
 const LOCAL = { baseUrl: 'http://127.0.0.1:9001', token: 'host', local: true }
