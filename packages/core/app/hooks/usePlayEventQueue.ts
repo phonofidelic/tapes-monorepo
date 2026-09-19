@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { BlobEndpoint } from './blobClient'
-import { useBlobEndpoints } from './context/BlobContext'
-import type { PlaySession } from './context/AudioPlayerContext'
+import type { BlobEndpoint } from '@/blobClient'
+import { useBlobEndpoints } from '@/context/BlobContext'
+import type { PlaySession } from '@/context/AudioPlayerContext'
 import {
   backoffDelay,
   createEvent,
@@ -10,7 +10,7 @@ import {
   flushQueue,
   getDeviceId,
   resolveEventTarget,
-} from './eventQueue'
+} from '@/eventQueue'
 
 /**
  * Wires measured play sessions to the durable queue, and drains that queue
