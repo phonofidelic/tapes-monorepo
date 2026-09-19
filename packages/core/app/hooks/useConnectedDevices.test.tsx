@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AppContextProvider } from '@/context/AppContext'
-import { useConnectedDevices } from '@/useConnectedDevices'
+import { useConnectedDevices } from './useConnectedDevices'
 import type { IpcService } from '@/IpcService'
 
 /**

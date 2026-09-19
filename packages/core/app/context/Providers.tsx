@@ -9,7 +9,7 @@ import { RecordingStateProvider } from './RecordingContext'
 import { BlobProvider } from './BlobContext'
 import { PinProvider } from './PinContext'
 import { AggregatesProvider } from './AggregatesContext'
-import { usePlayEventQueue } from '@/usePlayEventQueue'
+import { usePlayEventQueue } from '@/hooks/usePlayEventQueue'
 import type { BlobEndpoint } from '@/blobClient'
 import type { EventHost } from '@/eventTarget'
 
