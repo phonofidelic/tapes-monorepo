@@ -1,7 +1,8 @@
 import path from 'path'
 import { rename } from 'fs/promises'
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 export class EditRecordingChannel implements IpcChannel {
   name = 'storage:edit-recording'

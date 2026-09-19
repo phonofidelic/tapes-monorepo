@@ -1,6 +1,7 @@
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 /**
  * Whether this device already holds a blob's bytes, so playback can skip the

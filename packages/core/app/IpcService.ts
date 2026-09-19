@@ -125,7 +125,7 @@ export class GetConnectedDevicesError extends Error {
  */
 export type ConnectedDevicesEvent = { connections: SyncConnection[] }
 
-type IpcRequest = {
+export type IpcRequest = {
   responseChannel?: string
   params?: string[]
   data?: unknown

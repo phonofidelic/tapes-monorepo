@@ -1,7 +1,8 @@
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { readSyncServerConfig, writeSyncServerConfig } from '@/syncServerConfig'
 import { restartSyncServerFromConfig } from '@/syncServerRuntime'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 export class SetSyncServerLanChannel implements IpcChannel {
   name = 'sync:set-lan-enabled'
