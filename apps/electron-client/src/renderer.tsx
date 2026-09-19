@@ -2,7 +2,6 @@ import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   App,
-  IpcService,
   SyncServerInfo,
   resolveBlobEndpoints,
   resolveDeviceLabel,
@@ -26,10 +25,11 @@ import {
   sameSyncServerUrls,
   type SyncServerUrls,
 } from './rendererRepo'
+import { ElectronIpcService } from './IpcService'
 
 const appContextValue = {
   type: 'electron-client' as const,
-  ipc: new IpcService(),
+  ipc: new ElectronIpcService(),
 }
 
 function ElectronAppRoot() {
