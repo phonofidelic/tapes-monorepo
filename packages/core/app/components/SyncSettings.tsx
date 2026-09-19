@@ -9,7 +9,7 @@ import {
 } from '@/deviceLabel'
 import { SyncConnection, SyncServerInfo } from '@/IpcService'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
-import { useConnectedDevices } from '@/useConnectedDevices'
+import { useConnectedDevices } from '@/hooks/useConnectedDevices'
 import { isSyncServerUrl, useAutomergeUrl } from '@/utils'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { Button, TextInput } from '@tapes-monorepo/ui'
