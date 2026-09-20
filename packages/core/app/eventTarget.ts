@@ -1,4 +1,4 @@
-import type { SyncServerInfo } from './IpcService'
+import { SyncServerInfo } from './services/SyncService'
 
 /**
  * Picks the host that holds a library's playback numbers.

@@ -15,10 +15,10 @@ import { SyncSettings } from '@/components/SyncSettings'
 import type {
   ConnectedDevicesEvent,
   GetConnectedDevicesResponse,
-  IpcService,
   SyncConnection,
   SyncServerInfo,
-} from '@/IpcService'
+} from '@/services/SyncService'
+import { IpcService } from '@/IpcService'
 
 /**
  * What the host's sync panel says about who is connected.
@@ -127,7 +127,7 @@ function fakeIpc(
   return {
     ipc,
     emit: (payload) => {
-      for (const listener of [...listeners]) {
+      for (const listener of listeners) {
         listener(payload)
       }
     },

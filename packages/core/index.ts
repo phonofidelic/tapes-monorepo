@@ -20,3 +20,4 @@ export {
   type SettingKey,
 } from './app/context/SettingsContext'
 export { ErrorBoundary } from './app/components/ErrorBoundary'
+export * from './app/services/SyncService'

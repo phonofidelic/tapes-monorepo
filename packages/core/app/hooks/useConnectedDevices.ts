@@ -4,7 +4,7 @@ import type {
   ConnectedDevicesEvent,
   GetConnectedDevicesResponse,
   SyncConnection,
-} from '@/IpcService'
+} from '@/services/SyncService'
 
 /**
  * Who is connected to this host's sync server.

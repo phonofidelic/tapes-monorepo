@@ -32,6 +32,7 @@ import {
   type SyncConnectionRegistry,
 } from './syncConnections'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
+import { type SyncServerInfo } from '@tapes-monorepo/core'
 
 export type { SyncConnection } from './syncConnections'
 
@@ -40,44 +41,7 @@ export const DEFAULT_SYNC_SERVER_PORT = 9001
 /** Uploads abandoned mid-stream are cleared once they are a day old. */
 const TMP_SWEEP_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
-export type SyncServerInfo = {
-  running: boolean
-  url: string
-  lanUrl?: string
-  /** URL of the hosted web-client bundle, when one is being served. */
-  webAppUrl?: string
-  /** LAN-reachable URL of the hosted web-client bundle. */
-  lanWebAppUrl?: string
-  /** Origin serving `/blobs`, when a blob store is configured. */
-  blobBaseUrl?: string
-  /** LAN-reachable origin serving `/blobs`. */
-  lanBlobBaseUrl?: string
-  /**
-   * Page that offers this host's root certificate and the steps to install it.
-   * Present only when the server runs over TLS, since with plain HTTP there is
-   * nothing for a guest to trust. The LAN one is what a guest can actually
-   * open; the loopback one is for the host's own window.
-   */
-  trustPageUrl?: string
-  lanTrustPageUrl?: string
-  /**
-   * Bearer token guarding both `/blobs` and the sync socket. Handed to guests
-   * through the QR pairing URL; never log this object wholesale.
-   */
-  pairingToken?: string
-  /**
-   * SHA-256 of the host's root certificate, in the colon-separated pairs the
-   * trust page and every trust-store UI print, when the server runs over TLS.
-   * Shown in Settings and carried in the pairing link so the person pairing can
-   * check the root they install is this host's. Not a secret: unlike
-   * `pairingToken` it grants nothing.
-   */
-  rootCertFingerprint?: string
-  port: number
-  host: string
-}
-
-export type SyncServerOptions = {
+type SyncServerOptions = {
   storagePath: string
   host: '127.0.0.1' | '0.0.0.0'
   port?: number
