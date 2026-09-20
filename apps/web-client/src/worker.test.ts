@@ -24,6 +24,9 @@ const replies: WorkerReply[] = []
 const objectUrls = new Map<string, Blob>()
 const files = new Map<string, Entry>()
 
+/** Set by a test to make OPFS itself unavailable, as a private window does. */
+let storageFailure: Error | null = null
+
 function addFile(name: string, contents: string, gated = false): Entry {
   let open = () => {}
   const opened = gated
@@ -108,7 +111,16 @@ beforeAll(async () => {
   }
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
-    value: { storage: { getDirectory: async () => root } },
+    value: {
+      storage: {
+        getDirectory: async () => {
+          if (storageFailure) {
+            throw storageFailure
+          }
+          return root
+        },
+      },
+    },
   })
   let nextUrl = 0
   URL.createObjectURL = (blob: Blob) => {
@@ -125,6 +137,7 @@ beforeEach(() => {
   replies.length = 0
   files.clear()
   objectUrls.clear()
+  storageFailure = null
 })
 
 describe('request ids', () => {
@@ -186,6 +199,27 @@ describe('request ids', () => {
     expect(replyFor('one')).toMatchObject({
       type: 'recorder:stop:response',
       success: true,
+    })
+  })
+
+  // Everything below is the same guarantee from the other side: a caller in
+  // core waits on the reply and on nothing else, so silence is a hang.
+  it('answers when the storage directory cannot be opened', async () => {
+    storageFailure = new DOMException('denied', 'SecurityError')
+
+    send('storage:get', { filename: 'first.webm', requestId: 'one' })
+    await settle()
+
+    expect(replyFor('one')).toMatchObject({ success: false, error: 'denied' })
+  })
+
+  it('answers a message type it does not handle', async () => {
+    send('storage:teleport', { requestId: 'one' })
+    await settle()
+
+    expect(replyFor('one')).toMatchObject({
+      success: false,
+      error: 'unknown message type: storage:teleport',
     })
   })
 

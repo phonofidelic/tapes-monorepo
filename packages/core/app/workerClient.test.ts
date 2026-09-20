@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { callWorker, WorkerRequestError } from './workerClient'
+import {
+  callWorker,
+  WorkerRequestError,
+  WorkerTimeoutError,
+} from './workerClient'
 
 /**
  * Stands in for the web-client's storage worker. Colocated rather than shipped
@@ -7,6 +11,8 @@ import { callWorker, WorkerRequestError } from './workerClient'
  */
 class FakeWorker extends EventTarget {
   readonly sent: Array<{ type: string; payload: Record<string, unknown> }> = []
+  /** Message listeners attached right now, for catching one left behind. */
+  live = 0
 
   constructor(
     private readonly reply: (
@@ -29,6 +35,20 @@ class FakeWorker extends EventTarget {
     queueMicrotask(() => {
       this.dispatchEvent(new MessageEvent('message', { data }))
     })
+  }
+
+  addEventListener(...args: Parameters<EventTarget['addEventListener']>) {
+    if (args[0] === 'message') {
+      this.live += 1
+    }
+    super.addEventListener(...args)
+  }
+
+  removeEventListener(...args: Parameters<EventTarget['removeEventListener']>) {
+    if (args[0] === 'message') {
+      this.live -= 1
+    }
+    super.removeEventListener(...args)
   }
 }
 
@@ -131,5 +151,73 @@ describe('callWorker', () => {
     controller.abort()
 
     await expect(promise).rejects.toThrow('Aborted')
+  })
+
+  // A worker that answers nothing used to leave the caller waiting for the
+  // life of the page, holding a listener it could never detach.
+  it('rejects and stops listening when no reply ever arrives', async () => {
+    vi.useFakeTimers()
+    try {
+      const fake = new FakeWorker(() => undefined)
+      const promise = callWorker(
+        asWorker(fake),
+        'blob:get',
+        {},
+        { timeoutMs: 1_000 },
+      )
+      expect(fake.live).toBe(1)
+
+      // Claim the rejection before the timer fires. Advancing first leaves it
+      // briefly unhandled, which Node reports as an error even though the
+      // assertion below passes.
+      const rejects = expect(promise).rejects.toThrow(WorkerTimeoutError)
+      await vi.advanceTimersByTimeAsync(1_000)
+      await rejects
+
+      expect(fake.live).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not time out a request that was answered', async () => {
+    vi.useFakeTimers()
+    try {
+      const fake = new FakeWorker(({ type, payload }) => ({
+        type: `${type}:response`,
+        requestId: payload.requestId,
+        success: true,
+        payload: 'mine',
+      }))
+
+      await expect(
+        callWorker(asWorker(fake), 'blob:get', {}, { timeoutMs: 1_000 }),
+      ).resolves.toBe('mine')
+
+      // Nothing is pending, so a timer left armed here would fire into a
+      // settled promise and go unnoticed until it leaked in production.
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits forever when the caller asks for no timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const fake = new FakeWorker(() => undefined)
+      const settled = vi.fn()
+      void callWorker(asWorker(fake), 'blob:get', {}, { timeoutMs: 0 }).then(
+        settled,
+        settled,
+      )
+
+      await vi.advanceTimersByTimeAsync(120_000)
+
+      expect(settled).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

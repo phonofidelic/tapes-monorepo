@@ -7,3 +7,5 @@ Every reply from the web client's storage worker now carries the request id of t
 All handlers now reply through the worker's `respond` helper, and all callers go through `callWorker`. Nothing listens to worker messages directly for a request it made. The chunk write during a recording is the one handler that sends no reply, which is deliberate and now says so at the code.
 
 Starting and stopping a web-client recording moved from the Recorder view into `RecordingContext`, which exposes `startRecording` and `stopRecording`. The start filename used to arrive on a broadcast listener; it now comes back as the reply to the start request.
+
+Because a caller now waits on a reply, every request gets one. The worker answers a message type it does not recognise, and answers when a handler throws on its way to replying. `callWorker` rejects with a `WorkerTimeoutError` after thirty seconds as a backstop, which callers can change or switch off.
