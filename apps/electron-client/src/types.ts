@@ -1,10 +1,5 @@
+import { IpcRequest } from '@tapes-monorepo/core'
 import { IpcMainEvent } from 'electron'
-
-export type IpcRequest = {
-  responseChannel?: string
-  params?: string[]
-  data?: unknown
-}
 
 export type IpcChannel = {
   name: string

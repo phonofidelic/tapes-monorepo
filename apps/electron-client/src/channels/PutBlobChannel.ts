@@ -1,6 +1,7 @@
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 /**
  * Ingests a just-recorded file into the host's blob store, hardlinking it so

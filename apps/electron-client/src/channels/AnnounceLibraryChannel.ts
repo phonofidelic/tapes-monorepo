@@ -1,9 +1,10 @@
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { collectOrphanedBlobs } from '../blobGc'
 import { getBlobStore, getSyncRepo } from '../syncServer'
 import { rememberLibraryRoot, syncStoragePath } from '../syncServerConfig'
 import type { AutomergeUrl } from '@automerge/automerge-repo/slim'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 /**
  * The renderer telling the host which library it just loaded.

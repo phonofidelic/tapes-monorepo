@@ -2,7 +2,8 @@ import path from 'path'
 import crypto from 'crypto'
 import { execFile, ChildProcess } from 'child_process'
 import { ipcMain, app, IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 const DEFAULT_SAMPLE_RATE = 44100
 

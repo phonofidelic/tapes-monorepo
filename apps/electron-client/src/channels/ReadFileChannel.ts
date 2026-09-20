@@ -1,7 +1,8 @@
 import path from 'path'
 import { readFile } from 'fs/promises'
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 // Maps recording file extensions to the MIME type playback needs to build a
 // correctly-typed Blob.

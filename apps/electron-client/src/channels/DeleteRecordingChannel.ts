@@ -1,7 +1,8 @@
 import { rm } from 'fs/promises'
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 export class DeleteRecordingChannel implements IpcChannel {
   name: string = 'storage:delete-recording'

@@ -1,6 +1,7 @@
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { getSyncServerInfo } from '@/syncServer'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 export class GetSyncServerInfoChannel implements IpcChannel {
   name = 'sync:get-server-info'

@@ -1,6 +1,7 @@
 import { IpcMainEvent } from 'electron'
-import { IpcChannel, IpcRequest } from '@/types'
+import { IpcChannel } from '@/types'
 import { getAggregateStore } from '../syncServer'
+import { IpcRequest } from '@tapes-monorepo/core'
 
 /**
  * Serves this device's own playback numbers to its renderer.
