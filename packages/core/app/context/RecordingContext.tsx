@@ -35,6 +35,11 @@ export const RecordingStateProvider = ({
   // The active recorder must survive a re-render between the start and stop
   // calls, so it lives in a ref rather than in state.
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  // Opening the microphone can take seconds, so a stop can arrive before there
+  // is a recorder to stop. These two carry that stop between the callbacks
+  // below.
+  const isStartingRef = useRef(false)
+  const stopRequestedRef = useRef(false)
 
   useEffect(() => {
     if (!isRecording) {
@@ -51,6 +56,24 @@ export const RecordingStateProvider = ({
   }, [isRecording])
 
   /**
+   * Stops the recorder and releases the microphone.
+   *
+   * Stopping fires one last chunk event, so the chunk listener must stay
+   * attached. The tracks are released after the recorder has stopped.
+   */
+  const stopRecorder = useCallback((recorder: MediaRecorder) => {
+    recorder.addEventListener(
+      'stop',
+      () => {
+        recorder.stream.getTracks().forEach((track) => track.stop())
+      },
+      { once: true },
+    )
+    recorder.stop()
+    mediaRecorderRef.current = null
+  }, [])
+
+  /**
    * Opens the OPFS file, then the microphone, then starts the recorder. Only
    * the web client records this way; on electron the main process owns the
    * whole thing and the Recorder view drives it over IPC.
@@ -61,45 +84,70 @@ export const RecordingStateProvider = ({
     }
     const { worker } = appContext
     setIsRecording(true)
+    isStartingRef.current = true
+    stopRequestedRef.current = false
 
-    let filename: string
     try {
-      const reply = await callWorker<{ filename: string }>(
-        worker,
-        'recorder:start',
-        { audioFormat, audioInputDeviceId },
-      )
-      filename = reply.filename
-    } catch (error) {
-      // Without this the UI stays in the recording state with no recorder.
-      console.error('Failed to start recording:', error)
-      setIsRecording(false)
-      return
-    }
-    setHandleFilename(filename)
+      let filename: string
+      try {
+        const reply = await callWorker<{ filename: string }>(
+          worker,
+          'recorder:start',
+          { audioFormat, audioInputDeviceId },
+        )
+        filename = reply.filename
+      } catch (error) {
+        // Without this the UI stays in the recording state with no recorder.
+        console.error('Failed to start recording:', error)
+        setIsRecording(false)
+        return
+      }
+      setHandleFilename(filename)
 
-    let audioStream: MediaStream
-    try {
-      audioStream = await getAudioStream(audioInputDeviceId ?? '')
-    } catch (error) {
-      console.error('Failed to open the audio input:', error)
-      setIsRecording(false)
-      return
-    }
+      let audioStream: MediaStream
+      try {
+        audioStream = await getAudioStream(audioInputDeviceId ?? '')
+      } catch (error) {
+        console.error('Failed to open the audio input:', error)
+        setIsRecording(false)
+        return
+      }
 
-    const recorder = await getMediaRecorder(audioStream)
-    // Attach the listener at construction, before start(), so the first (and
-    // only, without a timeslice) `dataavailable` is never missed.
-    recorder.addEventListener('dataavailable', (event: BlobEvent) => {
-      // Fire and forget: the worker sends no reply to a chunk write.
-      worker.postMessage({
-        type: 'recorder:write',
-        payload: { chunk: event.data },
+      let recorder: MediaRecorder
+      try {
+        recorder = await getMediaRecorder(audioStream)
+      } catch (error) {
+        // Otherwise this rejects with nothing to catch it. The microphone
+        // would stay open while the UI still showed a recording in progress.
+        console.error('Failed to create the recorder:', error)
+        audioStream.getTracks().forEach((track) => track.stop())
+        setIsRecording(false)
+        return
+      }
+
+      // Attach the listener at construction, before start(), so the first (and
+      // only, without a timeslice) `dataavailable` is never missed.
+      recorder.addEventListener('dataavailable', (event: BlobEvent) => {
+        // Fire and forget: the worker sends no reply to a chunk write.
+        worker.postMessage({
+          type: 'recorder:write',
+          payload: { chunk: event.data },
+        })
       })
-    })
-    mediaRecorderRef.current = recorder
-    recorder.start()
-  }, [appContext, audioFormat, audioInputDeviceId])
+      mediaRecorderRef.current = recorder
+      recorder.start()
+
+      // The stop arrived while the microphone was still opening, so it had no
+      // recorder to act on. Honour it now. Without this the microphone stays
+      // open and the file the worker created is never written.
+      if (stopRequestedRef.current) {
+        stopRecorder(recorder)
+      }
+    } finally {
+      isStartingRef.current = false
+      stopRequestedRef.current = false
+    }
+  }, [appContext, audioFormat, audioInputDeviceId, stopRecorder])
 
   /**
    * Flushes the file in the worker first, then stops the recorder. The final
@@ -118,22 +166,17 @@ export const RecordingStateProvider = ({
 
     const recorder = mediaRecorderRef.current
     if (!recorder) {
+      if (isStartingRef.current) {
+        // The microphone is still opening. `startRecording` stops the recorder
+        // as soon as it has one.
+        stopRequestedRef.current = true
+        return
+      }
       console.error('mediaRecorderRef.current is null')
       return
     }
-    // stop() fires a final `dataavailable` asynchronously, so the listener
-    // must stay attached; release the mic tracks once the recorder has
-    // actually stopped.
-    recorder.addEventListener(
-      'stop',
-      () => {
-        recorder.stream.getTracks().forEach((track) => track.stop())
-      },
-      { once: true },
-    )
-    recorder.stop()
-    mediaRecorderRef.current = null
-  }, [appContext])
+    stopRecorder(recorder)
+  }, [appContext, stopRecorder])
 
   const value = useMemo(
     () => ({
