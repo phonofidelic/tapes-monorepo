@@ -1,8 +1,12 @@
 import { rm } from 'fs/promises'
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { getBlobStore } from '../syncServer'
-import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import { getBlobStore } from '@/syncServer'
+import {
+  IpcChannel,
+  IpcRequest,
+  IpcResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 export class DeleteRecordingChannel implements IpcChannel {
   name: ValidIpcChanel = 'storage:delete-recording'

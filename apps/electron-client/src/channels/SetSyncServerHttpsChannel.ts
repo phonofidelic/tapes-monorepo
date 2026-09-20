@@ -1,7 +1,6 @@
-import { IpcChannel } from '@/types'
 import { readSyncServerConfig, writeSyncServerConfig } from '@/syncServerConfig'
 import { restartSyncServerFromConfig } from '@/syncServerRuntime'
-import { IpcRequest, ValidIpcChanel } from '@tapes-monorepo/core'
+import { IpcChannel, IpcRequest, ValidIpcChanel } from '@tapes-monorepo/core'
 
 export class SetSyncServerHttpsChannel implements IpcChannel {
   name: ValidIpcChanel = 'sync:set-https-enabled'

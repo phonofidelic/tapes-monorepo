@@ -1,8 +1,8 @@
 import path from 'path'
 import { rename } from 'fs/promises'
-import { IpcChannel } from '@/types'
 import {
   EditRecordingResponse,
+  IpcChannel,
   IpcRequest,
   ValidIpcChanel,
 } from '@tapes-monorepo/core'

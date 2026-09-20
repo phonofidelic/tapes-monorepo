@@ -1,6 +1,5 @@
 import { dialog } from 'electron'
-import { IpcChannel } from '@/types'
-import { ValidIpcChanel } from '@tapes-monorepo/core'
+import { IpcChannel, ValidIpcChanel } from '@tapes-monorepo/core'
 
 export class OpenDirectoryDialogChannel implements IpcChannel {
   name: ValidIpcChanel = 'storage:open-directory-dialog'

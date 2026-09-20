@@ -2,8 +2,12 @@ import path from 'path'
 import { promisify } from 'util'
 import child_process from 'node:child_process'
 import { app } from 'electron'
-import { IpcChannel } from '@/types'
-import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import {
+  IpcChannel,
+  IpcRequest,
+  IpcResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 const execFile = promisify(child_process.execFile)
 

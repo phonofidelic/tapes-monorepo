@@ -1,10 +1,14 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { collectOrphanedBlobs } from '../blobGc'
-import { getBlobStore, getSyncRepo } from '../syncServer'
-import { rememberLibraryRoot, syncStoragePath } from '../syncServerConfig'
+import { collectOrphanedBlobs } from '@/blobGc'
+import { getBlobStore, getSyncRepo } from '@/syncServer'
+import { rememberLibraryRoot, syncStoragePath } from '@/syncServerConfig'
 import type { AutomergeUrl } from '@automerge/automerge-repo/slim'
-import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import {
+  IpcChannel,
+  IpcRequest,
+  IpcResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 /**
  * The renderer telling the host which library it just loaded.
