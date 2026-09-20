@@ -1,6 +1,9 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { StopRecordingResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import {
+  IpcChannel,
+  StopRecordingResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 import { SoxRecorder } from './soxRecorder'
 
 /**

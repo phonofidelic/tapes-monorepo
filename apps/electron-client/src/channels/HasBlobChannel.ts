@@ -1,8 +1,8 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { getBlobStore } from '../syncServer'
+import { getBlobStore } from '@/syncServer'
 import {
   HasBlobResponse,
+  IpcChannel,
   IpcRequest,
   ValidIpcChanel,
 } from '@tapes-monorepo/core'

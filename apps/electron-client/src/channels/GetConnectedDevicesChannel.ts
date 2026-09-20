@@ -1,8 +1,8 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
 import { getSyncConnections, getSyncServerInfo } from '@/syncServer'
 import {
   GetConnectedDevicesResponse,
+  IpcChannel,
   ValidIpcChanel,
 } from '@tapes-monorepo/core'
 

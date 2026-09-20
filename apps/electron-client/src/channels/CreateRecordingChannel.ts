@@ -1,6 +1,10 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import {
+  IpcChannel,
+  IpcRequest,
+  IpcResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 import { SoxRecorder } from './soxRecorder'
 
 export class CreateRecordingChannel implements IpcChannel {

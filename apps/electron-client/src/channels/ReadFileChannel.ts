@@ -1,8 +1,8 @@
 import path from 'path'
 import { readFile } from 'fs/promises'
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
 import {
+  IpcChannel,
   IpcRequest,
   ReadFileResponse,
   ValidIpcChanel,

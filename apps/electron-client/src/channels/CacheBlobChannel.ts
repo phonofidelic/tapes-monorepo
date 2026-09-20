@@ -1,8 +1,12 @@
 import { Readable } from 'stream'
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { getBlobStore } from '../syncServer'
-import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import { getBlobStore } from '@/syncServer'
+import {
+  IpcChannel,
+  IpcRequest,
+  IpcResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 /**
  * Stores bytes this device fetched from elsewhere. An electron client is

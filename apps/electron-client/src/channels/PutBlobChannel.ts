@@ -1,7 +1,7 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { getBlobStore } from '../syncServer'
+import { getBlobStore } from '@/syncServer'
 import {
+  IpcChannel,
   IpcRequest,
   PutBlobResponse,
   ValidIpcChanel,

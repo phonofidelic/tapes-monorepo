@@ -1,7 +1,10 @@
 import { asError } from '@/asError'
-import { IpcChannel } from '@/types'
-import { getAggregateStore } from '../syncServer'
-import { GetAggregatesResponse, ValidIpcChanel } from '@tapes-monorepo/core'
+import { getAggregateStore } from '@/syncServer'
+import {
+  GetAggregatesResponse,
+  IpcChannel,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 /**
  * Serves this device's own playback numbers to its renderer.

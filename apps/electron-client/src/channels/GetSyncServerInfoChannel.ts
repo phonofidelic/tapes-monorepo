@@ -1,6 +1,9 @@
-import { IpcChannel } from '@/types'
 import { getSyncServerInfo } from '@/syncServer'
-import { SyncServerInfo, ValidIpcChanel } from '@tapes-monorepo/core'
+import {
+  IpcChannel,
+  SyncServerInfo,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 export class GetSyncServerInfoChannel implements IpcChannel {
   name: ValidIpcChanel = 'sync:get-server-info'

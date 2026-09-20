@@ -6,12 +6,12 @@ import installExtension, {
   REACT_DEVELOPER_TOOLS,
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
-import { IpcChannel } from './types'
 import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
 import { isSyncServerCert } from './certManager'
 import { hashFromTapesBlobUrl } from './protocolUrls'
+import { IpcChannel } from '@tapes-monorepo/core'
 
 // The scheme must be declared before the app is ready. Electron reads this
 // list once, on startup, so it cannot live inside `MainWindow`.
