@@ -1,3 +1,4 @@
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
 import { SoxRecorder } from './soxRecorder'
@@ -7,15 +8,21 @@ export class CreateRecordingChannel implements IpcChannel {
 
   constructor(private recorder: SoxRecorder) {}
 
-  handle(request: IpcRequest): IpcResponse {
+  async handle(request: IpcRequest): Promise<IpcResponse> {
     const { data } = request
     if (!isValidStartRecordingRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
-    this.recorder.start(data)
-
-    return { success: true }
+    try {
+      await this.recorder.start(data)
+      return { success: true }
+    } catch (error) {
+      // The renderer drops out of its recording state on this. Answering
+      // success here would start a timer over a recorder that never ran.
+      console.error(error)
+      return { success: false, error: asError(error) }
+    }
   }
 }
 
