@@ -45,9 +45,10 @@ agent needs on top of that:
   `apps/api/` — generate them with `yarn workspace api cert`.
 - Env files are git-ignored and pulled from Vercel (`yarn ... pull`); committed
   `.env.example` files document the vars.
-- CI unit tests cover `core`, `electron-client` and `web-client`. The `apps/api`
-  Jest suite is excluded (pre-existing compile failure). Don't treat that as a
-  gap to "fix" without checking.
+- `yarn test` runs every workspace except `apps/api`, whose Jest suite has a
+  pre-existing compile failure. Don't treat that as a gap to "fix" without
+  checking. Run it on its own with `yarn test:api`. CI runs the same root
+  script, so local and gate results agree.
 - The electron e2e suite is nightly, not part of the PR gate.
 
 ## Writing style (PR descriptions, commit bodies, doc comments)
