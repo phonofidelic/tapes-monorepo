@@ -32,7 +32,7 @@ import {
   type SyncConnectionRegistry,
 } from './syncConnections'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
-import { SyncServerInfo } from '@tapes-monorepo/core'
+import { type SyncServerInfo } from '@tapes-monorepo/core'
 
 export type { SyncConnection } from './syncConnections'
 
