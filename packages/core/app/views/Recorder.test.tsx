@@ -57,6 +57,8 @@ vi.mock('@/context/RecordingContext', () => ({
     isRecording: true,
     handleFilename: RECORDED_FILE,
     setIsRecording: vi.fn(),
+    startRecording: vi.fn(),
+    stopRecording: vi.fn(),
   }),
   RecordingStateProvider: ({ children }: { children: React.ReactNode }) =>
     children,

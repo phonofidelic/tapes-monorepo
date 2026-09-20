@@ -45,9 +45,9 @@ const installInstrumentation = () => {
   }
   window.MediaRecorder = CountingMediaRecorder as typeof MediaRecorder
 
-  // Message-listener churn on the recording worker. Under dev StrictMode the
-  // effect in RecordingContext mounts, unmounts and remounts, so a correct
-  // implementation adds two listeners and removes one.
+  // Message-listener churn on the recording worker. Every request core makes
+  // attaches a listener and detaches it when the reply arrives, so the two
+  // counts should agree once nothing is in flight.
   const realAdd = Worker.prototype.addEventListener
   const realRemove = Worker.prototype.removeEventListener
   Worker.prototype.addEventListener = function (
