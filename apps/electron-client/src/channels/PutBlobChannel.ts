@@ -1,7 +1,11 @@
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
-import { IpcRequest } from '@tapes-monorepo/core'
+import {
+  IpcRequest,
+  PutBlobResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 /**
  * Ingests a just-recorded file into the host's blob store, hardlinking it so
@@ -9,32 +13,24 @@ import { IpcRequest } from '@tapes-monorepo/core'
  * into the recording doc; guests then fetch by hash over `/blobs`.
  */
 export class PutBlobChannel implements IpcChannel {
-  name: string = 'blob:put-file'
+  name: ValidIpcChanel = 'blob:put-file'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  async handle(request: IpcRequest): Promise<PutBlobResponse> {
     const { data } = request
-    if (!request.responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
     if (!isValidPutBlobRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
     const store = getBlobStore()
     if (!store) {
-      event.sender.send(request.responseChannel, {
-        success: false,
-        error: new Error('Blob store is not available'),
-      })
-      return
+      return { success: false, error: new Error('Blob store is not available') }
     }
 
     try {
       const { meta } = await store.ingestFile(data.filepath, {
         docUrl: data.docUrl,
       })
-      event.sender.send(request.responseChannel, {
+      return {
         success: true,
         data: {
           hash: meta.hash,
@@ -42,10 +38,10 @@ export class PutBlobChannel implements IpcChannel {
           mimeType: meta.mimeType,
           ext: meta.ext,
         },
-      })
+      }
     } catch (error) {
       console.error(error)
-      event.sender.send(request.responseChannel, { success: false, error })
+      return { success: false, error: asError(error) }
     }
   }
 }

@@ -1,26 +1,19 @@
-import { dialog, IpcMainEvent } from 'electron'
+import { dialog } from 'electron'
 import { IpcChannel } from '@/types'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { ValidIpcChanel } from '@tapes-monorepo/core'
 
 export class OpenDirectoryDialogChannel implements IpcChannel {
-  name = 'storage:open-directory-dialog'
-  async handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel } = request
-    if (!responseChannel) {
-      return
-    }
-
+  name: ValidIpcChanel = 'storage:open-directory-dialog'
+  async handle() {
     try {
       const result = await dialog.showOpenDialog({
         properties: ['openDirectory'],
       })
-      if (result.canceled) {
-        event.sender.send(responseChannel, '__unset__')
-        return
-      }
-      event.sender.send(responseChannel, result.filePaths[0])
+      // A cancelled dialog is not a failure, and not a chosen path either. The
+      // caller keeps the location it already had.
+      return result.canceled ? '__unset__' : result.filePaths[0]
     } catch {
-      event.sender.send(responseChannel, undefined)
+      return undefined
     }
   }
 }

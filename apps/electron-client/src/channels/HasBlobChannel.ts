@@ -1,45 +1,41 @@
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
-import { IpcRequest } from '@tapes-monorepo/core'
+import {
+  HasBlobResponse,
+  IpcRequest,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 /**
  * Whether this device already holds a blob's bytes, so playback can skip the
  * network. On a host the blob store *is* the local cache.
  */
 export class HasBlobChannel implements IpcChannel {
-  name: string = 'blob:has'
+  name: ValidIpcChanel = 'blob:has'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  async handle(request: IpcRequest): Promise<HasBlobResponse> {
     const { data } = request
-    if (!request.responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
     if (!isValidHasBlobRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
     const store = getBlobStore()
     if (!store) {
-      event.sender.send(request.responseChannel, {
-        success: true,
-        data: { present: false },
-      })
-      return
+      return { success: true, data: { present: false } }
     }
 
     try {
       const meta = await store.stat(data.hash)
-      event.sender.send(request.responseChannel, {
+      return {
         success: true,
         data: meta
           ? { present: true, size: meta.size, mimeType: meta.mimeType }
           : { present: false },
-      })
+      }
     } catch (error) {
       console.error(error)
-      event.sender.send(request.responseChannel, { success: false, error })
+      return { success: false, error: asError(error) }
     }
   }
 }

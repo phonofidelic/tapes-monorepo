@@ -15,10 +15,6 @@ export class ElectronIpcService implements IpcService {
     if (!this.ipcRenderer) {
       this.initializeIpcRenderer()
     }
-    // If there's no specific responseChannel, generate one with a timestamp
-    if (!request.responseChannel) {
-      request.responseChannel = `${channel}:response:${Date.now()}`
-    }
 
     if (!this.ipcRenderer) {
       throw new Error(
@@ -26,25 +22,10 @@ export class ElectronIpcService implements IpcService {
       )
     }
 
-    const ipcRenderer = this.ipcRenderer
-
-    try {
-      ipcRenderer.send(channel, request)
-    } catch (error) {
-      throw new Error(
-        `Unable to send ipc message: ${error}. Channel: ${channel}`,
-      )
-    }
-
-    // This method returns a promise which will be resolved when the response has arrived.
-    return new Promise((resolve) => {
-      ipcRenderer.receive(
-        request.responseChannel ?? '',
-        (...args: unknown[]) => {
-          resolve(args[0] as T)
-        },
-      )
-    })
+    // Electron pairs the request with its answer and drops the pairing once it
+    // arrives. Two requests on one channel in the same tick cannot be confused,
+    // and neither leaves a listener behind.
+    return this.ipcRenderer.invoke(channel, request) as Promise<T>
   }
 
   /**

@@ -1,10 +1,10 @@
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { collectOrphanedBlobs } from '../blobGc'
 import { getBlobStore, getSyncRepo } from '../syncServer'
 import { rememberLibraryRoot, syncStoragePath } from '../syncServerConfig'
 import type { AutomergeUrl } from '@automerge/automerge-repo/slim'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
 
 /**
  * The renderer telling the host which library it just loaded.
@@ -16,7 +16,7 @@ import { IpcRequest } from '@tapes-monorepo/core'
  * starts fire-and-forget on app ready, long before any library exists.
  */
 export class AnnounceLibraryChannel implements IpcChannel {
-  name: string = 'library:announce'
+  name: ValidIpcChanel = 'library:announce'
 
   /**
    * The renderer re-announces whenever it rebuilds its repo, such as on a host
@@ -25,40 +25,29 @@ export class AnnounceLibraryChannel implements IpcChannel {
    */
   private sweptThisLaunch = false
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  async handle(request: IpcRequest): Promise<IpcResponse> {
     const { data } = request
-    if (!request.responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
     if (!isValidAnnounceLibraryRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
     try {
       rememberLibraryRoot(data.url)
-      event.sender.send(request.responseChannel, {
-        success: true,
-        data: { acknowledged: true },
-      })
     } catch (error) {
       console.error(error)
-      event.sender.send(request.responseChannel, {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return
+      return { success: false, error: asError(error) }
     }
 
-    if (this.sweptThisLaunch) {
-      return
+    if (!this.sweptThisLaunch) {
+      this.sweptThisLaunch = true
+      // Best-effort and off the response path: a failed sweep must not surface
+      // as a failed announce, exactly as the tmp sweep never blocks startup.
+      void this.sweep(data.url).catch((error) =>
+        console.error('Blob GC failed:', error),
+      )
     }
-    this.sweptThisLaunch = true
-    // Best-effort and off the response path: a failed sweep must not surface
-    // as a failed announce, exactly as the tmp sweep never blocks startup.
-    void this.sweep(data.url).catch((error) =>
-      console.error('Blob GC failed:', error),
-    )
+
+    return { success: true, data: { acknowledged: true } }
   }
 
   private async sweep(url: string) {

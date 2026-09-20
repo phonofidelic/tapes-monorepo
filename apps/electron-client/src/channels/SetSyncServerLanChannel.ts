@@ -1,27 +1,19 @@
-import { IpcMainEvent } from 'electron'
 import { IpcChannel } from '@/types'
 import { readSyncServerConfig, writeSyncServerConfig } from '@/syncServerConfig'
 import { restartSyncServerFromConfig } from '@/syncServerRuntime'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { IpcRequest, ValidIpcChanel } from '@tapes-monorepo/core'
 
 export class SetSyncServerLanChannel implements IpcChannel {
-  name = 'sync:set-lan-enabled'
-  async handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel } = request
-    if (!responseChannel) {
-      return
-    }
-
+  name: ValidIpcChanel = 'sync:set-lan-enabled'
+  async handle(request: IpcRequest) {
     try {
       const { enabled } = request.data as { enabled: boolean }
       writeSyncServerConfig({ ...readSyncServerConfig(), lanEnabled: enabled })
 
-      const info = await restartSyncServerFromConfig()
-
-      event.sender.send(responseChannel, info)
+      return await restartSyncServerFromConfig()
     } catch (error) {
       console.error('Failed to switch sync server binding:', error)
-      event.sender.send(responseChannel, undefined)
+      return undefined
     }
   }
 }

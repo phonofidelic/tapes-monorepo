@@ -1,7 +1,7 @@
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { getAggregateStore } from '../syncServer'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { GetAggregatesResponse, ValidIpcChanel } from '@tapes-monorepo/core'
 
 /**
  * Serves this device's own playback numbers to its renderer.
@@ -12,36 +12,30 @@ import { IpcRequest } from '@tapes-monorepo/core'
  * applies; this channel does not.
  */
 export class GetAggregatesChannel implements IpcChannel {
-  name: string = 'events:get-aggregates'
+  name: ValidIpcChanel = 'events:get-aggregates'
 
-  handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel } = request
-    if (!responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
+  handle(): GetAggregatesResponse {
     const store = getAggregateStore()
     if (!store) {
       // Reported as a failure, not as an empty library. No store means the
       // numbers are unavailable, not that nothing has been played.
-      event.sender.send(responseChannel, {
+      return {
         success: false,
         error: new Error('Playback aggregates are not available'),
-      })
-      return
+      }
     }
 
     try {
-      event.sender.send(responseChannel, {
+      return {
         success: true,
         data: {
           aggregates: store.all(),
           generatedAt: new Date().toISOString(),
         },
-      })
+      }
     } catch (error) {
       console.error(error)
-      event.sender.send(responseChannel, { success: false, error })
+      return { success: false, error: asError(error) }
     }
   }
 }

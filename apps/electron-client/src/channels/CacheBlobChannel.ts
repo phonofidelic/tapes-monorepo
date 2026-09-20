@@ -1,8 +1,8 @@
 import { Readable } from 'stream'
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
 
 /**
  * Stores bytes this device fetched from elsewhere. An electron client is
@@ -11,25 +11,17 @@ import { IpcRequest } from '@tapes-monorepo/core'
  * document to the refcount so the bytes are not dropped from under it.
  */
 export class CacheBlobChannel implements IpcChannel {
-  name: string = 'blob:cache-put'
+  name: ValidIpcChanel = 'blob:cache-put'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  async handle(request: IpcRequest): Promise<IpcResponse> {
     const { data } = request
-    if (!request.responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
     if (!isValidCacheBlobRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
     const store = getBlobStore()
     if (!store) {
-      event.sender.send(request.responseChannel, {
-        success: false,
-        error: new Error('Blob store is not available'),
-      })
-      return
+      return { success: false, error: new Error('Blob store is not available') }
     }
 
     try {
@@ -45,13 +37,10 @@ export class CacheBlobChannel implements IpcChannel {
           `Blob hash mismatch: expected ${data.hash}, got ${meta.hash}`,
         )
       }
-      event.sender.send(request.responseChannel, {
-        success: true,
-        data: { hash: meta.hash },
-      })
+      return { success: true, data: { hash: meta.hash } }
     } catch (error) {
       console.error(error)
-      event.sender.send(request.responseChannel, { success: false, error })
+      return { success: false, error: asError(error) }
     }
   }
 }
