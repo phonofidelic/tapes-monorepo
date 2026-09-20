@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { IpcMainEvent } from 'electron'
 import { GetConnectedDevicesChannel } from './GetConnectedDevicesChannel'
 import { getSyncConnections, getSyncServerInfo } from '@/syncServer'
 
@@ -16,20 +15,12 @@ vi.mock('@/syncServer', () => ({
   getSyncServerInfo: vi.fn(),
 }))
 
-const RESPONSE_CHANNEL = 'sync:get-connected-devices:response:1758000000000'
-
 const A_PHONE = {
   id: 'sync-connection-1',
   label: 'Studio phone',
   address: '192.168.1.24',
   connectedAt: 1758000000000,
   self: false,
-}
-
-function ipcEvent() {
-  return { sender: { send: vi.fn() } } as unknown as IpcMainEvent & {
-    sender: { send: ReturnType<typeof vi.fn> }
-  }
 }
 
 const running = {
@@ -49,13 +40,8 @@ describe('the connected-devices channel', () => {
   it('answers with the registry snapshot', () => {
     vi.mocked(getSyncServerInfo).mockReturnValue(running)
     vi.mocked(getSyncConnections).mockReturnValue([A_PHONE])
-    const event = ipcEvent()
 
-    new GetConnectedDevicesChannel().handle(event, {
-      responseChannel: RESPONSE_CHANNEL,
-    })
-
-    expect(event.sender.send).toHaveBeenCalledWith(RESPONSE_CHANNEL, {
+    expect(new GetConnectedDevicesChannel().handle()).toEqual({
       success: true,
       data: { connections: [A_PHONE] },
     })
@@ -64,13 +50,8 @@ describe('the connected-devices channel', () => {
   it('answers a running host with nobody on it as a success', () => {
     vi.mocked(getSyncServerInfo).mockReturnValue(running)
     vi.mocked(getSyncConnections).mockReturnValue([])
-    const event = ipcEvent()
 
-    new GetConnectedDevicesChannel().handle(event, {
-      responseChannel: RESPONSE_CHANNEL,
-    })
-
-    expect(event.sender.send).toHaveBeenCalledWith(RESPONSE_CHANNEL, {
+    expect(new GetConnectedDevicesChannel().handle()).toEqual({
       success: true,
       data: { connections: [] },
     })
@@ -79,41 +60,26 @@ describe('the connected-devices channel', () => {
   // The case that must never come back as an empty list.
   it('reports a stopped server as a failure, not as nobody connected', () => {
     vi.mocked(getSyncServerInfo).mockReturnValue(stopped)
-    const event = ipcEvent()
 
-    new GetConnectedDevicesChannel().handle(event, {
-      responseChannel: RESPONSE_CHANNEL,
+    expect(new GetConnectedDevicesChannel().handle()).toEqual({
+      success: false,
+      error: expect.any(Error),
     })
-
-    const [, response] = event.sender.send.mock.calls[0]
-    expect(response.success).toBe(false)
-    expect(response.error).toBeInstanceOf(Error)
     expect(getSyncConnections).not.toHaveBeenCalled()
   })
 
-  // The renderer's promise settles only when a response arrives. A handler
-  // that throws its way out leaves the panel waiting forever.
+  // Both outcomes of this channel are answers. A rejected promise would reach a
+  // caller that only branches on `success`.
   it('answers rather than throwing when the registry read fails', () => {
     vi.mocked(getSyncServerInfo).mockReturnValue(running)
     vi.mocked(getSyncConnections).mockImplementation(() => {
       throw new Error('registry unavailable')
     })
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const event = ipcEvent()
 
-    new GetConnectedDevicesChannel().handle(event, {
-      responseChannel: RESPONSE_CHANNEL,
+    expect(new GetConnectedDevicesChannel().handle()).toEqual({
+      success: false,
+      error: expect.any(Error),
     })
-
-    const [, response] = event.sender.send.mock.calls[0]
-    expect(response.success).toBe(false)
-  })
-
-  it('throws when no response channel was provided', () => {
-    vi.mocked(getSyncServerInfo).mockReturnValue(running)
-
-    expect(() =>
-      new GetConnectedDevicesChannel().handle(ipcEvent(), {}),
-    ).toThrow(/No response channel/)
   })
 })

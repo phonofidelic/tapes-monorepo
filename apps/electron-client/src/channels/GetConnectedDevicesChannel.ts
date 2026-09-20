@@ -1,7 +1,10 @@
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { getSyncConnections, getSyncServerInfo } from '@/syncServer'
-import { IpcRequest } from '@tapes-monorepo/core'
+import {
+  GetConnectedDevicesResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 /**
  * The first snapshot of who is connected to this host.
@@ -11,37 +14,27 @@ import { IpcRequest } from '@tapes-monorepo/core'
  * waiting for someone to connect or leave.
  */
 export class GetConnectedDevicesChannel implements IpcChannel {
-  name: string = 'sync:get-connected-devices'
+  name: ValidIpcChanel = 'sync:get-connected-devices'
 
-  handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel } = request
-    if (!responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
+  handle(): GetConnectedDevicesResponse {
     try {
       if (!getSyncServerInfo().running) {
         // A failure, not an empty list. With no server there is no registry to
         // read, which is not the same answer as a registry holding nobody — and
         // a panel handed `[]` here would tell the user nobody is connected when
         // the truth is that this device is not hosting at all.
-        event.sender.send(responseChannel, {
+        return {
           success: false,
           error: new Error('The sync server is not running on this device'),
-        })
-        return
+        }
       }
 
-      event.sender.send(responseChannel, {
-        success: true,
-        data: { connections: getSyncConnections() },
-      })
+      return { success: true, data: { connections: getSyncConnections() } }
     } catch (error) {
-      // Answering at all is the point. The renderer holds a promise that
-      // settles only when a response arrives. Returning quietly here would
-      // leave the panel waiting forever.
+      // A failure the panel can read, rather than a rejected promise it does
+      // not branch on. Both outcomes of this channel are answers.
       console.error(error)
-      event.sender.send(responseChannel, { success: false, error })
+      return { success: false, error: asError(error) }
     }
   }
 }

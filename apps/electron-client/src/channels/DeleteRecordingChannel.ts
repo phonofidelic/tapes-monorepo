@@ -1,18 +1,14 @@
 import { rm } from 'fs/promises'
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
 import { getBlobStore } from '../syncServer'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
 
 export class DeleteRecordingChannel implements IpcChannel {
-  name: string = 'storage:delete-recording'
+  name: ValidIpcChanel = 'storage:delete-recording'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  async handle(request: IpcRequest): Promise<IpcResponse> {
     const { data } = request
-    if (!request.responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
     if (!isValidDeleteRecordingRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
@@ -30,13 +26,10 @@ export class DeleteRecordingChannel implements IpcChannel {
         console.log('Deleting recording', filepath)
         await rm(filepath)
       }
-      event.sender.send(request.responseChannel, { success: true })
+      return { success: true }
     } catch (error) {
       console.error(error)
-      event.sender.send(request.responseChannel, {
-        success: false,
-        error,
-      })
+      return { success: false, error: asError(error) }
     }
   }
 }

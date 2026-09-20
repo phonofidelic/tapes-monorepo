@@ -99,7 +99,7 @@ export function AudioInputSelector({ className }: { className?: string }) {
                   },
                 },
               )
-            if (setAudioInputDeviceResponse.error) {
+            if (!setAudioInputDeviceResponse.success) {
               throw setAudioInputDeviceResponse.error
             }
           } catch (error) {

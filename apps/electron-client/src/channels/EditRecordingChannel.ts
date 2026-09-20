@@ -1,20 +1,19 @@
 import path from 'path'
 import { rename } from 'fs/promises'
-import { IpcMainEvent } from 'electron'
 import { IpcChannel } from '@/types'
-import { IpcRequest } from '@tapes-monorepo/core'
+import {
+  EditRecordingResponse,
+  IpcRequest,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 export class EditRecordingChannel implements IpcChannel {
-  name = 'storage:edit-recording'
+  name: ValidIpcChanel = 'storage:edit-recording'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel, data } = request
-    if (!responseChannel) {
-      throw new Error(`No response channel provided for recorder:start request`)
-    }
-
+  async handle(request: IpcRequest): Promise<EditRecordingResponse> {
+    const { data } = request
     if (!isValidEditRecordingRequestData(data)) {
-      throw new Error(`No response channel provided for ${this.name} request`)
+      throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
     const { filename, filepath } = data
@@ -25,16 +24,10 @@ export class EditRecordingChannel implements IpcChannel {
         filename + path.extname(filepath),
       )
       await rename(filepath, newPath)
-      event.sender.send(responseChannel, {
-        success: true,
-        data: { filepath: newPath },
-      })
+      return { success: true, data: { filepath: newPath } }
     } catch (error) {
       console.error(error)
-      event.sender.send(responseChannel, {
-        success: false,
-        error: new Error('Could not rename file'),
-      })
+      return { success: false, error: new Error('Could not rename file') }
     }
   }
 }

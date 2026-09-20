@@ -1,8 +1,12 @@
 import path from 'path'
 import { readFile } from 'fs/promises'
-import { IpcMainEvent } from 'electron'
+import { asError } from '@/asError'
 import { IpcChannel } from '@/types'
-import { IpcRequest } from '@tapes-monorepo/core'
+import {
+  IpcRequest,
+  ReadFileResponse,
+  ValidIpcChanel,
+} from '@tapes-monorepo/core'
 
 // Maps recording file extensions to the MIME type playback needs to build a
 // correctly-typed Blob.
@@ -14,14 +18,10 @@ const mimeTypeByExtension: Record<string, string> = {
 }
 
 export class ReadFileChannel implements IpcChannel {
-  name: string = 'storage:read-file'
+  name: ValidIpcChanel = 'storage:read-file'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
+  async handle(request: IpcRequest): Promise<ReadFileResponse> {
     const { data } = request
-    if (!request.responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
     if (!isValidReadFileRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
@@ -36,16 +36,10 @@ export class ReadFileChannel implements IpcChannel {
       const mimeType =
         mimeTypeByExtension[path.extname(filepath).toLowerCase()] ??
         'application/octet-stream'
-      event.sender.send(request.responseChannel, {
-        success: true,
-        data: { bytes, mimeType },
-      })
+      return { success: true, data: { bytes, mimeType } }
     } catch (error) {
       console.error(error)
-      event.sender.send(request.responseChannel, {
-        success: false,
-        error,
-      })
+      return { success: false, error: asError(error) }
     }
   }
 }

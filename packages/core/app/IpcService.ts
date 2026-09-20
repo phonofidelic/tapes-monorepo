@@ -1,15 +1,22 @@
-/*
- * Adapted from:
- * https://blog.logrocket.com/electron-ipc-response-request-architecture-with-typescript/
+/**
+ * The request/response contract between core and a platform backend.
+ *
+ * A request carries only its data. Pairing a response with its request is the
+ * transport's job, not this type's. Most channels answer with one of the
+ * response unions below. A caller reads those to tell a failed read from an
+ * empty result.
  */
 declare global {
   interface Window {
     api: {
-      send(channel: ValidIpcChanel, data: IpcRequest): void
-      receive(channel: string, func: (...args: unknown[]) => void): void
+      /**
+       * Sends a request and resolves with the main process's answer. Electron
+       * pairs the two, so nothing here names a channel to reply on.
+       */
+      invoke(channel: ValidIpcChanel, data: IpcRequest): Promise<unknown>
       /**
        * Listens for a main-process event. These arrive unprompted and repeat.
-       * A response listener fires once instead. Returns the unsubscribe.
+       * A request is answered once instead. Returns the unsubscribe.
        */
       subscribe(
         event: ValidIpcEvent,
@@ -104,13 +111,11 @@ export type SyncConnection = {
 export type GetConnectedDevicesResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
       data: { connections: SyncConnection[] }
-      error: never
     }
 
 export class GetConnectedDevicesError extends Error {
@@ -126,82 +131,73 @@ export class GetConnectedDevicesError extends Error {
 export type ConnectedDevicesEvent = { connections: SyncConnection[] }
 
 export type IpcRequest = {
-  responseChannel?: string
   params?: string[]
   data?: unknown
 }
 
+/**
+ * The answer from a channel whose success carries nothing the caller reads, or
+ * nothing at all.
+ */
 export type IpcResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
-      data: unknown
-      error: never
+      data?: unknown
     }
 
 export type StopRecordingResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
       data: { filepath: string }
-      error: never
     }
 
 export type EditRecordingResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
       data: { filepath: string }
-      error: never
     }
 
 export type ReadFileResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
       data: { bytes: Uint8Array; mimeType: string }
-      error: never
     }
 
 /** Descriptor for a recording ingested into the host's blob store. */
 export type PutBlobResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
       data: { hash: string; size: number; mimeType: string; ext: string }
-      error: never
     }
 
 export type HasBlobResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
       success: true
       data: { present: boolean; size?: number; mimeType?: string }
-      error: never
     }
 
 /**
@@ -213,7 +209,6 @@ export type HasBlobResponse =
 export type GetAggregatesResponse =
   | {
       success: false
-      data: never
       error: Error
     }
   | {
@@ -226,7 +221,6 @@ export type GetAggregatesResponse =
         }[]
         generatedAt: string
       }
-      error: never
     }
 
 export type IpcSendArgs =

@@ -29,11 +29,11 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'events:get-aggregates': true,
 }
 
-// Main-process events the renderer may listen for. These are not responses.
-// They carry no response suffix and arrive repeatedly, so the patterns below
-// reject them and they need their own list. Keyed by the union for the same
-// reason as the channels. An event forgotten here fails check-types instead of
-// becoming a listener that never fires.
+// Main-process events the renderer may listen for. Nothing asked for these and
+// they arrive repeatedly, so they are not answers to a request and need their
+// own list. Keyed by the union for the same reason as the channels. An event
+// forgotten here fails check-types instead of becoming a listener that never
+// fires.
 const EVENT_ALLOWLIST: Record<ValidIpcEvent, true> = {
   'sync:connected-devices': true,
 }
@@ -42,32 +42,14 @@ const validChannels = Object.keys(CHANNEL_ALLOWLIST) as ValidIpcChanel[]
 
 const validEvents = Object.keys(EVENT_ALLOWLIST) as ValidIpcEvent[]
 
-const validResponseChannels = validChannels.map(
-  (channel) => `${channel}:response:.*`,
-)
-
 const api = {
-  send: (channel: ValidIpcChanel, data: unknown) => {
-    // Throwing rather than returning: `IpcService.send` hands the caller a
-    // promise that only ever settles when the response arrives, so dropping
-    // the message silently hangs the caller forever.
+  invoke: (channel: ValidIpcChanel, data: unknown) => {
+    // Throwing rather than returning: the caller holds a promise for the
+    // answer, so dropping the message silently would hang it forever.
     if (!validChannels.includes(channel)) {
       throw new Error(`Blocked ipc message on unknown channel: ${channel}`)
     }
-    ipcRenderer.send(channel, data)
-  },
-  receive: (channel: string, func: (...args: unknown[]) => void) => {
-    if (
-      !validResponseChannels.some((responseChannel) =>
-        RegExp(`^${responseChannel}$`).test(channel),
-      )
-    ) {
-      throw new Error(`Blocked ipc listener on unknown channel: ${channel}`)
-    }
-    // Deliberately strip event as it includes `sender`
-    ipcRenderer.on(channel, (_event, ...args: unknown[]) =>
-      func(...(args as Parameters<typeof func>)),
-    )
+    return ipcRenderer.invoke(channel, data)
   },
   subscribe: (event: ValidIpcEvent, func: (...args: unknown[]) => void) => {
     if (!validEvents.includes(event)) {
@@ -77,9 +59,9 @@ const api = {
     const forward = (_event: unknown, ...args: unknown[]) =>
       func(...(args as Parameters<typeof func>))
     ipcRenderer.on(event, forward)
-    // An unsubscribe, which a response listener never needs. That one fires
-    // once and the request is over. Without this, every remount of a panel adds
-    // another listener for the life of the window.
+    // Events are the only thing here that registers a listener, so they are the
+    // only thing that needs an unsubscribe. Without this, every remount of a
+    // panel adds another listener for the life of the window.
     return () => {
       ipcRenderer.removeListener(event, forward)
     }

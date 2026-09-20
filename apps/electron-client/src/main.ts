@@ -155,11 +155,11 @@ export class MainWindow {
   }
 
   private registerIpcChannels(ipcChannels: IpcChannel[]) {
-    ipcMain.setMaxListeners(1)
-
+    // Registered with `handle`. Each channel keeps one handler for the life of
+    // the process, and Electron returns whatever that handler resolves to.
     ipcChannels.forEach((channel) =>
-      ipcMain.on(channel.name, (event, request) =>
-        channel.handle(event, request),
+      ipcMain.handle(channel.name, (_event, request) =>
+        channel.handle(request),
       ),
     )
   }

@@ -1,21 +1,17 @@
 import path from 'path'
 import { promisify } from 'util'
 import child_process from 'node:child_process'
-import { app, IpcMainEvent } from 'electron'
+import { app } from 'electron'
 import { IpcChannel } from '@/types'
-import { IpcRequest } from '@tapes-monorepo/core'
+import { IpcRequest, IpcResponse, ValidIpcChanel } from '@tapes-monorepo/core'
 
 const execFile = promisify(child_process.execFile)
 
 export class SetDefaultAudioInputChannel implements IpcChannel {
-  name = 'settings:set-default-audio-input-device'
+  name: ValidIpcChanel = 'settings:set-default-audio-input-device'
 
-  async handle(event: IpcMainEvent, request: IpcRequest) {
-    const { responseChannel, data } = request
-    if (!responseChannel) {
-      throw new Error(`No response channel provided for ${this.name} request`)
-    }
-
+  async handle(request: IpcRequest): Promise<IpcResponse> {
+    const { data } = request
     if (!isValidSetDefaultAudioInputRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
@@ -48,20 +44,15 @@ export class SetDefaultAudioInputChannel implements IpcChannel {
       ])
     } catch (error) {
       console.error(error)
-      event.sender.send(responseChannel, {
-        error: {
-          message: new Error(
-            `Error setting default audio input with deviceName: ${data.deviceName}`,
-          ),
-        },
+      return {
         success: false,
-      })
-      return
+        error: new Error(
+          `Error setting default audio input with deviceName: ${data.deviceName}`,
+        ),
+      }
     }
 
-    event.sender.send(responseChannel, {
-      success: true,
-    })
+    return { success: true }
   }
 }
 

@@ -15,15 +15,14 @@ import type { ValidIpcChanel, ValidIpcEvent } from '@tapes-monorepo/core'
  * that a rejected one fails loudly instead of being dropped.
  */
 
-const { send, on, removeListener } = vi.hoisted(() => ({
-  send: vi.fn(),
+const { invoke, on, removeListener } = vi.hoisted(() => ({
+  invoke: vi.fn(),
   on: vi.fn(),
   removeListener: vi.fn(),
 }))
 
 let exposed: {
-  send: (channel: ValidIpcChanel, data: unknown) => void
-  receive: (channel: string, func: (...args: unknown[]) => void) => void
+  invoke: (channel: ValidIpcChanel, data: unknown) => Promise<unknown>
   subscribe: (
     event: ValidIpcEvent,
     func: (...args: unknown[]) => void,
@@ -31,7 +30,7 @@ let exposed: {
 }
 
 vi.mock('electron', () => ({
-  ipcRenderer: { send, on, removeListener },
+  ipcRenderer: { invoke, on, removeListener },
   contextBridge: {
     exposeInMainWorld: (_key: string, api: typeof exposed) => {
       exposed = api
@@ -40,7 +39,8 @@ vi.mock('electron', () => ({
 }))
 
 beforeEach(async () => {
-  send.mockClear()
+  invoke.mockClear()
+  invoke.mockResolvedValue({ success: true })
   on.mockClear()
   removeListener.mockClear()
   vi.resetModules()
@@ -54,71 +54,67 @@ describe('the ipc bridge', () => {
   it.each<ValidIpcChanel>(['blob:put-file', 'blob:has', 'blob:cache-put'])(
     'forwards %s to the main process',
     (channel) => {
-      exposed.send(channel, { data: { filepath: '/tapes/take-one.wav' } })
+      exposed.invoke(channel, { data: { filepath: '/tapes/take-one.wav' } })
 
-      expect(send).toHaveBeenCalledWith(channel, {
+      expect(invoke).toHaveBeenCalledWith(channel, {
         data: { filepath: '/tapes/take-one.wav' },
       })
     },
   )
 
-  it('registers a listener for an allowed response channel', () => {
-    const listener = vi.fn()
+  it('hands the caller the answer from the main process', async () => {
+    invoke.mockResolvedValue({ success: true, data: { present: true } })
 
-    exposed.receive('blob:put-file:response:1758000000000', listener)
-
-    expect(on).toHaveBeenCalledWith(
-      'blob:put-file:response:1758000000000',
-      expect.any(Function),
-    )
+    await expect(
+      exposed.invoke('blob:has', { data: { hash: 'abc' } }),
+    ).resolves.toEqual({ success: true, data: { present: true } })
   })
 
-  it('hands the listener the response without the sender', () => {
-    const listener = vi.fn()
-    exposed.receive('blob:put-file:response:1758000000000', listener)
-    const [, forward] = on.mock.calls[0] as [
-      string,
-      (event: unknown, ...args: unknown[]) => void,
-    ]
+  // The old bridge listened on a reply channel named after the request. Nothing
+  // removed those listeners, so a window leaked one per request. Requests now
+  // register nothing at all.
+  it('registers no listener, however many requests are made', async () => {
+    for (let index = 0; index < 50; index++) {
+      await exposed.invoke('blob:has', { data: { hash: `hash-${index}` } })
+    }
 
-    forward({ sender: 'the whole main-process webContents' }, { success: true })
-
-    expect(listener).toHaveBeenCalledWith({ success: true })
+    expect(on).not.toHaveBeenCalled()
+    expect(removeListener).not.toHaveBeenCalled()
   })
 
-  // `IpcService.send` resolves only when a response arrives, so returning
-  // quietly here leaves the caller awaiting a promise that never settles.
-  // That is what hid the missing blob channels: the upload did not fail, it
-  // simply never finished, and nothing was logged on either side.
+  // The caller holds a promise for the answer, so returning quietly here leaves
+  // it awaiting a promise that never settles. That is what hid the missing blob
+  // channels: the upload did not fail, it simply never finished, and nothing was
+  // logged on either side.
   it('throws on an unknown channel rather than dropping the message', () => {
     expect(() =>
-      exposed.send('blob:put-fil' as ValidIpcChanel, { data: {} }),
+      exposed.invoke('blob:put-fil' as ValidIpcChanel, { data: {} }),
     ).toThrow(/unknown channel/)
-    expect(send).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
   })
 
-  it('throws on a response channel it did not authorise', () => {
-    expect(() => exposed.receive('recorder:stop:response', vi.fn())).toThrow(
-      /unknown channel/,
-    )
-    expect(on).not.toHaveBeenCalled()
-  })
-
-  // The patterns are anchored. Unanchored, a name only had to *contain* an
-  // allowed one, so any channel could be smuggled in by prefixing it.
+  // Reply channels were allowlisted by pattern, and a name only had to contain
+  // an allowed one, so any channel could be smuggled in by prefixing it. There
+  // are no reply channels now, and the allowlist is an exact match.
   it('rejects a channel that merely contains an allowed one', () => {
     expect(() =>
-      exposed.receive('attacker:blob:put-file:response:1', vi.fn()),
+      exposed.invoke('attacker:blob:put-file' as ValidIpcChanel, { data: {} }),
     ).toThrow(/unknown channel/)
-    expect(on).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('rejects an event subscribed to as a request channel', () => {
+    expect(() =>
+      exposed.invoke('sync:connected-devices' as ValidIpcChanel, {}),
+    ).toThrow(/unknown channel/)
+    expect(invoke).not.toHaveBeenCalled()
   })
 })
 
 /**
- * Main-process events are the other half of the bridge. They are not responses:
- * nothing asked for them, they arrive repeatedly, and they carry no
- * `:response:<timestamp>` suffix — so `receive`'s patterns reject them and they
- * need their own allowlist.
+ * Main-process events are the other half of the bridge, and the only half that
+ * registers a listener. Nothing asked for them, they arrive repeatedly, and
+ * they have their own allowlist.
  */
 describe('the ipc event bridge', () => {
   it('registers a listener for an allowed event', () => {
