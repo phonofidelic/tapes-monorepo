@@ -44,33 +44,6 @@ export type ValidIpcChanel =
   | 'library:announce'
   | 'events:get-aggregates'
 
-export type SyncServerInfo = {
-  running: boolean
-  url: string
-  lanUrl?: string
-  /** URL of the hosted web-client bundle, when one is being served. */
-  webAppUrl?: string
-  /** LAN-reachable URL of the hosted web-client bundle. */
-  lanWebAppUrl?: string
-  /** Origin serving `/blobs`, when the host has a blob store configured. */
-  blobBaseUrl?: string
-  /** LAN-reachable origin serving `/blobs`. */
-  lanBlobBaseUrl?: string
-  /**
-   * Bearer token for `/blobs` and the sync socket. Never log this object
-   * wholesale.
-   */
-  pairingToken?: string
-  /**
-   * SHA-256 of the host's root certificate, in colon-separated pairs, when the
-   * sync server is running over TLS. Not a secret: unlike `pairingToken` it
-   * grants nothing, and it is published in the pairing link on purpose.
-   */
-  rootCertFingerprint?: string
-  port: number
-  host: string
-}
-
 /**
  * Events the main process sends to the renderer.
  *
@@ -78,57 +51,6 @@ export type SyncServerInfo = {
  * for. This is only for state that changes on its own.
  */
 export type ValidIpcEvent = 'sync:connected-devices'
-
-/**
- * One device connected to this host's sync server.
- *
- * Mirrors the shape the host's connection registry keeps. Core only renders
- * these. It never builds one.
- */
-export type SyncConnection = {
-  /** Stable for the life of the connection. Not a device identity. */
-  id: string
-  /**
-   * The name the guest gave on the handshake, already sanitized. Undefined
-   * when it sent nothing usable, so the UI picks what to show instead.
-   */
-  label?: string
-  /** Remote address of the socket, for telling same-named devices apart. */
-  address?: string
-  /** Epoch milliseconds, for "connected 3 minutes ago". */
-  connectedAt: number
-  /** This host's own window rather than a guest. */
-  self: boolean
-}
-
-/**
- * The connected-device list, or the reason there is none.
- *
- * A union rather than a bare array. An empty array means the host read its
- * registry and nobody is connected. A failure means it could not read it. Both
- * show as a blank panel, so callers must tell them apart.
- */
-export type GetConnectedDevicesResponse =
-  | {
-      success: false
-      error: Error
-    }
-  | {
-      success: true
-      data: { connections: SyncConnection[] }
-    }
-
-export class GetConnectedDevicesError extends Error {
-  constructor() {
-    super('Could not get connected devices')
-  }
-}
-
-/**
- * The payload of a connected-devices event. It carries the whole new list
- * rather than a delta, so a renderer that misses one recovers on the next.
- */
-export type ConnectedDevicesEvent = { connections: SyncConnection[] }
 
 export type IpcRequest = {
   params?: string[]

@@ -1,4 +1,4 @@
-import type { SyncServerInfo } from './IpcService'
+import { SyncServerInfo } from './services/SyncService'
 import type { BlobDescriptor } from './types'
 
 /**

@@ -5,8 +5,9 @@ import { generateAutomergeUrl } from '@automerge/automerge-repo'
 import { AppContextProvider, type AppContextValue } from '@/context/AppContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import { Settings } from './Settings'
-import type { IpcService, SyncServerInfo } from '@/IpcService'
+import type { IpcService } from '@/IpcService'
 import { decodeFingerprint, encodeFingerprint } from '@/pairing'
+import { SyncServerInfo } from '@/services/SyncService'
 
 // The selector enumerates real devices through `navigator.mediaDevices`, which
 // jsdom has no notion of; none of it is what these tests are about.

@@ -7,7 +7,6 @@ import {
   MAX_DEVICE_LABEL_LENGTH,
   sanitizeDeviceLabel,
 } from '@/deviceLabel'
-import { SyncConnection, SyncServerInfo } from '@/IpcService'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
 import { useConnectedDevices } from '@/hooks/useConnectedDevices'
 import { isSyncServerUrl, useAutomergeUrl } from '@/utils'
@@ -15,6 +14,7 @@ import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { Button, TextInput } from '@tapes-monorepo/ui'
 import { QRCodeSVG } from 'qrcode.react'
 import { MdOutlineContentCopy, MdOutlineFileUpload } from 'react-icons/md'
+import { SyncConnection, SyncServerInfo } from '@/services/SyncService'
 
 export function SyncSettings() {
   const appContext = useAppContext()
@@ -536,7 +536,7 @@ function GuestSettings() {
 /**
  * Names this device for the hosts it syncs with. The name is sent on the socket
  * handshake (see `deviceLabel.ts`), so a host can list its guests by something
- * a person recognises. It is stored per device, not in the Automerge document.
+ * a person recognizes. It is stored per device, not in the Automerge document.
  */
 function DeviceLabelSetting() {
   const [deviceLabel, setDeviceLabel] = useSetting('deviceLabel')

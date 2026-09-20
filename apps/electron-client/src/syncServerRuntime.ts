@@ -2,7 +2,6 @@ import {
   getLocalNetworkIp,
   startSyncServer,
   stopSyncServer,
-  type SyncServerInfo,
 } from './syncServer'
 import {
   blobStoragePath,
@@ -18,6 +17,7 @@ import {
   getSyncServerRootCertPem,
   getSyncServerRootFingerprint,
 } from './certManager'
+import { SyncServerInfo } from '@tapes-monorepo/core'
 
 /**
  * Turns the persisted sync-server config into runtime options and starts the
