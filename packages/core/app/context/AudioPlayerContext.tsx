@@ -21,6 +21,7 @@ import {
   type BlobFailureReason,
 } from '@/blobClient'
 import { cachedBlobSource } from '@/blobCache'
+import { callWorker } from '@/workerClient'
 import { ingestHostFile } from '@/blobUpload'
 import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
@@ -434,26 +435,18 @@ export const AudioPlayerProvider = ({
       if (!isOpfsName(currentSource)) {
         return null
       }
-      return new Promise((resolveSource) => {
-        const worker = appContext.worker
-        const onMessage = (event: MessageEvent) => {
-          if (event.data?.type !== 'storage:get:response') {
-            return
-          }
-          worker.removeEventListener('message', onMessage)
-          if (!event.data.success) {
-            resolveSource(null)
-            return
-          }
-          const { url } = event.data.payload as { url: string }
-          resolveSource({ src: url, revoke: false })
-        }
-        worker.addEventListener('message', onMessage)
-        worker.postMessage({
-          type: 'storage:get',
-          payload: { filename: currentSource },
-        })
-      })
+      try {
+        const { url } = await callWorker<{ url: string }>(
+          appContext.worker,
+          'storage:get',
+          { filename: currentSource },
+        )
+        return { src: url, revoke: false }
+      } catch {
+        // Not in this device's OPFS. Returning null sends the caller on to
+        // the host.
+        return null
+      }
     }
 
     void resolve()

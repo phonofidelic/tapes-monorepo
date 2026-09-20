@@ -1,11 +1,10 @@
 /**
  * Request/response helper for the web-client's storage worker.
  *
- * The worker's `onmessage` is one switch with no correlation between a
- * request and its reply. That is fine while only one request is in flight,
- * but blob fetches can overlap with each other and with a save. So every
- * message carries a request id, and replies are matched in one place. Tests
- * fake this one seam.
+ * The worker's `onmessage` is one switch, so a reply can only be matched to
+ * its request by an id the two sides agree on. Every request made here
+ * carries one, and the worker echoes it back. Nothing else should listen to
+ * worker messages for a request it made. Tests fake this one seam.
  */
 
 export type WorkerResponse<T> = {

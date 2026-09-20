@@ -37,16 +37,17 @@ test.describe('StrictMode', () => {
 
     const state = await readState(page)
 
-    // The double-invoke really happened: RecordingContext's effect mounted
-    // more than once. Without this, "one recorder" proves nothing.
+    // Starting and stopping both go through the request helper, so the
+    // recording really did talk to the worker.
     expect(state.workerMessageListenerAdds).toBeGreaterThan(1)
-    // ...and its cleanup ran, leaving exactly one live listener.
+    // Each of those listeners came off again once its reply arrived. Nothing
+    // is in flight by now, so anything left over is a leak.
     expect(
       state.workerMessageListenerAdds - state.workerMessageListenerRemoves,
-    ).toBe(1)
+    ).toBe(0)
 
-    // The actual regression: a leaked duplicate listener would start a second
-    // recorder on the same `recorder:start:response`.
+    // The actual regression: a duplicate recorder would write every chunk
+    // twice.
     expect(state.mediaRecorderCount).toBe(1)
   })
 })

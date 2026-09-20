@@ -3,9 +3,10 @@
  * this device made live flat in the OPFS root under uuid names, and blobs
  * fetched from the sync host live in `blobs/` under their content hash.
  *
- * Messages arrive from core as `{ type, payload }`. The blob and get-file
- * handlers echo a `requestId` through `respond` so overlapping requests can be
- * told apart. The older recorder and storage handlers reply without one.
+ * Messages arrive from core as `{ type, payload }`. Every payload carries a
+ * `requestId`, and every handler replies through `respond`, which echoes it.
+ * That is what lets core's `callWorker` match a reply to its request. The one
+ * exception is `recorder:write`, which sends no reply at all.
  */
 export {}
 
@@ -22,6 +23,7 @@ type EventData =
       payload: {
         audioFormat: 'webm' | 'mp3'
         audioInputDeviceId: string
+        requestId: string
       }
     }
   | {
@@ -32,18 +34,22 @@ type EventData =
     }
   | {
       type: 'recorder:stop'
-      payload: never
+      payload: {
+        requestId: string
+      }
     }
   | {
       type: 'storage:get'
       payload: {
         filename: string
+        requestId: string
       }
     }
   | {
       type: 'storage:read-bytes'
       payload: {
         filename: string
+        requestId: string
       }
     }
   | {
@@ -109,7 +115,7 @@ onmessage = async (event) => {
 
   switch (type) {
     case 'recorder:start': {
-      const { audioFormat, audioInputDeviceId } = payload
+      const { audioFormat, audioInputDeviceId, requestId } = payload
       console.log('recorder:start', { audioFormat, audioInputDeviceId })
       try {
         const root = await navigator.storage.getDirectory()
@@ -122,27 +128,20 @@ onmessage = async (event) => {
         ctx.fileHandle = fileHandle
         ctx.accessHandle = await fileHandle.createSyncAccessHandle()
 
-        ctx.postMessage({
-          type: 'recorder:start:response',
-          payload: {
-            message: 'recording started',
-            filename: fileHandle.name,
-          },
+        respond('recorder:start', requestId, true, {
+          filename: fileHandle.name,
         })
       } catch (error) {
         console.error('error:', error)
-        ctx.postMessage({
-          type: 'recorder:start:error',
-          payload: {
-            message: 'error creating file',
-            error,
-          },
-        })
+        respond('recorder:start', requestId, false, undefined, error)
       }
 
       break
     }
     case 'recorder:write': {
+      // The one handler that never replies. Chunks arrive from a
+      // `dataavailable` listener that has nothing to wait for, and the last
+      // one lands after the recording has already been stopped.
       const { chunk } = payload as { chunk: Blob }
       if (ctx.accessHandle) {
         try {
@@ -157,18 +156,16 @@ onmessage = async (event) => {
       break
     }
     case 'recorder:stop': {
+      const { requestId } = payload
       if (ctx.accessHandle) {
         ctx.accessHandle.flush()
       }
 
-      ctx.postMessage({
-        type: 'recorder:stop:response',
-        payload: { message: 'recording stopped' },
-      })
+      respond('recorder:stop', requestId, true)
       break
     }
     case 'storage:get': {
-      const { filename } = payload
+      const { filename, requestId } = payload
       const root = await navigator.storage.getDirectory()
       try {
         const handle = await root.getFileHandle(filename)
@@ -178,27 +175,14 @@ onmessage = async (event) => {
         accessHandle.read(buffer, { at: 0 })
 
         const blob = new Blob([buffer], { type: 'audio/mp4' })
-        const url = URL.createObjectURL(blob)
-        ctx.postMessage({
-          type: 'storage:get:response',
-          success: true,
-          payload: {
-            message: 'file retrieved',
-            url,
-            blob,
-          },
+        respond('storage:get', requestId, true, {
+          url: URL.createObjectURL(blob),
+          blob,
         })
         accessHandle.close()
       } catch (error) {
         console.error('error, event:', error)
-        ctx.postMessage({
-          type: 'storage:get:response',
-          success: false,
-          error,
-          payload: {
-            message: 'error retrieving file',
-          },
-        })
+        respond('storage:get', requestId, false, undefined, error)
       }
       break
     }
@@ -206,7 +190,7 @@ onmessage = async (event) => {
       // Was how the recorder got bytes to embed in the Automerge doc. Nothing
       // in core calls it now that audio is uploaded out of band via
       // `storage:get-file`; kept until the legacy read path is retired.
-      const { filename } = payload
+      const { filename, requestId } = payload
       const root = await navigator.storage.getDirectory()
       try {
         const handle = await root.getFileHandle(filename)
@@ -215,30 +199,18 @@ onmessage = async (event) => {
         const buffer = new ArrayBuffer(fileSize)
         accessHandle.read(new DataView(buffer), { at: 0 })
         accessHandle.close()
-        ctx.postMessage(
-          {
-            type: 'storage:read-bytes:response',
-            success: true,
-            payload: {
-              message: 'bytes retrieved',
-              filename,
-              bytes: buffer,
-            },
-          },
+        respond(
+          'storage:read-bytes',
+          requestId,
+          true,
+          { filename, bytes: buffer },
+          undefined,
           // Transfer ownership of the buffer to avoid a copy.
           [buffer],
         )
       } catch (error) {
         console.error('error reading bytes:', error)
-        ctx.postMessage({
-          type: 'storage:read-bytes:response',
-          success: false,
-          error,
-          payload: {
-            message: 'error reading bytes',
-            filename,
-          },
-        })
+        respond('storage:read-bytes', requestId, false, undefined, error)
       }
       break
     }
@@ -326,17 +298,21 @@ function respond(
   success: boolean,
   payload?: Record<string, unknown>,
   error?: unknown,
+  transfer: Transferable[] = [],
 ) {
-  ctx.postMessage({
-    type: `${type}:response`,
-    requestId,
-    success,
-    payload,
-    error:
-      error instanceof Error
-        ? error.message
-        : error
-          ? String(error)
-          : undefined,
-  })
+  ctx.postMessage(
+    {
+      type: `${type}:response`,
+      requestId,
+      success,
+      payload,
+      error:
+        error instanceof Error
+          ? error.message
+          : error
+            ? String(error)
+            : undefined,
+    },
+    transfer,
+  )
 }
