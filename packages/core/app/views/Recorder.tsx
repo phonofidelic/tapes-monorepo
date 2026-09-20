@@ -40,7 +40,14 @@ export function Recorder() {
   })
 
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
-  const { time, isRecording, handleFilename, setIsRecording } = useRecorder()
+  const {
+    time,
+    isRecording,
+    handleFilename,
+    setIsRecording,
+    startRecording,
+    stopRecording,
+  } = useRecorder()
   const visualizerContainerRef = useRef<HTMLDivElement | null>(null)
   // Guards against a double-submit creating two docs for one recording.
   const isSavingRef = useRef(false)
@@ -324,22 +331,12 @@ export function Recorder() {
                   disabled={isEditorOpen}
                   onClick={async () => {
                     if (appContext.type === 'web-client' && !isRecording) {
-                      appContext.worker.postMessage({
-                        type: 'recorder:start',
-                        payload: { audioFormat, audioInputDeviceId },
-                      })
-
-                      setIsRecording(true)
-                      console.log('Recording started')
-
+                      await startRecording()
                       return
                     }
 
                     if (appContext.type === 'web-client' && isRecording) {
-                      appContext.worker.postMessage({
-                        type: 'recorder:stop',
-                      })
-                      setIsRecording(false)
+                      await stopRecording()
                       if (handleFilename) {
                         setFilepath(handleFilename)
                         setIsEditorOpen(true)

@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup, act, waitFor } from '@testing-library/react'
 import { AppContextProvider } from '@/context/AppContext'
 import { getAudioStream } from '@/utils'
-import { RecordingStateProvider } from './RecordingContext'
+import { callWorker } from '@/workerClient'
+import { RecordingStateProvider, useRecorder } from './RecordingContext'
 
 vi.mock('@/utils', () => ({ getAudioStream: vi.fn() }))
+vi.mock('@/workerClient', () => ({ callWorker: vi.fn() }))
 
 vi.mock('./SettingsContext', () => ({
   useSetting: () => ['device-a', vi.fn()],
@@ -29,7 +31,7 @@ const fakeStream = () => {
   }
 }
 
-/** Records the calls the context makes, in order. */
+/** Every recorder the context constructed, in order. */
 const recorders: FakeMediaRecorder[] = []
 
 class FakeMediaRecorder extends EventTarget {
@@ -53,48 +55,44 @@ class FakeMediaRecorder extends EventTarget {
   }
 }
 
-/** A worker the test drives directly, standing in for the OPFS worker. */
-const fakeWorker = () => {
-  const listeners = new Set<(event: MessageEvent) => void>()
-  const worker = {
-    postMessage: vi.fn(),
-    addEventListener: (_type: string, listener: (e: MessageEvent) => void) =>
-      listeners.add(listener),
-    removeEventListener: (_type: string, listener: (e: MessageEvent) => void) =>
-      listeners.delete(listener),
-  } as unknown as Worker
-
-  const emit = async (data: unknown) => {
-    await act(async () => {
-      listeners.forEach((listener) =>
-        listener(new MessageEvent('message', { data })),
-      )
-    })
-  }
-
-  return { worker, emit }
+/** The two callbacks under test, reached through the context. */
+type Controls = {
+  startRecording: () => Promise<void>
+  stopRecording: () => Promise<void>
 }
 
-const renderProvider = (worker: Worker) =>
+const renderProvider = () => {
+  const controls = {} as Controls
+
+  const Probe = () => {
+    const { startRecording, stopRecording } = useRecorder()
+    controls.startRecording = startRecording
+    controls.stopRecording = stopRecording
+    return null
+  }
+
   render(
-    <AppContextProvider value={{ type: 'web-client', worker }}>
+    <AppContextProvider
+      value={{
+        type: 'web-client',
+        worker: { postMessage: vi.fn() } as unknown as Worker,
+      }}
+    >
       <RecordingStateProvider>
-        <div />
+        <Probe />
       </RecordingStateProvider>
     </AppContextProvider>,
   )
 
-const START = {
-  type: 'recorder:start:response',
-  payload: { filename: 'a.wav' },
+  return controls
 }
-const STOP = { type: 'recorder:stop:response', payload: {} }
 
 let consoleError: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   recorders.length = 0
   vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
+  vi.mocked(callWorker).mockResolvedValue({ filename: 'a.wav' })
   consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -105,16 +103,19 @@ afterEach(() => {
 })
 
 describe('RecordingStateProvider', () => {
-  it('stops the recorder when the stop message follows a completed start', async () => {
+  it('stops the recorder when stop follows a completed start', async () => {
     const { stream, track } = fakeStream()
     vi.mocked(getAudioStream).mockResolvedValue(stream)
-    const { worker, emit } = fakeWorker()
-    renderProvider(worker)
+    const controls = renderProvider()
 
-    await emit(START)
-    await waitFor(() => expect(recorders[0]?.started).toBe(true))
+    await act(async () => {
+      await controls.startRecording()
+    })
+    expect(recorders[0].started).toBe(true)
 
-    await emit(STOP)
+    await act(async () => {
+      await controls.stopRecording()
+    })
 
     expect(recorders[0].stopped).toBe(true)
     await waitFor(() => expect(track.stopped).toBe(true))
@@ -131,19 +132,25 @@ describe('RecordingStateProvider', () => {
         openMicrophone = resolve
       }),
     )
-    const { worker, emit } = fakeWorker()
-    renderProvider(worker)
+    const controls = renderProvider()
 
-    await emit(START)
+    let starting: Promise<void> = Promise.resolve()
+    await act(async () => {
+      starting = controls.startRecording()
+    })
+
     // The stop lands first: there is no recorder yet.
-    await emit(STOP)
+    await act(async () => {
+      await controls.stopRecording()
+    })
     expect(recorders).toHaveLength(0)
 
     await act(async () => {
       openMicrophone(stream)
+      await starting
     })
 
-    await waitFor(() => expect(recorders).toHaveLength(1))
+    expect(recorders).toHaveLength(1)
     // Started and then stopped, so the file the worker opened gets its bytes.
     expect(recorders[0].started).toBe(true)
     expect(recorders[0].stopped).toBe(true)
@@ -163,14 +170,15 @@ describe('RecordingStateProvider', () => {
         }
       },
     )
-    const { worker, emit } = fakeWorker()
-    renderProvider(worker)
+    const controls = renderProvider()
 
-    await emit(START)
+    await act(async () => {
+      await controls.startRecording()
+    })
 
-    await waitFor(() => expect(track.stopped).toBe(true))
+    expect(track.stopped).toBe(true)
     expect(consoleError).toHaveBeenCalledWith(
-      'Failed to start recording:',
+      'Failed to create the recorder:',
       expect.any(Error),
     )
   })

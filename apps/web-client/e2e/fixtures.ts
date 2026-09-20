@@ -45,9 +45,9 @@ const installInstrumentation = () => {
   }
   window.MediaRecorder = CountingMediaRecorder as typeof MediaRecorder
 
-  // Message-listener churn on the recording worker. Under dev StrictMode the
-  // effect in RecordingContext mounts, unmounts and remounts, so a correct
-  // implementation adds two listeners and removes one.
+  // Message-listener churn on the recording worker. Every request core makes
+  // attaches a listener and detaches it when the reply arrives, so the two
+  // counts should agree once nothing is in flight.
   const realAdd = Worker.prototype.addEventListener
   const realRemove = Worker.prototype.removeEventListener
   Worker.prototype.addEventListener = function (
@@ -173,10 +173,9 @@ export const recordFor = async (page: Page, durationMs = 4000) => {
   // elapsed Timer, and text content wins over `title` when the accessible name
   // is computed. The button is then named "00:00:04:21", not "Stop recording".
   await page.getByTitle('Start recording').click()
-  // Opening the microphone is asynchronous and has been seen to take several
-  // seconds on a machine with many input devices. Wait for the recorder to
-  // exist, so `durationMs` is time spent capturing rather than time spent
-  // waiting for the device.
+  // Opening the microphone has been seen to take several seconds on a machine
+  // with many input devices. Wait for the recorder to exist first. The wait
+  // below is then time spent capturing, not time spent opening the device.
   await expect
     .poll(async () => (await readState(page)).mediaRecorderCount)
     .toBeGreaterThan(before)
