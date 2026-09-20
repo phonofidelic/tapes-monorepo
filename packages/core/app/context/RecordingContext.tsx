@@ -31,6 +31,11 @@ export const RecordingStateProvider = ({
   // change) between the start and stop messages, so it lives in a ref rather
   // than an effect-local variable.
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  // Opening the microphone is asynchronous and can take seconds, so a stop can
+  // arrive before there is any recorder to stop. These two carry that stop
+  // across the gap. See the start and stop handlers below.
+  const isStartingRef = useRef(false)
+  const stopRequestedRef = useRef(false)
 
   useEffect(() => {
     if (!isRecording) {
@@ -82,27 +87,54 @@ export const RecordingStateProvider = ({
       })
     }
 
+    const stopRecorder = (recorder: MediaRecorder) => {
+      // stop() fires a final `dataavailable` asynchronously, so the listener
+      // must stay attached; release the mic tracks once the recorder has
+      // actually stopped.
+      recorder.addEventListener(
+        'stop',
+        () => {
+          recorder.stream.getTracks().forEach((track) => track.stop())
+        },
+        { once: true },
+      )
+      recorder.stop()
+      mediaRecorderRef.current = null
+    }
+
     const onMessage = async (event: MessageEvent) => {
       const { type, payload } = event.data
       switch (type) {
         case 'recorder:start:response': {
           setHandleFilename(payload.filename)
-          let audioStream: MediaStream
+          isStartingRef.current = true
+          stopRequestedRef.current = false
+          let audioStream: MediaStream | null = null
           try {
             audioStream = await getAudioStream(audioInputDeviceId ?? '')
+            const recorder = await getMediaRecorder(audioStream)
+            // Attach the listener at construction, before start(), so the first
+            // (and only, without a timeslice) `dataavailable` is never missed.
+            recorder.addEventListener('dataavailable', onDataAvailable)
+            mediaRecorderRef.current = recorder
+            recorder.start()
+            // The stop arrived while the microphone was still opening, so the
+            // stop handler had no recorder to act on. Honour it now: the take
+            // is over, and without this the mic stays open and the file the
+            // worker opened is never written.
+            if (stopRequestedRef.current) {
+              stopRecorder(recorder)
+            }
           } catch (error) {
             // Otherwise this rejects inside an event listener and the UI stays
             // in the recording state with no recorder behind it.
-            console.error('Failed to open the audio input:', error)
+            console.error('Failed to start recording:', error)
+            audioStream?.getTracks().forEach((track) => track.stop())
             setIsRecording(false)
-            break
+          } finally {
+            isStartingRef.current = false
+            stopRequestedRef.current = false
           }
-          const recorder = await getMediaRecorder(audioStream)
-          // Attach the listener at construction, before start(), so the first
-          // (and only, without a timeslice) `dataavailable` is never missed.
-          recorder.addEventListener('dataavailable', onDataAvailable)
-          mediaRecorderRef.current = recorder
-          recorder.start()
           break
         }
         case 'recorder:start:error':
@@ -113,21 +145,16 @@ export const RecordingStateProvider = ({
         case 'recorder:stop:response': {
           const recorder = mediaRecorderRef.current
           if (!recorder) {
+            if (isStartingRef.current) {
+              // The microphone is still opening. The start handler stops the
+              // recorder as soon as it has one.
+              stopRequestedRef.current = true
+              break
+            }
             console.error('mediaRecorderRef.current is null')
-            return
+            break
           }
-          // stop() fires a final `dataavailable` asynchronously, so the
-          // listener must stay attached; release the mic tracks once the
-          // recorder has actually stopped.
-          recorder.addEventListener(
-            'stop',
-            () => {
-              recorder.stream.getTracks().forEach((track) => track.stop())
-            },
-            { once: true },
-          )
-          recorder.stop()
-          mediaRecorderRef.current = null
+          stopRecorder(recorder)
           break
         }
         default:

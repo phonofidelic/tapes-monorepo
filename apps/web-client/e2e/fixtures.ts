@@ -168,10 +168,18 @@ export const storedAudioInputDeviceId = (page: Page) =>
  * runners), while 4s was clean across 12 trials.
  */
 export const recordFor = async (page: Page, durationMs = 4000) => {
+  const before = (await readState(page)).mediaRecorderCount
   // getByTitle, not getByRole+name: while recording the button renders the
   // elapsed Timer, and text content wins over `title` when the accessible name
   // is computed. The button is then named "00:00:04:21", not "Stop recording".
   await page.getByTitle('Start recording').click()
+  // Opening the microphone is asynchronous and has been seen to take several
+  // seconds on a machine with many input devices. Wait for the recorder to
+  // exist, so `durationMs` is time spent capturing rather than time spent
+  // waiting for the device.
+  await expect
+    .poll(async () => (await readState(page)).mediaRecorderCount)
+    .toBeGreaterThan(before)
   await page.waitForTimeout(durationMs)
   await page.getByTitle('Stop recording').click()
 }
