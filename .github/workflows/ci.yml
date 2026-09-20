@@ -38,11 +38,11 @@ jobs:
       - name: Build
         run: yarn build
 
-      # Explicitly scoped: apps/api has its own (Jest) suite with a pre-existing
-      # compile failure unrelated to this gate, so run only the workspaces whose
-      # unit tests this step is meant to guard.
+      # The root script excludes apps/api, whose Jest suite has a pre-existing
+      # compile failure unrelated to this gate. Running it here keeps the gate
+      # and the command a developer runs locally identical.
       - name: Unit Tests
-        run: yarn turbo test --filter=@tapes-monorepo/core --filter=@tapes-monorepo/sync-protocol --filter=electron-client --filter=web-client
+        run: yarn test
 
   e2e:
     name: E2E (web-client)
