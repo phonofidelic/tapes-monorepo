@@ -25,6 +25,8 @@ import { callWorker } from '@/workerClient'
 import { ingestHostFile } from '@/blobUpload'
 import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
+import { AudioPlayer } from '@/components/AudioPlayer'
+import { createPortal } from 'react-dom'
 
 /**
  * `loading` covers finding a recording's audio: a lookup in local storage,
@@ -93,6 +95,7 @@ type OpenSession = {
 
 type AudioPlayerContextValue = {
   audioRef: React.RefObject<HTMLAudioElement>
+  audioPlayerPortalRef: React.RefObject<HTMLDivElement | null>
   currentTime: number
   duration: number
   /**
@@ -176,6 +179,9 @@ export const AudioPlayerProvider = ({
   const appContext = useAppContext()
   const blobEndpoints = useBlobEndpoints()
   const audioRef = useRef<HTMLAudioElement>(new Audio())
+  const audioPlayerPortalRef = useRef<HTMLDivElement | null>(null)
+  const [audioPlayerPortal, setAudioPlayerPortal] =
+    useState<HTMLDivElement | null>(null)
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
   const [playbackFailure, setPlaybackFailure] = useState<
     PlaybackFailure | undefined
@@ -670,10 +676,18 @@ export const AudioPlayerProvider = ({
     [rebaseline],
   )
 
+  useEffect(() => {
+    if (!audioPlayerPortalRef.current) {
+      return
+    }
+    setAudioPlayerPortal(audioPlayerPortalRef.current)
+  }, [])
+
   return (
     <AudioPlayerContext.Provider
       value={{
         audioRef,
+        audioPlayerPortalRef,
         currentTime,
         duration,
         currentSource,
@@ -689,6 +703,8 @@ export const AudioPlayerProvider = ({
       }}
     >
       {children}
+      {/* The AudioPlayer renders in a portal directly under <main> in App.tsx */}
+      {audioPlayerPortal && createPortal(<AudioPlayer />, audioPlayerPortal)}
     </AudioPlayerContext.Provider>
   )
 }

@@ -9,9 +9,10 @@ import { RecordingStateProvider } from './RecordingContext'
 import { BlobProvider } from './BlobContext'
 import { PinProvider } from './PinContext'
 import { AggregatesProvider } from './AggregatesContext'
-import { usePlayEventQueue } from '@/hooks/usePlayEventQueue'
-import type { BlobEndpoint } from '@/blobClient'
-import type { EventHost } from '@/eventTarget'
+import { usePlayEventQueue } from '../hooks/usePlayEventQueue'
+import type { BlobEndpoint } from '../blobClient'
+import type { EventHost } from '../eventTarget'
+import { ScreenLoader } from '@/App'
 
 /**
  * The player, with its measured play sessions going to the event queue. A
@@ -29,7 +30,7 @@ function CountedPlayback({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function Providers({
+export function Providers({
   values,
   children,
 }: {
@@ -58,7 +59,7 @@ export default function Providers({
                     {values.repoContext ? (
                       <CountedPlayback>{children}</CountedPlayback>
                     ) : (
-                      children
+                      <ScreenLoader message="Loading repo..." />
                     )}
                   </AggregatesProvider>
                 </PinProvider>

@@ -1,18 +1,20 @@
 import { Repo, DocHandle, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 import {
-  App,
   BlobEndpoint,
+  ErrorBoundary,
   EventHost,
   resolveBlobEndpoints,
   resolveDeviceLabel,
   resolveEventTarget,
   sameEventTarget,
+  ScreenLoader,
   subscribeToSettingsChange,
   SyncServerInfo,
   useAutomergeUrl,
+  Providers,
 } from '@tapes-monorepo/core'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { ElectronIpcService } from './IpcService'
 import {
   SyncServerUrls,
@@ -30,7 +32,7 @@ const appContextValue = {
   ipc: new ElectronIpcService(),
 }
 
-export function ElectronAppRoot() {
+export function ElectronAppRoot({ children }: { children: React.ReactNode }) {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
 
   const [syncServerUrls, setSyncServerUrls] = useState<SyncServerUrls | null>(
@@ -229,11 +231,31 @@ export function ElectronAppRoot() {
   }
 
   return (
-    <App
-      appContextValue={appContextValue}
-      repoContextValue={repo}
-      blobEndpoints={blobEndpoints}
-      eventTarget={eventTarget}
-    />
+    <ErrorBoundary
+      fallback={
+        <ScreenLoader message={'Something went wrong'}>
+          <button
+            className="border p-1 px-2"
+            onClick={() => window.location.reload()}
+          >
+            {' '}
+            Reload
+          </button>
+        </ScreenLoader>
+      }
+    >
+      <Suspense fallback={<ScreenLoader message="Loading repo..." />}>
+        <Providers
+          values={{
+            appContext: appContextValue,
+            repoContext: repo,
+            blobEndpoints,
+            eventTarget,
+          }}
+        >
+          {children}
+        </Providers>
+      </Suspense>
+    </ErrorBoundary>
   )
 }

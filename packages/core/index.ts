@@ -19,5 +19,6 @@ export {
   subscribeToSettingsChange,
   type SettingKey,
 } from './app/context/SettingsContext'
+export * from './app/context/Providers'
 export { ErrorBoundary } from './app/components/ErrorBoundary'
 export * from './app/services/SyncService'

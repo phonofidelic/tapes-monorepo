@@ -44,7 +44,7 @@ export function Library() {
 
   return (
     <>
-      <div className="flex touch-pan-y flex-col">
+      <div className="flex touch-pan-y flex-col overscroll-contain">
         <ul>
           {docState?.recordings.map((url) => {
             return (
