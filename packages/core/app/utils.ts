@@ -81,7 +81,7 @@ export function setAutomergeUrl(url: string) {
   // Readers re-read storage during render, so without this an imported host
   // url would not show until the next launch. Iterate a copy: a listener that
   // unsubscribes in response would otherwise mutate the set mid-iteration.
-  for (const listener of [...automergeUrlListeners]) {
+  for (const listener of automergeUrlListeners) {
     try {
       listener()
     } catch (error) {

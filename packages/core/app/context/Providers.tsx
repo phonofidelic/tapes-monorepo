@@ -13,6 +13,7 @@ import { usePlayEventQueue } from '../hooks/usePlayEventQueue'
 import type { BlobEndpoint } from '../blobClient'
 import type { EventHost } from '../eventTarget'
 import { ScreenLoader } from '@/App'
+import { PortalsProvider } from './PortalsContext'
 
 /**
  * The player, with its measured play sessions going to the event queue. A
@@ -48,22 +49,24 @@ export function Providers({
         <RepoContext.Provider value={values.repoContext}>
           <RecordingStateProvider>
             <ViewProvider>
-              {/* Pins need the endpoints to prefetch; the player needs pins to
+              <PortalsProvider>
+                {/* Pins need the endpoints to prefetch; the player needs pins to
                   know what it must not evict. */}
-              <BlobProvider endpoints={values.blobEndpoints}>
-                <PinProvider>
-                  {/* Inside the app context, which supplies the electron ipc
+                <BlobProvider endpoints={values.blobEndpoints}>
+                  <PinProvider>
+                    {/* Inside the app context, which supplies the electron ipc
                       service. Around the player, so a finished play can ask
                       for the numbers again. */}
-                  <AggregatesProvider target={values.eventTarget}>
-                    {values.repoContext ? (
-                      <CountedPlayback>{children}</CountedPlayback>
-                    ) : (
-                      <ScreenLoader message="Loading repo..." />
-                    )}
-                  </AggregatesProvider>
-                </PinProvider>
-              </BlobProvider>
+                    <AggregatesProvider target={values.eventTarget}>
+                      {values.repoContext ? (
+                        <CountedPlayback>{children}</CountedPlayback>
+                      ) : (
+                        <ScreenLoader message="Loading repo..." />
+                      )}
+                    </AggregatesProvider>
+                  </PinProvider>
+                </BlobProvider>
+              </PortalsProvider>
             </ViewProvider>
           </RecordingStateProvider>
         </RepoContext.Provider>

@@ -35,7 +35,7 @@
   --surface: #fff;
   --subtle: #f4f4f5;
   --on-subtle: #27272a;
-  --scrim: rgba(253, 253, 253, 0.74);
+  --scrim: rgba(253, 253, 253, 0.75);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -44,7 +44,7 @@
     --surface: #18181b;
     --subtle: #27272a;
     --on-subtle: #f4f4f5;
-    --scrim: rgba(27, 27, 29, 0.74);
+    --scrim: rgba(27, 27, 29, 0.75);
   }
 }
 

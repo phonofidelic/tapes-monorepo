@@ -8,7 +8,7 @@ import {
 } from '@/context/ViewContext'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { useAudioPlayer } from './context/AudioPlayerContext'
+import { PortalContainer } from './context/PortalsContext'
 
 /**
  * The shared app tree. Each shell builds its own Automerge repo and passes it
@@ -20,7 +20,6 @@ import { useAudioPlayer } from './context/AudioPlayerContext'
  */
 export function App() {
   const mainRef = useRef<HTMLDivElement | null>(null)
-  const { audioPlayerPortalRef } = useAudioPlayer()
   const isScrolled = useIsScrolled(mainRef)
   const { currentView } = useView()
 
@@ -62,18 +61,21 @@ export function App() {
             </Suspense>
           </ErrorBoundary>
         </main>
-        {/* Div that contains the audio player portal */}
-        <div ref={audioPlayerPortalRef}></div>
       </Suspense>
       <div
         className={clsx(
-          'sticky bottom-0 w-full not-pointer-coarse:hidden before:mt-16',
+          'border-t-subtle relative bottom-0 z-40 w-full border-t',
           {
-            'border-t-subtle border-t': currentView !== 'recorder',
+            'border-t-subtle border-t drop-shadow-[0px_-4px_3px_rgba(24,24,27,0.03)]':
+              currentView !== 'recorder',
           },
         )}
       >
-        <Navigation />
+        <PortalContainer containerRefKey="editorPortal" />
+        <PortalContainer containerRefKey="audioPlayerPortal" />
+        <div className="sticky z-50 not-pointer-coarse:hidden">
+          <Navigation />
+        </div>
       </div>
     </div>
   )
