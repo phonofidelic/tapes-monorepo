@@ -334,8 +334,6 @@ function getRandomWidth(min: number, max: number) {
   const random = Math.random()
   const width = Math.floor(clamp(random, min / 100, max / 100) * 100 * 4)
 
-  console.log('random:', random)
-  console.log('width:', width)
   return width
 }
 
