@@ -32,7 +32,11 @@ const appContextValue = {
   ipc: new ElectronIpcService(),
 }
 
-export function ElectronAppRoot({ children }: { children: React.ReactNode }) {
+export function ElectronClientAppShell({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
 
   const [syncServerUrls, setSyncServerUrls] = useState<SyncServerUrls | null>(
