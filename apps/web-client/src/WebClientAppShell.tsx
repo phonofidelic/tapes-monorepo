@@ -118,7 +118,6 @@ const worker = new Worker(new URL('./worker.ts', import.meta.url), {
   type: 'module',
 })
 
-// above (if any).
 export function WebClientAppShell({ children }: { children: React.ReactNode }) {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
   const [repo, setRepo] = useState<Repo | null>(null)
