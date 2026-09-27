@@ -1,6 +1,3 @@
-// Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
-// BroadcastChannel always, and a websocket to whichever sync server resolved.
-
 import {
   Repo,
   DocHandle,
@@ -127,6 +124,8 @@ type InitializeRepoParams = {
 
 type InitializeRepoResult = { repo: Repo; handle: DocHandle<unknown> }
 
+// Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
+// BroadcastChannel always, and a websocket to whichever sync server resolved.
 async function initializeRepo({
   syncServerUrl,
   automergeUrl,
@@ -162,7 +161,7 @@ function initializeRepoCached({
   syncServerUrl,
   automergeUrl,
 }: InitializeRepoParams): Promise<InitializeRepoResult> {
-  const cacheKey = `${syncServerUrl}:${automergeUrl}`
+  const cacheKey = `${syncServerUrl}`
   if (!cache.has(cacheKey)) {
     cache.set(cacheKey, initializeRepo({ syncServerUrl, automergeUrl }))
   }
