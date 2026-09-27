@@ -1,5 +1,5 @@
 // Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
-// BroadcastChannel always, and a websocket to whichever sync server resolved
+// BroadcastChannel always, and a websocket to whichever sync server resolved.
 
 import {
   Repo,
@@ -21,10 +21,11 @@ import {
   resolveDeviceLabel,
   resolveEventTarget,
 } from '@tapes-monorepo/core'
-import { useEffect, use } from 'react'
+import { useEffect, use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
 import { storePairingToken } from './blobAuth'
 import ShellPrompts from './ShellPrompts'
+import { Button } from '@tapes-monorepo/ui'
 
 /**
  * `VITE_SERVED_BY_HOST === 'true'` means the electron-client staged this bundle,
@@ -168,7 +169,11 @@ function initializeRepoCached({
   return cache.get(cacheKey)!
 }
 
-export function WebClientAppShell({ children }: { children: React.ReactNode }) {
+function WithWebClientContextProviders({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
 
   const { repo, handle } = use(
@@ -185,30 +190,40 @@ export function WebClientAppShell({ children }: { children: React.ReactNode }) {
   }, [handle.url, setAutomergeUrl])
 
   return (
+    <Providers
+      values={{
+        appContext: { type: 'web-client' as const, worker },
+        repoContext: repo,
+        blobEndpoints,
+        eventTarget,
+      }}
+    >
+      {children}
+      {!servedByHost && <ShellPrompts />}
+    </Providers>
+  )
+}
+
+export function WebClientAppShell({ children }: { children: React.ReactNode }) {
+  return (
     <ErrorBoundary
       fallback={
         <ScreenLoader message={'Something went wrong'}>
-          <button
-            className="border p-1 px-2"
+          <Button
+            className="border-subtle text-foreground border p-1 px-2"
             onClick={() => window.location.reload()}
           >
             {' '}
             Reload
-          </button>
+          </Button>
         </ScreenLoader>
       }
     >
-      <Providers
-        values={{
-          appContext: { type: 'web-client' as const, worker },
-          repoContext: repo,
-          blobEndpoints,
-          eventTarget,
-        }}
-      >
-        {children}
-        {!servedByHost && <ShellPrompts />}
-      </Providers>
+      <Suspense fallback={<ScreenLoader message="Loading..." />}>
+        <WithWebClientContextProviders>
+          {children}
+        </WithWebClientContextProviders>
+      </Suspense>
     </ErrorBoundary>
   )
 }
