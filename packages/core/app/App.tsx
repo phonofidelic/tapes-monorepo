@@ -34,34 +34,30 @@ export function App() {
           <Navigation />
         </div>
       </div>
-      <Suspense
-        fallback={<ScreenLoader message={`Loading ${currentView}...`} />}
+      <main
+        ref={mainRef}
+        className="relative box-content flex w-full flex-1 touch-pan-y flex-col overflow-y-auto sm:mx-auto sm:max-w-3xl"
       >
-        <main
-          ref={mainRef}
-          className="relative box-content flex w-full flex-1 touch-pan-y flex-col overflow-y-auto sm:mx-auto sm:max-w-3xl"
+        <ErrorBoundary
+          fallback={
+            <ScreenLoader message={'Something went wrong'}>
+              <Button
+                className="border p-1 px-2"
+                onClick={() => window.location.reload()}
+              >
+                {' '}
+                Reload
+              </Button>
+            </ScreenLoader>
+          }
         >
-          <ErrorBoundary
-            fallback={
-              <ScreenLoader message={'Something went wrong'}>
-                <Button
-                  className="border p-1 px-2"
-                  onClick={() => window.location.reload()}
-                >
-                  {' '}
-                  Reload
-                </Button>
-              </ScreenLoader>
-            }
+          <Suspense
+            fallback={<ScreenLoader message={`Loading ${currentView}...`} />}
           >
-            <Suspense
-              fallback={<ScreenLoader message={`Loading ${currentView}...`} />}
-            >
-              {viewComponentMap[currentView]}
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </Suspense>
+            {viewComponentMap[currentView]}
+          </Suspense>
+        </ErrorBoundary>
+      </main>
       <div
         className={clsx(
           'border-t-subtle relative bottom-0 z-40 w-full border-t',

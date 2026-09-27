@@ -6,6 +6,7 @@ import {
   DocHandle,
   NetworkAdapterInterface,
   isValidAutomergeUrl,
+  type AutomergeUrl,
 } from '@automerge/automerge-repo'
 import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
@@ -20,7 +21,7 @@ import {
   resolveDeviceLabel,
   resolveEventTarget,
 } from '@tapes-monorepo/core'
-import { useState, useRef, useEffect, Suspense } from 'react'
+import { useEffect, use } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
 import { storePairingToken } from './blobAuth'
 import ShellPrompts from './ShellPrompts'
@@ -118,53 +119,70 @@ const worker = new Worker(new URL('./worker.ts', import.meta.url), {
   type: 'module',
 })
 
+type InitializeRepoParams = {
+  syncServerUrl: string | undefined
+  automergeUrl: AutomergeUrl | null
+}
+
+type InitializeRepoResult = { repo: Repo; handle: DocHandle<unknown> }
+
+async function initializeRepo({
+  syncServerUrl,
+  automergeUrl,
+}: InitializeRepoParams): Promise<InitializeRepoResult> {
+  const network: NetworkAdapterInterface[] = [
+    new BroadcastChannelNetworkAdapter(),
+  ]
+  if (syncServerUrl) {
+    network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
+  }
+
+  const repo = new Repo({
+    storage: new IndexedDBStorageAdapter(),
+    network,
+  })
+
+  let handle: DocHandle<unknown> | null
+  if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
+    handle = await repo.find(automergeUrl, {
+      signal: AbortSignal.timeout(30 * 1000),
+    })
+  } else {
+    handle = repo.create<RecordingRepoState>({
+      recordings: [],
+    })
+  }
+  return { repo, handle }
+}
+
+const cache = new Map<string, Promise<InitializeRepoResult>>()
+
+function initializeRepoCached({
+  syncServerUrl,
+  automergeUrl,
+}: InitializeRepoParams): Promise<InitializeRepoResult> {
+  const cacheKey = `${syncServerUrl}:${automergeUrl}`
+  if (!cache.has(cacheKey)) {
+    cache.set(cacheKey, initializeRepo({ syncServerUrl, automergeUrl }))
+  }
+  return cache.get(cacheKey)!
+}
+
 export function WebClientAppShell({ children }: { children: React.ReactNode }) {
   const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
-  const [repo, setRepo] = useState<Repo | null>(null)
-  const handleRef = useRef<DocHandle<unknown> | null>(null)
-  const didInitRef = useRef(false)
+
+  const { repo, handle } = use(
+    initializeRepoCached({
+      syncServerUrl,
+      automergeUrl,
+    }),
+  )
 
   useEffect(() => {
-    const initialize = async () => {
-      // Guard against re-init (StrictMode double-invoke, dep changes). A `repo`
-      // state check can't do this: initialize() is async and setRepo lands only
-      // at the end, so concurrent runs would each build a Repo and websocket.
-      if (didInitRef.current) {
-        return
-      }
-      didInitRef.current = true
-
-      const network: NetworkAdapterInterface[] = [
-        new BroadcastChannelNetworkAdapter(),
-      ]
-      if (syncServerUrl) {
-        network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
-      }
-
-      const _repo = new Repo({
-        storage: new IndexedDBStorageAdapter(),
-        network,
-      })
-
-      if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
-        handleRef.current = await _repo.find(automergeUrl, {
-          signal: AbortSignal.timeout(30 * 1000),
-        })
-      } else {
-        handleRef.current = _repo.create<RecordingRepoState>({
-          recordings: [],
-        })
-        setAutomergeUrl(handleRef.current.url)
-      }
-
-      setRepo(_repo)
+    if (handle.url) {
+      setAutomergeUrl(handle.url)
     }
-    initialize()
-    // `automergeUrl` changing mid-session (Settings imported a host's
-    // document) needs no rebuild here: the adapters are unchanged, and core
-    // finds the new document through this same repo. Only the desktop shell
-    // rebuilds, because there the url decides which server it talks to.
-  }, [automergeUrl, setAutomergeUrl])
+  }, [handle.url, setAutomergeUrl])
 
   return (
     <ErrorBoundary
@@ -180,19 +198,17 @@ export function WebClientAppShell({ children }: { children: React.ReactNode }) {
         </ScreenLoader>
       }
     >
-      <Suspense fallback={<ScreenLoader message="Loading repo..." />}>
-        <Providers
-          values={{
-            appContext: { type: 'web-client' as const, worker },
-            repoContext: repo,
-            blobEndpoints,
-            eventTarget,
-          }}
-        >
-          {children}
-          {!servedByHost && <ShellPrompts />}
-        </Providers>
-      </Suspense>
+      <Providers
+        values={{
+          appContext: { type: 'web-client' as const, worker },
+          repoContext: repo,
+          blobEndpoints,
+          eventTarget,
+        }}
+      >
+        {children}
+        {!servedByHost && <ShellPrompts />}
+      </Providers>
     </ErrorBoundary>
   )
 }

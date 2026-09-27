@@ -12,7 +12,6 @@ import { AggregatesProvider } from './AggregatesContext'
 import { usePlayEventQueue } from '../hooks/usePlayEventQueue'
 import type { BlobEndpoint } from '../blobClient'
 import type { EventHost } from '../eventTarget'
-import { ScreenLoader } from '@/App'
 import { PortalsProvider } from './PortalsContext'
 
 /**
@@ -46,9 +45,9 @@ export function Providers({
   return (
     <AppContextProvider value={values.appContext}>
       <SettingsProvider>
-        <RepoContext.Provider value={values.repoContext}>
-          <RecordingStateProvider>
-            <ViewProvider>
+        <ViewProvider>
+          <RepoContext.Provider value={values.repoContext}>
+            <RecordingStateProvider>
               <PortalsProvider>
                 {/* Pins need the endpoints to prefetch; the player needs pins to
                   know what it must not evict. */}
@@ -61,15 +60,15 @@ export function Providers({
                       {values.repoContext ? (
                         <CountedPlayback>{children}</CountedPlayback>
                       ) : (
-                        <ScreenLoader message="Loading repo..." />
+                        children
                       )}
                     </AggregatesProvider>
                   </PinProvider>
                 </BlobProvider>
               </PortalsProvider>
-            </ViewProvider>
-          </RecordingStateProvider>
-        </RepoContext.Provider>
+            </RecordingStateProvider>
+          </RepoContext.Provider>
+        </ViewProvider>
       </SettingsProvider>
     </AppContextProvider>
   )
