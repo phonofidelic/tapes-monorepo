@@ -54,4 +54,5 @@
   --color-subtle: var(--subtle);
   --color-on-subtle: var(--subtle);
   --color-scrim: var(--scrim);
+  --color-foreground: var(--foreground);
 }
