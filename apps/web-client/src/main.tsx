@@ -13,17 +13,6 @@ if (!window.Worker) {
     </React.StrictMode>,
   )
 } else {
-  const worker = new Worker(new URL('./worker.ts', import.meta.url), {
-    type: 'module',
-  })
-
-  worker.onmessageerror = (event) => {
-    console.log('worker.onmessageerror', event)
-  }
-  worker.onerror = (event) => {
-    console.log('worker.onerror', event)
-  }
-
   const rootElement = document.getElementById('root')
   if (!rootElement) {
     throw new Error('Root element not found')
