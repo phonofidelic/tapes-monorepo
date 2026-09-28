@@ -141,7 +141,7 @@ async function initializeRepo({
   })
 
   const automergeUrl = readAutomergeUrl()
-  let handle: DocHandle<unknown> | null
+  let handle: DocHandle<unknown>
   if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
     handle = await repo.find(automergeUrl, {
       signal: AbortSignal.timeout(30 * 1000),
