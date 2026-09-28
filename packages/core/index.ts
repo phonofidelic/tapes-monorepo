@@ -8,7 +8,12 @@ export * from './app/workerClient'
 export * from './app/blobCache'
 export * from './app/blobUpload'
 export * from './app/deviceLabel'
-export { useAutomergeUrl, isSyncServerUrl } from './app/utils'
+export {
+  readAutomergeUrl,
+  writeAutomergeUrl,
+  useAutomergeUrl,
+  isSyncServerUrl,
+} from './app/utils'
 export {
   useAggregates,
   useRecordingPlayback,

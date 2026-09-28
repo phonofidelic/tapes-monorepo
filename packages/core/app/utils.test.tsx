@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import { generateAutomergeUrl } from '@automerge/automerge-repo'
-import { isSyncServerUrl, setAutomergeUrl, useAutomergeUrl } from './utils'
+import { isSyncServerUrl, writeAutomergeUrl, useAutomergeUrl } from './utils'
 
 const STORED_URL = generateAutomergeUrl()
 const SEED_URL = generateAutomergeUrl()
@@ -40,7 +40,7 @@ describe('useAutomergeUrl', () => {
     render(<Probe />)
 
     act(() => {
-      setAutomergeUrl(IMPORTED_URL)
+      writeAutomergeUrl(IMPORTED_URL)
     })
 
     expect(screen.getByTestId('url')).toHaveTextContent(IMPORTED_URL)
@@ -51,7 +51,7 @@ describe('useAutomergeUrl', () => {
     render(<Probe />)
 
     act(() => {
-      setAutomergeUrl(IMPORTED_URL)
+      writeAutomergeUrl(IMPORTED_URL)
     })
 
     expect(screen.getByTestId('url')).toHaveTextContent(IMPORTED_URL)
@@ -63,7 +63,7 @@ describe('useAutomergeUrl', () => {
     render(<Probe />)
     cleanup()
 
-    expect(() => setAutomergeUrl(IMPORTED_URL)).not.toThrow()
+    expect(() => writeAutomergeUrl(IMPORTED_URL)).not.toThrow()
     expect(localStorage.getItem('automergeUrl')).toBe(IMPORTED_URL)
   })
 })

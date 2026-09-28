@@ -3,13 +3,11 @@ import {
   DocHandle,
   NetworkAdapterInterface,
   isValidAutomergeUrl,
-  type AutomergeUrl,
 } from '@automerge/automerge-repo'
 import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 import {
-  useAutomergeUrl,
   RecordingRepoState,
   ErrorBoundary,
   Providers,
@@ -17,6 +15,8 @@ import {
   resolveBlobEndpoints,
   resolveDeviceLabel,
   resolveEventTarget,
+  readAutomergeUrl,
+  writeAutomergeUrl,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
@@ -119,68 +119,63 @@ const worker = new Worker(new URL('./worker.ts', import.meta.url), {
 
 type InitializeRepoParams = {
   syncServerUrl: string | undefined
-  automergeUrl: AutomergeUrl | null
 }
 
 type InitializeRepoResult = { repo: Repo }
 
+// Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
+// BroadcastChannel always, and a websocket to whichever sync server resolved.
+async function initializeRepo({
+  syncServerUrl,
+}: InitializeRepoParams): Promise<InitializeRepoResult> {
+  const network: NetworkAdapterInterface[] = [
+    new BroadcastChannelNetworkAdapter(),
+  ]
+  if (syncServerUrl) {
+    network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
+  }
+
+  const repo = new Repo({
+    storage: new IndexedDBStorageAdapter(),
+    network,
+  })
+
+  const automergeUrl = readAutomergeUrl()
+  let handle: DocHandle<unknown> | null
+  if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
+    handle = await repo.find(automergeUrl, {
+      signal: AbortSignal.timeout(30 * 1000),
+    })
+  } else {
+    handle = repo.create<RecordingRepoState>({
+      recordings: [],
+    })
+  }
+
+  writeAutomergeUrl(handle.url)
+  return { repo }
+}
+
 const cache = new Map<string, Promise<InitializeRepoResult>>()
+
+function initializeRepoCached({
+  syncServerUrl,
+}: InitializeRepoParams): Promise<InitializeRepoResult> {
+  const cacheKey = `${syncServerUrl}`
+  if (!cache.has(cacheKey)) {
+    cache.set(cacheKey, initializeRepo({ syncServerUrl }))
+  }
+  return cache.get(cacheKey)!
+}
 
 function WithWebClientContextProviders({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { automergeUrl, setAutomergeUrl } = useAutomergeUrl()
-
-  // Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
-  // BroadcastChannel always, and a websocket to whichever sync server resolved.
-  async function initializeRepo({
-    syncServerUrl,
-    automergeUrl,
-  }: InitializeRepoParams): Promise<InitializeRepoResult> {
-    const network: NetworkAdapterInterface[] = [
-      new BroadcastChannelNetworkAdapter(),
-    ]
-    if (syncServerUrl) {
-      network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
-    }
-
-    const repo = new Repo({
-      storage: new IndexedDBStorageAdapter(),
-      network,
-    })
-
-    let handle: DocHandle<unknown> | null
-    if (automergeUrl && isValidAutomergeUrl(automergeUrl)) {
-      handle = await repo.find(automergeUrl, {
-        signal: AbortSignal.timeout(30 * 1000),
-      })
-    } else {
-      handle = repo.create<RecordingRepoState>({
-        recordings: [],
-      })
-    }
-
-    setAutomergeUrl(handle.url)
-    return { repo }
-  }
-
-  function initializeRepoCached({
-    syncServerUrl,
-    automergeUrl,
-  }: InitializeRepoParams): Promise<InitializeRepoResult> {
-    const cacheKey = `${syncServerUrl}`
-    if (!cache.has(cacheKey)) {
-      cache.set(cacheKey, initializeRepo({ syncServerUrl, automergeUrl }))
-    }
-    return cache.get(cacheKey)!
-  }
-
   const { repo } = use(
     initializeRepoCached({
       syncServerUrl,
-      automergeUrl,
     }),
   )
 

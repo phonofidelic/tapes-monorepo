@@ -57,14 +57,14 @@ function subscribeToAutomergeUrl(listener: () => void) {
   }
 }
 
-function readAutomergeUrl() {
+export function readAutomergeUrl() {
   return (
     new URLSearchParams(window.location.search).get('am') ??
     localStorage.getItem(AUTOMERGE_URL_KEY)
   )
 }
 
-export function setAutomergeUrl(url: string) {
+export function writeAutomergeUrl(url: string) {
   localStorage.setItem(AUTOMERGE_URL_KEY, url)
 
   // `am` is a bootstrap seed that a pairing link adds, and it wins over
@@ -105,7 +105,7 @@ export function useAutomergeUrl() {
     throw new Error('Invalid automerge URL')
   }
 
-  return { automergeUrl: storedUrl, setAutomergeUrl }
+  return { automergeUrl: storedUrl, setAutomergeUrl: writeAutomergeUrl }
 }
 
 /**
