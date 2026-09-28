@@ -2,14 +2,13 @@ import React, { createContext, ErrorInfo, useContext } from 'react'
 import { Button } from '@tapes-monorepo/ui'
 import { type ErrorWithRecover } from '@/types'
 import { ScreenLoader } from './ScreenLoader'
-
 export class ErrorBoundary extends React.Component<{
   children: React.ReactNode
   fallback: React.ReactNode
 }> {
   state:
     | { hasError: false; error: undefined }
-    | { hasError: true; error: ErrorWithRecover | Error }
+    | { hasError: true; error: Error | undefined }
 
   constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
     super(props)
@@ -44,15 +43,16 @@ export class ErrorBoundary extends React.Component<{
   }
 }
 
-type ErrorContextValue = ErrorWithRecover | Error | undefined
-const ErrorContext = createContext<ErrorContextValue>(undefined)
+type ErrorContextValue<T> = T | ErrorWithRecover | Error | undefined
 
-function ErrorContextProvider({
+const ErrorContext = createContext<ErrorContextValue<unknown>>(undefined)
+
+function ErrorContextProvider<T>({
   children,
   value,
 }: {
   children: React.ReactNode
-  value: ErrorContextValue
+  value: ErrorContextValue<T>
 }) {
   return <ErrorContext.Provider value={value}>{children}</ErrorContext.Provider>
 }
@@ -66,13 +66,12 @@ export function useErrorContext() {
     )
   }
 
-  return { error: context }
+  return context
 }
 
-function isRecoverableError(
-  error: ErrorWithRecover | Error,
-): error is ErrorWithRecover {
+function isRecoverableError(error: unknown): error is ErrorWithRecover {
   return (
+    error !== null &&
     typeof error === 'object' &&
     'recover' in error &&
     typeof error.recover === 'function'
@@ -84,17 +83,34 @@ export function GenericErrorFallbackScreen({
 }: {
   onTryRecover?(): void | undefined
 }) {
-  const { error } = useErrorContext()
-  const recover = isRecoverableError(error) ? error.recover : onTryRecover
+  const error = useErrorContext()
+  if (isRecoverableError(error)) {
+    return (
+      <ScreenLoader message="Something went wrong...">
+        <div className="mx-auto mt-8 flex max-w-lg flex-col items-center gap-8 p-4">
+          <div className="text-foreground text-center text-sm">
+            {error.userMessage}
+          </div>
+          <div>
+            <Button
+              className="border-subtle text-foreground border p-1 px-2"
+              onClick={error.recover}
+            >
+              {error.recoveryCta}
+            </Button>
+          </div>
+        </div>
+      </ScreenLoader>
+    )
+  }
 
   return (
-    <ScreenLoader message="Something went wrong">
-      {recover && (
+    <ScreenLoader message="Something went wrong...">
+      {onTryRecover && (
         <Button
           className="border-subtle text-foreground border p-1 px-2"
-          onClick={recover}
+          onClick={onTryRecover}
         >
-          {' '}
           Reload
         </Button>
       )}

@@ -2,27 +2,61 @@ import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
 import { ErrorWithRecover } from './types'
 
+const AUTOMERGE_URL_LOCAL_STORAGE_KEY = 'automergeUrl'
+const AUTOMERGE_URL_QUERY_KEY = 'am'
+
 /** The selected input device exists in settings but is no longer available. */
 export class AudioInputUnavailableError extends Error {
   constructor(deviceId: string) {
-    super(`Selected audio input device is unavailable: ${deviceId}`)
+    super(`Selected audio input device is unavailable: ${deviceId}.`)
     this.name = 'AudioInputUnavailableError'
   }
 }
 
+/** The automergeUrl provided from the 'am' query parameter is invalid */
 export class InvalidAutomergeUrlError
   extends Error
   implements ErrorWithRecover
 {
   constructor(url: string) {
-    super(`The provided automerge URL is invalid: ${url}`)
+    super(`The provided automerge URL is invalid: ${url}.`)
     this.name = 'InvalidAutomergeUrlError'
+    this.recoveryCta = 'Reload'
   }
+
+  public readonly recoveryCta: string
 
   recover() {
     const location = new URL(window.location.href)
-    location.searchParams.delete('am')
+    location.searchParams.delete(AUTOMERGE_URL_QUERY_KEY)
     window.history.replaceState({}, '', location)
+    window.location.reload()
+  }
+}
+
+/** The automergeUrl saved to localStorage is invalid */
+export class InvalidStoredAutomergeUrlError
+  extends Error
+  implements ErrorWithRecover
+{
+  constructor(storedUrl: string) {
+    super(`The stored automerge URl '${storedUrl}' is invalid.`)
+    this.name = 'InvalidStoredAutomergeUrlError'
+    this.userMessage =
+      'You have stored an invalid automerge URl which cannot be used to connect to a library. Do you want to clear the invalid URL an initialize a new library?'
+    this.recoveryCta = 'Clear invalid URL and reload'
+  }
+
+  public readonly userMessage: string
+  public readonly recoveryCta: string
+
+  recover() {
+    const location = new URL(window.location.href)
+    location.searchParams.delete(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
+    window.history.replaceState({}, '', location)
+
+    localStorage.removeItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
+
     window.location.reload()
   }
 }
@@ -57,8 +91,6 @@ export const getAudioStream = async (selectedMediaDeviceId: string) => {
   }
 }
 
-const AUTOMERGE_URL_KEY = 'automergeUrl'
-
 /**
  * The document url lives in `localStorage` rather than React state, because
  * the shells read it while building their repo, above the tree that writes
@@ -76,9 +108,14 @@ function subscribeToAutomergeUrl(listener: () => void) {
 }
 
 export function readAutomergeUrl(): AutomergeUrl | null {
-  const url =
-    new URLSearchParams(window.location.search).get('am') ??
-    localStorage.getItem(AUTOMERGE_URL_KEY)
+  const storedUrl = localStorage.getItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
+  if (storedUrl !== null && !isValidAutomergeUrl(storedUrl)) {
+    throw new InvalidStoredAutomergeUrlError(storedUrl)
+  }
+
+  const url = new URLSearchParams(window.location.search).get(
+    AUTOMERGE_URL_QUERY_KEY,
+  )
 
   // A missing url is normal: a fresh client has not created its document yet,
   // and a guest opens Settings with nothing stored to paste a host url in. A
@@ -87,11 +124,11 @@ export function readAutomergeUrl(): AutomergeUrl | null {
   if (url !== null && !isValidAutomergeUrl(url)) {
     throw new InvalidAutomergeUrlError(url)
   }
-  return url
+  return url ?? storedUrl
 }
 
 export function writeAutomergeUrl(url: string) {
-  localStorage.setItem(AUTOMERGE_URL_KEY, url)
+  localStorage.setItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY, url)
 
   // `am` is a bootstrap seed that a pairing link adds, and it wins over
   // storage when the url is read. Without this a guest opened from a QR code
@@ -99,8 +136,8 @@ export function writeAutomergeUrl(url: string) {
   // would be invisible. Once a url has been chosen the seed has done its job.
   // The shell drops the `pt` token the same way.
   const location = new URL(window.location.href)
-  if (location.searchParams.has('am')) {
-    location.searchParams.delete('am')
+  if (location.searchParams.has(AUTOMERGE_URL_QUERY_KEY)) {
+    location.searchParams.delete(AUTOMERGE_URL_QUERY_KEY)
     window.history.replaceState({}, '', location)
   }
 
