@@ -198,9 +198,7 @@ export function WebClientAppShell({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary
       fallback={
-        <GenericScreenErrorFallback
-          onTryRecover={() => window.location.reload()}
-        />
+        <GenericScreenErrorFallback onTryRecover={window.location.reload} />
       }
     >
       <Suspense fallback={<ScreenLoader message="Loading..." />}>

@@ -9,6 +9,7 @@ export * from './app/blobCache'
 export * from './app/blobUpload'
 export * from './app/deviceLabel'
 export {
+  InvalidAutomergeUrlError,
   readAutomergeUrl,
   writeAutomergeUrl,
   useAutomergeUrl,

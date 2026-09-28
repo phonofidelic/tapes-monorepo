@@ -1,11 +1,29 @@
-import { isValidAutomergeUrl } from '@automerge/automerge-repo'
+import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
+import { ErrorWithRecover } from './components/ErrorBoundary'
 
 /** The selected input device exists in settings but is no longer available. */
 export class AudioInputUnavailableError extends Error {
   constructor(deviceId: string) {
     super(`Selected audio input device is unavailable: ${deviceId}`)
     this.name = 'AudioInputUnavailableError'
+  }
+}
+
+export class InvalidAutomergeUrlError
+  extends Error
+  implements ErrorWithRecover
+{
+  constructor(url: string) {
+    super(`The provided automerge URL is invalid: ${url}`)
+    this.name = 'InvalidAutomergeUrlError'
+  }
+
+  recover() {
+    const location = new URL(window.location.href)
+    location.searchParams.delete('am')
+    window.history.replaceState({}, '', location)
+    window.location.reload()
   }
 }
 
@@ -57,11 +75,19 @@ function subscribeToAutomergeUrl(listener: () => void) {
   }
 }
 
-export function readAutomergeUrl() {
-  return (
+export function readAutomergeUrl(): AutomergeUrl | null {
+  const url =
     new URLSearchParams(window.location.search).get('am') ??
     localStorage.getItem(AUTOMERGE_URL_KEY)
-  )
+
+  // A missing url is normal: a fresh client has not created its document yet,
+  // and a guest opens Settings with nothing stored to paste a host url in. A
+  // stored value that is not an automerge url is not normal, and silently
+  // treating it as missing would overwrite whatever the user pasted wrong.
+  if (url !== null && !isValidAutomergeUrl(url)) {
+    throw new InvalidAutomergeUrlError(url)
+  }
+  return url
 }
 
 export function writeAutomergeUrl(url: string) {
@@ -97,14 +123,6 @@ export function useAutomergeUrl() {
     readAutomergeUrl,
     readAutomergeUrl,
   )
-
-  // A missing url is normal: a fresh client has not created its document yet,
-  // and a guest opens Settings with nothing stored to paste a host url in. A
-  // stored value that is not an automerge url is not normal, and silently
-  // treating it as missing would overwrite whatever the user pasted wrong.
-  if (storedUrl !== null && !isValidAutomergeUrl(storedUrl)) {
-    throw new Error('Invalid automerge URL')
-  }
 
   return { automergeUrl: storedUrl, setAutomergeUrl: writeAutomergeUrl }
 }
