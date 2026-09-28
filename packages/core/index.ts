@@ -26,4 +26,5 @@ export {
 } from './app/context/SettingsContext'
 export * from './app/context/Providers'
 export * from './app/components/ErrorBoundary'
+export * from './app/components/ScreenLoader'
 export * from './app/services/SyncService'

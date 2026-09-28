@@ -1,6 +1,6 @@
 import React, { ErrorInfo } from 'react'
 import { Button } from '@tapes-monorepo/ui'
-import { ScreenLoader } from '@/App'
+import { ScreenLoader } from './ScreenLoader'
 
 export class ErrorBoundary extends React.Component<{
   children: React.ReactNode

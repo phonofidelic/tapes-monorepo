@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { AppIcon, Button } from '@tapes-monorepo/ui'
+import { Button } from '@tapes-monorepo/ui'
 import {
   useView,
   navigationConfig,
@@ -12,6 +12,7 @@ import {
   GenericScreenErrorFallback,
 } from './components/ErrorBoundary'
 import { PortalContainer } from './context/PortalsContext'
+import { ScreenLoader } from './components/ScreenLoader'
 
 /**
  * The shared app tree. Each shell builds its own Automerge repo and passes it
@@ -70,24 +71,6 @@ export function App() {
           <Navigation />
         </div>
       </div>
-    </div>
-  )
-}
-
-export function ScreenLoader({
-  message = 'Loading...',
-  children,
-}: {
-  message: string
-  children?: React.ReactNode
-}) {
-  return (
-    <div className="flex size-full flex-col items-center justify-center gap-2">
-      <div className="size-39 opacity-75">
-        <AppIcon />
-      </div>
-      <div className="text-muted w-full text-center text-lg/7">{message}</div>
-      <div className="flex w-full justify-center">{children}</div>
     </div>
   )
 }
