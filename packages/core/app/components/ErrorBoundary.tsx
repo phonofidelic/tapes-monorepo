@@ -79,7 +79,7 @@ function isRecoverableError(
   )
 }
 
-export function GenericScreenErrorFallback({
+export function GenericErrorFallbackScreen({
   onTryRecover,
 }: {
   onTryRecover?(): void | undefined

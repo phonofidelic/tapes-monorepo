@@ -13,7 +13,7 @@ import {
   SyncServerInfo,
   useAutomergeUrl,
   Providers,
-  GenericScreenErrorFallback,
+  GenericErrorFallbackScreen,
 } from '@tapes-monorepo/core'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { ElectronIpcService } from './IpcService'
@@ -238,7 +238,7 @@ export function ElectronClientAppShell({
   return (
     <ErrorBoundary
       fallback={
-        <GenericScreenErrorFallback
+        <GenericErrorFallbackScreen
           onTryRecover={() => window.location.reload()}
         />
       }

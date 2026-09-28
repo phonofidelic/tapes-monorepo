@@ -9,7 +9,7 @@ import {
 import './index.css'
 import {
   ErrorBoundary,
-  GenericScreenErrorFallback,
+  GenericErrorFallbackScreen,
 } from './components/ErrorBoundary'
 import { PortalContainer } from './context/PortalsContext'
 import { ScreenLoader } from './components/ScreenLoader'
@@ -44,7 +44,7 @@ export function App() {
       >
         <ErrorBoundary
           fallback={
-            <GenericScreenErrorFallback
+            <GenericErrorFallbackScreen
               onTryRecover={() => window.location.reload()}
             />
           }

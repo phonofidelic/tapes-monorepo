@@ -17,7 +17,7 @@ import {
   resolveEventTarget,
   readAutomergeUrl,
   writeAutomergeUrl,
-  GenericScreenErrorFallback,
+  GenericErrorFallbackScreen,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
@@ -198,7 +198,7 @@ export function WebClientAppShell({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary
       fallback={
-        <GenericScreenErrorFallback
+        <GenericErrorFallbackScreen
           onTryRecover={() => window.location.reload()}
         />
       }
