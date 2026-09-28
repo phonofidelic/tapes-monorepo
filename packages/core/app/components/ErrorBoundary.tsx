@@ -1,4 +1,6 @@
 import React, { ErrorInfo } from 'react'
+import { Button } from '@tapes-monorepo/ui'
+import { ScreenLoader } from '@/App'
 
 export class ErrorBoundary extends React.Component<{
   children: React.ReactNode
@@ -39,4 +41,24 @@ export class ErrorBoundary extends React.Component<{
 
     return this.props.children
   }
+}
+
+export function GenericScreenErrorFallback({
+  onTryRecover,
+}: {
+  onTryRecover?(): void | undefined
+}) {
+  return (
+    <ScreenLoader message={'Something went wrong'}>
+      {onTryRecover && (
+        <Button
+          className="border-subtle text-foreground border p-1 px-2"
+          onClick={onTryRecover}
+        >
+          {' '}
+          Reload
+        </Button>
+      )}
+    </ScreenLoader>
+  )
 }

@@ -13,6 +13,7 @@ import {
   SyncServerInfo,
   useAutomergeUrl,
   Providers,
+  GenericScreenErrorFallback,
 } from '@tapes-monorepo/core'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { ElectronIpcService } from './IpcService'
@@ -237,15 +238,9 @@ export function ElectronClientAppShell({
   return (
     <ErrorBoundary
       fallback={
-        <ScreenLoader message={'Something went wrong'}>
-          <button
-            className="border p-1 px-2"
-            onClick={() => window.location.reload()}
-          >
-            {' '}
-            Reload
-          </button>
-        </ScreenLoader>
+        <GenericScreenErrorFallback
+          onTryRecover={() => window.location.reload()}
+        />
       }
     >
       <Suspense fallback={<ScreenLoader message="Loading repo..." />}>

@@ -7,7 +7,10 @@ import {
   viewComponentMap,
 } from '@/context/ViewContext'
 import './index.css'
-import { ErrorBoundary } from './components/ErrorBoundary'
+import {
+  ErrorBoundary,
+  GenericScreenErrorFallback,
+} from './components/ErrorBoundary'
 import { PortalContainer } from './context/PortalsContext'
 
 /**
@@ -40,15 +43,9 @@ export function App() {
       >
         <ErrorBoundary
           fallback={
-            <ScreenLoader message={'Something went wrong'}>
-              <Button
-                className="border p-1 px-2"
-                onClick={() => window.location.reload()}
-              >
-                {' '}
-                Reload
-              </Button>
-            </ScreenLoader>
+            <GenericScreenErrorFallback
+              onTryRecover={() => window.location.reload()}
+            />
           }
         >
           <Suspense

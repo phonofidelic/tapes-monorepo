@@ -17,12 +17,12 @@ import {
   resolveEventTarget,
   readAutomergeUrl,
   writeAutomergeUrl,
+  GenericScreenErrorFallback,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
 import { storePairingToken } from './blobAuth'
 import ShellPrompts from './ShellPrompts'
-import { Button } from '@tapes-monorepo/ui'
 
 /**
  * `VITE_SERVED_BY_HOST === 'true'` means the electron-client staged this bundle,
@@ -198,15 +198,9 @@ export function WebClientAppShell({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary
       fallback={
-        <ScreenLoader message={'Something went wrong'}>
-          <Button
-            className="border-subtle text-foreground border p-1 px-2"
-            onClick={() => window.location.reload()}
-          >
-            {' '}
-            Reload
-          </Button>
-        </ScreenLoader>
+        <GenericScreenErrorFallback
+          onTryRecover={() => window.location.reload()}
+        />
       }
     >
       <Suspense fallback={<ScreenLoader message="Loading..." />}>
