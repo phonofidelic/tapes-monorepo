@@ -327,32 +327,14 @@ function LibraryListItem({
   )
 }
 
-function getRandomWidth(min: number, max: number) {
-  const clamp = (value: number, min: number, max: number) => {
-    return value < min ? min : value > max ? max : value
-  }
-  const random = Math.random()
-  const width = Math.floor(clamp(random, min / 100, max / 100) * 100 * 4)
-
-  return width
-}
-
 function LibraryListItemSkeleton() {
   return (
     <div className="flex w-full p-4">
       <div className="flex w-full flex-col">
-        <div
-          className={`bg-subtle m-1 my-2 h-5 animate-pulse rounded`}
-          style={{
-            width: getRandomWidth(24, 32),
-          }}
-        />
+        <div className={`bg-subtle m-1 my-2 h-5 w-40 animate-pulse rounded`} />
         <div className="flex gap-4">
           <div className="bg-subtle m-1 h-3 w-12 animate-pulse rounded" />
-          <div
-            className="bg-subtle m-1 h-3 animate-pulse rounded"
-            style={{ width: getRandomWidth(20, 32) }}
-          />
+          <div className="bg-subtle m-1 h-3 w-40 animate-pulse rounded" />
         </div>
       </div>
       <div className="p-2 not-pointer-coarse:hidden">
