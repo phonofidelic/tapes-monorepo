@@ -1,6 +1,6 @@
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
-import { ErrorWithRecover } from './components/ErrorBoundary'
+import { ErrorWithRecover } from './types'
 
 /** The selected input device exists in settings but is no longer available. */
 export class AudioInputUnavailableError extends Error {

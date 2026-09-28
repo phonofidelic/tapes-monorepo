@@ -1,10 +1,8 @@
 import React, { createContext, ErrorInfo, useContext } from 'react'
 import { Button } from '@tapes-monorepo/ui'
+import { type ErrorWithRecover } from '@/types'
 import { ScreenLoader } from './ScreenLoader'
 
-export interface ErrorWithRecover extends Error {
-  recover(): void
-}
 export class ErrorBoundary extends React.Component<{
   children: React.ReactNode
   fallback: React.ReactNode

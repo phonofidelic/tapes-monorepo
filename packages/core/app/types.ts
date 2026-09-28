@@ -41,3 +41,7 @@ export type RecordingData = {
 export type RecordingRepoState = {
   recordings: AutomergeUrl[]
 }
+
+export interface ErrorWithRecover extends Error {
+  recover(): void
+}
