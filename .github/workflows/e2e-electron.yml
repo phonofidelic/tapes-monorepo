@@ -65,6 +65,30 @@ jobs:
           apps/electron-client/bin/SwitchAudioSource-1.2.2-macOS -t input -s "BlackHole 2ch"
           apps/electron-client/bin/SwitchAudioSource-1.2.2-macOS -c -t input
 
+      # The first captures after coreaudiod restarts come back empty. The
+      # suite's own audio check then fails and every test is skipped. Record
+      # until the input returns real data, so the suite starts on a warm device
+      # and a broken input fails here with a clear message.
+      - name: Warm up the virtual audio input
+        timeout-minutes: 3
+        run: |
+          probe="$RUNNER_TEMP/probe.wav"
+          for attempt in 1 2 3 4 5 6; do
+            rm -f "$probe"
+            apps/electron-client/bin/sox-14.4.2-macOS --default-device \
+              --no-show-progress --type=wav --channels=1 --rate=44100 \
+              "$probe" trim 0 2 || true
+            size=$(stat -f%z "$probe" 2>/dev/null || echo 0)
+            echo "Attempt $attempt captured $size bytes"
+            # A tenth of a second of 44.1kHz mono, the same bar the suite uses.
+            if [ "$size" -ge 8820 ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::The virtual audio input never returned any audio"
+          exit 1
+
       - name: Run e2e
         run: yarn turbo run e2e --filter=electron-client
 

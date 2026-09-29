@@ -3,7 +3,6 @@ import { blobObjects, launchTapes, type LaunchedApp } from './electronApp'
 import { canCaptureAudio } from './capture'
 import { awaitRecording, disposePeer, startPeer } from './peer'
 import {
-  cachedBlobHashes,
   deviceOptions,
   failureLine,
   openLibrary,
@@ -199,7 +198,7 @@ test.describe('the electron renderer', () => {
     await openRecorder(renderer)
     await recordFor(renderer)
     await saveRecording(renderer, name)
-    const recording = await awaitRecording({
+    await awaitRecording({
       libraryUrl: tapes.libraryUrl,
       name,
     })
@@ -211,12 +210,9 @@ test.describe('the electron renderer', () => {
     await expect(row(page, name)).toBeVisible()
     await play(page, name)
 
+    // Playback streams from the host and keeps no bytes on the guest, so the
+    // player is the only thing to check here.
     await expect(failureLine(page)).toBeHidden()
     await expect(playerDuration(page)).not.toHaveText('00:00:00')
-    // Polled: the fetched bytes are handed to the cache after playback has
-    // already started, so this lands slightly after the audio does.
-    await expect
-      .poll(() => cachedBlobHashes(page))
-      .toContain(recording.blob!.hash)
   })
 })
