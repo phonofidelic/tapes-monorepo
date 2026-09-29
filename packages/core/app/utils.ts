@@ -52,7 +52,7 @@ export class InvalidStoredAutomergeUrlError
 
   recover() {
     const location = new URL(window.location.href)
-    location.searchParams.delete(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
+    location.searchParams.delete(AUTOMERGE_URL_QUERY_KEY)
     window.history.replaceState({}, '', location)
 
     localStorage.removeItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
