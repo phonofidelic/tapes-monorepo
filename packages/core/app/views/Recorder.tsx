@@ -167,7 +167,7 @@ export function Recorder() {
 
   return (
     <>
-      <div className="flex h-full flex-col">
+      <div className="flex h-full touch-none flex-col">
         <div
           ref={visualizerContainerRef}
           className="absolute top-0 right-0 bottom-20 left-0"
@@ -299,7 +299,7 @@ export function Recorder() {
           )}
         </div>
       </div>
-      <div className="z-10 w-full bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="z-10 w-full touch-none bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex h-20 w-full items-center justify-center">
           {audioInputDeviceId ? (
             <>

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { clsx } from 'clsx'
 import { AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
@@ -22,6 +28,8 @@ import { deleteBlobEverywhere } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
 import { PlaybackSummary } from '@/components/PlaybackSummary'
 import { useRequiredAutomergeUrl } from '@/utils'
+import { createPortal } from 'react-dom'
+import { usePortals } from '@/context/PortalsContext'
 
 export function Library() {
   const { automergeUrl } = useRequiredAutomergeUrl()
@@ -29,7 +37,7 @@ export function Library() {
     automergeUrl,
     { suspense: true },
   )
-  const { currentUrl } = useAudioPlayer()
+  const { container: editorPortal } = usePortals('editorPortal')
 
   const [editingUrl, setEditingUrl] = useState<AutomergeUrl | null>(null)
   const handleCloseEditor = useCallback(() => setEditingUrl(null), [])
@@ -44,35 +52,40 @@ export function Library() {
 
   return (
     <>
-      <div className="flex touch-pan-y flex-col">
-        <ul>
-          {docState?.recordings.map((url) => {
-            return (
-              <LibraryListItem
-                key={url}
-                automergeUrl={url}
-                onDelete={deleteRecording}
-                onOpenEditor={() => {
-                  setEditingUrl(url)
-                }}
-              />
-            )
-          })}
-        </ul>
+      <div className="flex touch-pan-y flex-col overscroll-contain">
+        <Suspense>
+          <ul>
+            {docState?.recordings.map((url) => {
+              return (
+                <Suspense key={url} fallback={<LibraryListItemSkeleton />}>
+                  <LibraryListItem
+                    automergeUrl={url}
+                    onDelete={deleteRecording}
+                    onOpenEditor={() => {
+                      setEditingUrl(url)
+                    }}
+                  />
+                </Suspense>
+              )
+            })}
+          </ul>
+        </Suspense>
       </div>
-      <div
-        className={clsx(
-          'fixed bottom-0 left-0 z-50 w-screen rounded-t-lg border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
-          {
-            'border p-5 drop-shadow-2xl': editingUrl,
-            'translate-y-full p-0': !editingUrl,
-            'translate-y-0': editingUrl && currentUrl === undefined,
-            '-translate-y-20': editingUrl && currentUrl !== undefined,
-          },
+      {editorPortal &&
+        createPortal(
+          <div
+            className={clsx(
+              'bg-surface bottom-0 w-full touch-none drop-shadow-[0px_-4px_4px_rgba(0,0,0,0.03)] transition-transform',
+              {
+                'translate-y-full': !editingUrl,
+                'border-subtle -translate-y-px border-t p-5': editingUrl,
+              },
+            )}
+          >
+            <Editor automergeUrl={editingUrl} onClose={handleCloseEditor} />
+          </div>,
+          editorPortal,
         )}
-      >
-        <Editor automergeUrl={editingUrl} onClose={handleCloseEditor} />
-      </div>
       <Backdrop
         title="Close editor"
         isOpen={editingUrl !== null}
@@ -311,6 +324,23 @@ function LibraryListItem({
         onClose={handleCloseMenu}
       />
     </>
+  )
+}
+
+function LibraryListItemSkeleton() {
+  return (
+    <div className="flex w-full p-4">
+      <div className="flex w-full flex-col">
+        <div className={`bg-subtle m-1 my-2 h-5 w-40 animate-pulse rounded`} />
+        <div className="flex gap-4">
+          <div className="bg-subtle m-1 h-3 w-12 animate-pulse rounded" />
+          <div className="bg-subtle m-1 h-3 w-40 animate-pulse rounded" />
+        </div>
+      </div>
+      <div className="p-2 not-pointer-coarse:hidden">
+        <MdPlayArrow className="fill-subtle animate-pulse" />
+      </div>
+    </div>
   )
 }
 
@@ -596,10 +626,10 @@ function Backdrop({
       role="presentation"
       title={isOpen ? title : ''}
       className={clsx(
-        'fixed top-0 left-0 flex h-full w-screen bg-white transition-opacity ease-in-out dark:bg-zinc-900',
+        'bg-scrim fixed top-0 left-0 flex h-full w-screen touch-none transition-opacity ease-in-out',
         {
           'hidden opacity-0': !isOpen,
-          'z-40 opacity-75': isOpen,
+          'z-40 opacity-100': isOpen,
         },
       )}
       onClick={() => onClose()}

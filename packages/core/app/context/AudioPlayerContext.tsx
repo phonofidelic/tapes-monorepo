@@ -25,6 +25,9 @@ import { callWorker } from '@/workerClient'
 import { ingestHostFile } from '@/blobUpload'
 import { useAppContext } from './AppContext'
 import { useBlobEndpoints } from './BlobContext'
+import { AudioPlayer } from '@/components/AudioPlayer'
+import { createPortal } from 'react-dom'
+import { usePortals } from './PortalsContext'
 
 /**
  * `loading` covers finding a recording's audio: a lookup in local storage,
@@ -175,7 +178,9 @@ export const AudioPlayerProvider = ({
 }) => {
   const appContext = useAppContext()
   const blobEndpoints = useBlobEndpoints()
+
   const audioRef = useRef<HTMLAudioElement>(new Audio())
+  const { container: audioPlayerPortal } = usePortals('audioPlayerPortal')
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
   const [playbackFailure, setPlaybackFailure] = useState<
     PlaybackFailure | undefined
@@ -689,6 +694,8 @@ export const AudioPlayerProvider = ({
       }}
     >
       {children}
+      {/* The AudioPlayer renders in a portal directly under <main> in App.tsx */}
+      {audioPlayerPortal && createPortal(<AudioPlayer />, audioPlayerPortal)}
     </AudioPlayerContext.Provider>
   )
 }

@@ -6,11 +6,11 @@ the browser web-client and the desktop electron-client renderer. The UI lives in
 
 The package owns:
 
-- **The app tree.** Each shell builds its own Automerge repo and passes it to
-  `App`, because storage and networking are platform-specific. The web client
-  persists to IndexedDB and the electron renderer delegates persistence to the
-  embedded sync server. Core reads the repo through
-  `@automerge/automerge-repo-react-hooks`.
+- **The app tree.** Each shell builds its own Automerge repo, because storage
+  and networking are platform-specific. The shell passes the repo to
+  `Providers` and renders `App` inside it. The web client persists to IndexedDB
+  and the electron renderer delegates persistence to the embedded sync server.
+  Core reads the repo through `@automerge/automerge-repo-react-hooks`.
 - **Blob and event clients.** Recorded audio is sent to and fetched from the
   hosts the shell resolves. Playback events are queued and flushed to the one
   host that owns the library's numbers.

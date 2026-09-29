@@ -1,11 +1,63 @@
-import { isValidAutomergeUrl } from '@automerge/automerge-repo'
+import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
+import { type ErrorWithRecover } from './types'
+
+const AUTOMERGE_URL_LOCAL_STORAGE_KEY = 'automergeUrl'
+const AUTOMERGE_URL_QUERY_KEY = 'am'
 
 /** The selected input device exists in settings but is no longer available. */
 export class AudioInputUnavailableError extends Error {
   constructor(deviceId: string) {
-    super(`Selected audio input device is unavailable: ${deviceId}`)
+    super(`Selected audio input device is unavailable: ${deviceId}.`)
     this.name = 'AudioInputUnavailableError'
+  }
+}
+
+/** The automergeUrl provided from the 'am' query parameter is invalid */
+export class InvalidAutomergeUrlError
+  extends Error
+  implements ErrorWithRecover
+{
+  constructor(url: string) {
+    super(`The provided automerge URL is invalid: ${url}.`)
+    this.name = 'InvalidAutomergeUrlError'
+    this.recoveryCta = 'Reload'
+  }
+
+  public readonly recoveryCta: string
+
+  recover() {
+    const location = new URL(window.location.href)
+    location.searchParams.delete(AUTOMERGE_URL_QUERY_KEY)
+    window.history.replaceState({}, '', location)
+    window.location.reload()
+  }
+}
+
+/** The automergeUrl saved to localStorage is invalid */
+export class InvalidStoredAutomergeUrlError
+  extends Error
+  implements ErrorWithRecover
+{
+  constructor(storedUrl: string) {
+    super(`The stored automerge URL '${storedUrl}' is invalid.`)
+    this.name = 'InvalidStoredAutomergeUrlError'
+    this.userMessage =
+      'The library link saved on this device is invalid. Clear it to start a new library. You can then re-scan a QR code or paste a link in Settings.'
+    this.recoveryCta = 'Clear invalid data and reload'
+  }
+
+  public readonly userMessage: string
+  public readonly recoveryCta: string
+
+  recover() {
+    const location = new URL(window.location.href)
+    location.searchParams.delete(AUTOMERGE_URL_QUERY_KEY)
+    window.history.replaceState({}, '', location)
+
+    localStorage.removeItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
+
+    window.location.reload()
   }
 }
 
@@ -39,8 +91,6 @@ export const getAudioStream = async (selectedMediaDeviceId: string) => {
   }
 }
 
-const AUTOMERGE_URL_KEY = 'automergeUrl'
-
 /**
  * The document url lives in `localStorage` rather than React state, because
  * the shells read it while building their repo, above the tree that writes
@@ -57,15 +107,32 @@ function subscribeToAutomergeUrl(listener: () => void) {
   }
 }
 
-function readAutomergeUrl() {
-  return (
-    new URLSearchParams(window.location.search).get('am') ??
-    localStorage.getItem(AUTOMERGE_URL_KEY)
+export function readAutomergeUrl(): AutomergeUrl | null {
+  const url = new URLSearchParams(window.location.search).get(
+    AUTOMERGE_URL_QUERY_KEY,
   )
+  if (url !== null) {
+    if (!isValidAutomergeUrl(url)) {
+      throw new InvalidAutomergeUrlError(url)
+    }
+    // Return here so a new valid url can overwrite a stored invalid url
+    return url
+  }
+
+  // A missing url is normal: a fresh client has not created its document yet,
+  // and a guest opens Settings with nothing stored to paste a host url in. A
+  // stored value that is not an automerge url is not normal, and silently
+  // treating it as missing would overwrite whatever the user pasted wrong.
+  const storedUrl = localStorage.getItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
+  if (storedUrl !== null && !isValidAutomergeUrl(storedUrl)) {
+    throw new InvalidStoredAutomergeUrlError(storedUrl)
+  }
+
+  return storedUrl
 }
 
-export function setAutomergeUrl(url: string) {
-  localStorage.setItem(AUTOMERGE_URL_KEY, url)
+export function writeAutomergeUrl(url: string) {
+  localStorage.setItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY, url)
 
   // `am` is a bootstrap seed that a pairing link adds, and it wins over
   // storage when the url is read. Without this a guest opened from a QR code
@@ -73,14 +140,15 @@ export function setAutomergeUrl(url: string) {
   // would be invisible. Once a url has been chosen the seed has done its job.
   // The shell drops the `pt` token the same way.
   const location = new URL(window.location.href)
-  if (location.searchParams.has('am')) {
-    location.searchParams.delete('am')
+  if (location.searchParams.has(AUTOMERGE_URL_QUERY_KEY)) {
+    location.searchParams.delete(AUTOMERGE_URL_QUERY_KEY)
     window.history.replaceState({}, '', location)
   }
 
   // Readers re-read storage during render, so without this an imported host
   // url would not show until the next launch. Iterate a copy: a listener that
   // unsubscribes in response would otherwise mutate the set mid-iteration.
+  // oxlint-disable-next-line unicorn/no-useless-spread
   for (const listener of [...automergeUrlListeners]) {
     try {
       listener()
@@ -97,15 +165,7 @@ export function useAutomergeUrl() {
     readAutomergeUrl,
   )
 
-  // A missing url is normal: a fresh client has not created its document yet,
-  // and a guest opens Settings with nothing stored to paste a host url in. A
-  // stored value that is not an automerge url is not normal, and silently
-  // treating it as missing would overwrite whatever the user pasted wrong.
-  if (storedUrl !== null && !isValidAutomergeUrl(storedUrl)) {
-    throw new Error('Invalid automerge URL')
-  }
-
-  return { automergeUrl: storedUrl, setAutomergeUrl }
+  return { automergeUrl: storedUrl, setAutomergeUrl: writeAutomergeUrl }
 }
 
 /**

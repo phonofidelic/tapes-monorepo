@@ -8,7 +8,13 @@ export * from './app/workerClient'
 export * from './app/blobCache'
 export * from './app/blobUpload'
 export * from './app/deviceLabel'
-export { useAutomergeUrl, isSyncServerUrl } from './app/utils'
+export {
+  InvalidAutomergeUrlError,
+  readAutomergeUrl,
+  writeAutomergeUrl,
+  useAutomergeUrl,
+  isSyncServerUrl,
+} from './app/utils'
 export {
   useAggregates,
   useRecordingPlayback,
@@ -19,5 +25,7 @@ export {
   subscribeToSettingsChange,
   type SettingKey,
 } from './app/context/SettingsContext'
-export { ErrorBoundary } from './app/components/ErrorBoundary'
+export * from './app/context/Providers'
+export * from './app/components/ErrorBoundary'
+export * from './app/components/ScreenLoader'
 export * from './app/services/SyncService'

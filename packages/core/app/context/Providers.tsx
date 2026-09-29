@@ -9,9 +9,10 @@ import { RecordingStateProvider } from './RecordingContext'
 import { BlobProvider } from './BlobContext'
 import { PinProvider } from './PinContext'
 import { AggregatesProvider } from './AggregatesContext'
-import { usePlayEventQueue } from '@/hooks/usePlayEventQueue'
-import type { BlobEndpoint } from '@/blobClient'
-import type { EventHost } from '@/eventTarget'
+import { usePlayEventQueue } from '../hooks/usePlayEventQueue'
+import type { BlobEndpoint } from '../blobClient'
+import type { EventHost } from '../eventTarget'
+import { PortalsProvider } from './PortalsContext'
 
 /**
  * The player, with its measured play sessions going to the event queue. A
@@ -29,7 +30,7 @@ function CountedPlayback({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function Providers({
+export function Providers({
   values,
   children,
 }: {
@@ -44,28 +45,30 @@ export default function Providers({
   return (
     <AppContextProvider value={values.appContext}>
       <SettingsProvider>
-        <RepoContext.Provider value={values.repoContext}>
-          <RecordingStateProvider>
-            <ViewProvider>
-              {/* Pins need the endpoints to prefetch; the player needs pins to
+        <ViewProvider>
+          <RepoContext.Provider value={values.repoContext}>
+            <RecordingStateProvider>
+              <PortalsProvider>
+                {/* Pins need the endpoints to prefetch; the player needs pins to
                   know what it must not evict. */}
-              <BlobProvider endpoints={values.blobEndpoints}>
-                <PinProvider>
-                  {/* Inside the app context, which supplies the electron ipc
+                <BlobProvider endpoints={values.blobEndpoints}>
+                  <PinProvider>
+                    {/* Inside the app context, which supplies the electron ipc
                       service. Around the player, so a finished play can ask
                       for the numbers again. */}
-                  <AggregatesProvider target={values.eventTarget}>
-                    {values.repoContext ? (
-                      <CountedPlayback>{children}</CountedPlayback>
-                    ) : (
-                      children
-                    )}
-                  </AggregatesProvider>
-                </PinProvider>
-              </BlobProvider>
-            </ViewProvider>
-          </RecordingStateProvider>
-        </RepoContext.Provider>
+                    <AggregatesProvider target={values.eventTarget}>
+                      {values.repoContext ? (
+                        <CountedPlayback>{children}</CountedPlayback>
+                      ) : (
+                        children
+                      )}
+                    </AggregatesProvider>
+                  </PinProvider>
+                </BlobProvider>
+              </PortalsProvider>
+            </RecordingStateProvider>
+          </RepoContext.Provider>
+        </ViewProvider>
       </SettingsProvider>
     </AppContextProvider>
   )

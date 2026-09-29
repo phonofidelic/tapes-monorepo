@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import { AppContextProvider, type AppContextValue } from '@/context/AppContext'
 import { BlobProvider } from '@/context/BlobContext'
 import { PinProvider } from '@/context/PinContext'
+import { PortalContainer, PortalsProvider } from '@/context/PortalsContext'
 import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
 import type { RecordingData, RecordingRepoState } from '@/types'
@@ -136,7 +143,12 @@ const renderLibrary = (
     <AppContextProvider value={appContext}>
       <BlobProvider endpoints={endpoints}>
         <PinProvider>
-          <Library />
+          <PortalsProvider>
+            <div data-testid="editor-slot">
+              <PortalContainer containerRefKey="editorPortal" />
+            </div>
+            <Library />
+          </PortalsProvider>
         </PinProvider>
       </BlobProvider>
     </AppContextProvider>,
@@ -342,7 +354,9 @@ describe('playback numbers on a row', () => {
             <AggregatesProvider
               target={{ kind: 'http', baseUrl: 'http://127.0.0.1:9001' }}
             >
-              <Library />
+              <PortalsProvider>
+                <Library />
+              </PortalsProvider>
             </AggregatesProvider>
           </PinProvider>
         </BlobProvider>
@@ -399,6 +413,15 @@ describe('the editor backdrop', () => {
     await screen.findByTitle('Close editor')
     return user
   }
+
+  // The panel sits in App's bottom dock, above the player, rather than
+  // floating over the list, so it goes into the slot App registers.
+  it('opens the editor panel in the editor slot', async () => {
+    await openEditor()
+
+    const slot = screen.getByTestId('editor-slot')
+    expect(within(slot).getByTitle('Save changes')).toBeInTheDocument()
+  })
 
   it('is not offered as a control of its own', async () => {
     await openEditor()

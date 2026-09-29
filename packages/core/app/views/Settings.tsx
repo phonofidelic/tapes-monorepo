@@ -13,7 +13,7 @@ export function Settings() {
   const [storageLocation, setStorageLocation] = useSetting('storageLocation')
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex h-full touch-pan-y flex-col gap-4 p-4">
       <div className="flex flex-col gap-2">
         <h2>Audio</h2>
         <label className="flex flex-col gap-2 text-sm">

@@ -1,67 +1,74 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import type { Repo } from '@automerge/automerge-repo'
-import type { AppContextValue } from '@/context/AppContext'
+import { use, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { PortalsProvider, usePortals } from './context/PortalsContext'
 import { App } from './App'
 
-// The view tree below App is irrelevant here — these tests are about the seam
-// between App and the shell that hands it a Repo — so collapse the providers
-// and children to a marker.
-vi.mock('./context/Providers', () => ({
-  default: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="providers">{children}</div>
-  ),
+// App is layout only: the shell supplies the providers, and the views are
+// swapped per test through this map.
+const views = vi.hoisted(() => ({
+  current: 'recorder' as 'recorder' | 'library' | 'settings',
+  map: {} as Record<string, React.ReactNode>,
 }))
 
 vi.mock('@/context/ViewContext', () => ({
-  useView: () => ({ currentView: 'recorder', setCurrentView: vi.fn() }),
-  navigationConfig: [],
-  viewComponentMap: { recorder: null },
+  useView: () => ({ currentView: views.current, setCurrentView: vi.fn() }),
+  navigationConfig: [
+    { label: 'Record', view: 'recorder' },
+    { label: 'Library', view: 'library' },
+  ],
+  get viewComponentMap() {
+    return views.map
+  },
 }))
 
-vi.mock('./context/AudioPlayerContext', () => ({
-  useAudioPlayer: () => ({ currentUrl: undefined }),
-}))
-
-vi.mock('./components/AudioPlayer', () => ({
-  AudioPlayer: () => null,
-}))
-
-const appContextValue: AppContextValue = {
-  type: 'web-client',
-  worker: {} as unknown as Worker,
+const renderApp = (view: React.ReactNode = <p>recorder view</p>) => {
+  views.map = { [views.current]: view }
+  return render(
+    <PortalsProvider>
+      <App />
+    </PortalsProvider>,
+  )
 }
 
 afterEach(() => {
   cleanup()
+  views.current = 'recorder'
+  vi.restoreAllMocks()
 })
 
-describe('App repo seam', () => {
-  // Each shell builds its own Repo (storage and network adapters differ per
-  // platform) and passes null until that bootstrap finishes.
-  it('renders a loading state while the shell has no repo yet', () => {
-    const { container } = render(
-      <App appContextValue={appContextValue} repoContextValue={null} />,
-    )
+describe('App views', () => {
+  it('renders the current view inside main', () => {
+    const { container } = renderApp()
 
-    // The nav renders either way; only the views wait for the repo.
-    expect(screen.getByText('Loading repo...')).toBeInTheDocument()
-    expect(container.querySelector('nav')).not.toBeNull()
-    expect(container.querySelector('main')).toBeNull()
+    expect(container.querySelector('main')).toHaveTextContent('recorder view')
   })
 
-  it('renders the app tree once the shell provides a repo', () => {
-    // A stub stands in for a real Repo: App only forwards it to Providers
-    // (mocked above), and constructing one here would drag in Automerge's wasm.
-    render(
-      <App
-        appContextValue={appContextValue}
-        repoContextValue={{} as unknown as Repo}
-      />,
-    )
+  it('shows a loader naming the view while it suspends', () => {
+    views.current = 'library'
+    const never = new Promise<never>(() => {})
+    function Suspending() {
+      use(never)
+      return null
+    }
 
-    expect(screen.getByTestId('providers')).toBeInTheDocument()
-    expect(screen.queryByText('Loading repo...')).toBeNull()
+    renderApp(<Suspending />)
+
+    expect(screen.getByText('Loading library...')).toBeInTheDocument()
+  })
+
+  it('keeps the navigation when a view throws', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    function Broken(): React.ReactNode {
+      throw new Error('view failed')
+    }
+
+    const { container } = renderApp(<Broken />)
+
+    expect(screen.getByText('Something went wrong...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+    expect(container.querySelector('nav')).not.toBeNull()
   })
 })
 
@@ -69,12 +76,7 @@ describe('App repo seam', () => {
 // Recorder view positions its visualizer and name editor `absolute` against it.
 describe('App desktop layout', () => {
   it('holds main to a centred max-width column above the breakpoint', () => {
-    const { container } = render(
-      <App
-        appContextValue={appContextValue}
-        repoContextValue={{} as unknown as Repo}
-      />,
-    )
+    const { container } = renderApp()
 
     const main = container.querySelector('main')
     expect(main).not.toBeNull()
@@ -88,22 +90,53 @@ describe('App desktop layout', () => {
   })
 
   it('keeps the nav bar full-bleed while centring its tabs', () => {
-    const { container } = render(
-      <App
-        appContextValue={appContextValue}
-        repoContextValue={{} as unknown as Repo}
-      />,
+    const { container } = renderApp()
+
+    // One nav for fine pointers at the top, one for touch in the dock. Both
+    // keep their background spanning the window...
+    const navs = container.querySelectorAll('nav')
+    expect(navs).toHaveLength(2)
+    for (const nav of navs) {
+      expect(nav).not.toHaveClass('max-w-3xl')
+
+      // ...while the tabs inside follow main's column.
+      const list = nav.querySelector('ul')
+      expect(list).toHaveClass('max-w-3xl')
+      expect(list).toHaveClass('mx-auto')
+    }
+  })
+})
+
+// The dock below main holds the editor panel above the player bar, so neither
+// has to be positioned over the other.
+describe('App dock', () => {
+  function DockProbe() {
+    const { container: editor } = usePortals('editorPortal')
+    const { container: player } = usePortals('audioPlayerPortal')
+    // The slots register after App mounts, so ask again once they have.
+    const [, rerender] = useState(0)
+    useEffect(() => rerender(1), [])
+    return (
+      <>
+        {editor && createPortal(<p>editor panel</p>, editor)}
+        {player && createPortal(<p>player bar</p>, player)}
+      </>
     )
+  }
 
-    // The bar keeps its background and border spanning the window...
-    const nav = container.querySelector('nav')
-    expect(nav).not.toBeNull()
-    expect(nav).not.toHaveClass('max-w-3xl')
+  it('stacks the editor slot above the player slot, below main', async () => {
+    const { container } = renderApp(<DockProbe />)
 
-    // ...while the tabs inside follow main's column.
-    const list = container.querySelector('nav ul')
-    expect(list).not.toBeNull()
-    expect(list).toHaveClass('max-w-3xl')
-    expect(list).toHaveClass('mx-auto')
+    const editor = await screen.findByText('editor panel')
+    const player = await screen.findByText('player bar')
+    const main = container.querySelector('main')!
+
+    expect(
+      main.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      editor.compareDocumentPosition(player) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(main).not.toContainElement(editor)
   })
 })
