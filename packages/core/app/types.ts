@@ -43,7 +43,7 @@ export type RecordingRepoState = {
 }
 
 export interface ErrorWithRecover extends Error {
-  userMessage?: string | null
+  userMessage?: string | undefined
   recoveryCta: string
   recover(): void
 }

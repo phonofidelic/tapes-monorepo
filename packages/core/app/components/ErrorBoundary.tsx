@@ -88,9 +88,11 @@ export function GenericErrorFallbackScreen({
     return (
       <ScreenLoader message="Something went wrong...">
         <div className="mx-auto mt-8 flex max-w-lg flex-col items-center gap-8 p-4">
-          <div className="text-foreground text-center text-sm">
-            {error.userMessage}
-          </div>
+          {error.userMessage && (
+            <div className="text-foreground text-center text-sm">
+              {error.userMessage}
+            </div>
+          )}
           <div>
             <Button
               className="border-subtle text-foreground border p-1 px-2"
