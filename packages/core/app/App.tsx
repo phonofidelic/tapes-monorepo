@@ -5,14 +5,14 @@ import {
   useView,
   navigationConfig,
   viewComponentMap,
-} from '@/context/ViewContext'
-import './index.css'
+} from './context/ViewContext'
 import {
   ErrorBoundary,
   GenericErrorFallbackScreen,
 } from './components/ErrorBoundary'
 import { PortalContainer } from './context/PortalsContext'
 import { ScreenLoader } from './components/ScreenLoader'
+import './index.css'
 
 /**
  * The shared app tree. Each shell builds its own Automerge repo and passes it
