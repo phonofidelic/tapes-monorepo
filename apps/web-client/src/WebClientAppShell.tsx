@@ -117,6 +117,13 @@ const worker = new Worker(new URL('./worker.ts', import.meta.url), {
   type: 'module',
 })
 
+worker.onmessageerror = (event) => {
+  console.error('worker.onmessageerror', event)
+}
+worker.onerror = (event) => {
+  console.error('worker.onerror', event)
+}
+
 type InitializeRepoParams = {
   syncServerUrl: string | undefined
 }
