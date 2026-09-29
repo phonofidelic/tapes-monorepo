@@ -1,6 +1,6 @@
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useSyncExternalStore } from 'react'
-import { ErrorWithRecover } from './types'
+import { type ErrorWithRecover } from './types'
 
 const AUTOMERGE_URL_LOCAL_STORAGE_KEY = 'automergeUrl'
 const AUTOMERGE_URL_QUERY_KEY = 'am'
