@@ -94,7 +94,7 @@ export function GenericErrorFallbackScreen({
           <div>
             <Button
               className="border-subtle text-foreground border p-1 px-2"
-              onClick={error.recover}
+              onClick={() => error.recover()}
             >
               {error.recoveryCta}
             </Button>
