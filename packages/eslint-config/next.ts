@@ -1,24 +1,29 @@
 import { defineConfig } from 'eslint/config'
 import eslintReact from '@eslint-react/eslint-plugin'
+import pluginNext from '@next/eslint-plugin-next'
 import pluginReactHooks from 'eslint-plugin-react-hooks'
-import tseslint from 'typescript-eslint'
-import { config as baseConfig } from './base.js'
+import { config } from './base.ts'
 import globals from 'globals'
 
-export const config = defineConfig({
+export const nextJsConfig = defineConfig({
   extends: [
-    ...baseConfig,
+    ...config,
     {
       ...eslintReact.configs.recommended,
       languageOptions: {
         ...eslintReact.configs.recommended.languageOptions,
-        globals: {
-          ...globals.serviceworker,
-          ...globals.browser,
-        },
+        globals: { ...globals.serviceworker },
       },
     },
-    tseslint.configs.recommended,
     pluginReactHooks.configs.flat.recommended,
+    {
+      plugins: {
+        '@next/next': pluginNext,
+      },
+      rules: {
+        ...pluginNext.configs.recommended.rules,
+        ...pluginNext.configs['core-web-vitals'].rules,
+      },
+    },
   ],
 })
