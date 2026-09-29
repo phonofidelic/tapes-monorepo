@@ -85,7 +85,7 @@ only the shell knows where its sync server lives.
   version is used.
 - macOS for the full recording flow. The dev scripts read the LAN IP with
   `ipconfig getifaddr en0`. The desktop host shells out to
-  [SoX](https://sourceforge.net/projects/sox/) to record and to
+  [SoX](https://formulae.brew.sh/formula/sox) to record and to
   [`switchaudio-osx`](https://github.com/deweller/switchaudio-osx) to select an
   input. On Linux and Windows the non-audio parts build and run, but end-to-end
   recording is not supported.

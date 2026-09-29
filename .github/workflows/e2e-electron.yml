@@ -47,8 +47,9 @@ jobs:
         run: yarn workspace electron-client exec playwright install --with-deps chromium
 
       # sox (recording) and switchaudio-osx (input selection), staged into the
-      # packaged app as resources. The latter is built from source, so this
-      # needs the Xcode command line tools the runner image already carries.
+      # packaged app as resources. sox is installed with Homebrew.
+      # switchaudio-osx is built from source, so this needs the Xcode command
+      # line tools the runner image already carries.
       - name: Fetch native binaries
         run: yarn workspace electron-client get-bin
 

@@ -1,5 +1,5 @@
 import { createWriteStream } from 'fs'
-import { open, mkdir, rm, chmod, cp } from 'fs/promises'
+import { open, mkdir, rm, chmod, cp, realpath } from 'fs/promises'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
 import { execSync } from 'child_process'
@@ -8,13 +8,12 @@ import StreamZip from 'node-stream-zip'
 async function main() {
   const tmpDir = await getDir('tmp')
 
-  const soxUrl =
-    'https://downloads.sourceforge.net/project/sox/sox/14.4.2/sox-14.4.2-macosx.zip'
-  await downloadFile(soxUrl, 'tmp/sox.zip')
-  const soxZip = new StreamZip.async({ file: 'tmp/sox.zip' })
-  await soxZip.extract(null, 'tmp/sox')
-  soxZip.close()
-  await cp('tmp/sox/sox-14.4.2/sox', 'bin/sox-14.4.2-macOS', { force: true })
+  // sox comes from Homebrew, because the SourceForge download is no longer
+  // reliable. Homebrew's binary links to other Homebrew libraries by absolute
+  // path, so the packaged app only records where Homebrew's sox is installed.
+  await cp(await homebrewBinary('sox'), 'bin/sox-14.4.2-macOS', {
+    force: true,
+  })
   await chmod('bin/sox-14.4.2-macOS', 0o755)
 
   const switchAudioSourceUrl =
@@ -53,6 +52,17 @@ async function getDir(dirname: string) {
       throw error
     }
   }
+}
+
+/** The path of a Homebrew formula's binary, installing the formula if needed. */
+async function homebrewBinary(formula: string) {
+  try {
+    execSync(`brew list --formula ${formula}`, { stdio: 'ignore' })
+  } catch {
+    execSync(`brew install ${formula}`, { stdio: 'inherit' })
+  }
+  const prefix = execSync(`brew --prefix ${formula}`).toString().trim()
+  return realpath(`${prefix}/bin/${formula}`)
 }
 
 async function downloadFile(url: string, destination: string) {

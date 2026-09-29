@@ -19,7 +19,7 @@ const STOP_TIMEOUT_MS = 5_000
  *
  * * Wikipedia: https://en.wikipedia.org/wiki/SoX
  * * Manual: https://explainshell.com/explain/1/sox
- * * Download: https://sourceforge.net/projects/sox
+ * * Homebrew: https://formulae.brew.sh/formula/sox
  */
 export class SoxRecorder {
   private filepath: string | null = null
