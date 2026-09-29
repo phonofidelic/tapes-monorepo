@@ -66,9 +66,9 @@ flowchart LR
     webclient -. "optional remote sync" .-> api
 ```
 
-Each shell builds its own Automerge repo and passes it to `App`. Storage and
-networking are platform-specific, so only the shell knows where its sync server
-lives.
+Each shell builds its own Automerge repo. It hands the repo to core's providers
+and renders `App` inside them. Storage and networking are platform-specific, so
+only the shell knows where its sync server lives.
 
 - The web client stores documents in IndexedDB. It talks to other tabs over a
   broadcast channel and to the host over a WebSocket.

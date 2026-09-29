@@ -8,8 +8,8 @@ host, which serves it to LAN guests.
 
 ## Where it syncs
 
-The sync server url is resolved at runtime in `src/main.tsx`. The first match
-wins:
+The sync server url is resolved at runtime in `src/WebClientAppShell.tsx`. The
+first match wins:
 
 1. A build-time `VITE_SYNC_SERVER_URL`. This is the Vercel deploy path.
 2. A remote server the user entered in Settings, read from localStorage.
