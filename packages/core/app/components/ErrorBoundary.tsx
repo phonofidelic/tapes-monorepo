@@ -43,16 +43,16 @@ export class ErrorBoundary extends React.Component<{
   }
 }
 
-type ErrorContextValue<T> = T | ErrorWithRecover | Error | undefined
+type ErrorContextValue = ErrorWithRecover | Error | undefined
 
-const ErrorContext = createContext<ErrorContextValue<unknown>>(undefined)
+const ErrorContext = createContext<ErrorContextValue>(undefined)
 
-function ErrorContextProvider<T>({
+function ErrorContextProvider({
   children,
   value,
 }: {
   children: React.ReactNode
-  value: ErrorContextValue<T>
+  value: ErrorContextValue
 }) {
   return <ErrorContext.Provider value={value}>{children}</ErrorContext.Provider>
 }
