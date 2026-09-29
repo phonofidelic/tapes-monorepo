@@ -6,10 +6,12 @@ import {
   cleanup,
   waitFor,
   fireEvent,
+  within,
 } from '@testing-library/react'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import { AppContextProvider, type AppContextValue } from './AppContext'
 import { BlobProvider } from './BlobContext'
+import { PortalContainer, PortalsProvider } from './PortalsContext'
 import {
   AudioPlayerProvider,
   useAudioPlayer,
@@ -97,9 +99,11 @@ const renderPlayer = (
   render(
     <AppContextProvider value={appContext}>
       <BlobProvider endpoints={endpoints}>
-        <AudioPlayerProvider>
-          <Probe source={source} />
-        </AudioPlayerProvider>
+        <PortalsProvider>
+          <AudioPlayerProvider>
+            <Probe source={source} />
+          </AudioPlayerProvider>
+        </PortalsProvider>
       </BlobProvider>
     </AppContextProvider>,
   )
@@ -657,9 +661,11 @@ describe('switching between recordings', () => {
     render(
       <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
         <BlobProvider endpoints={[ENDPOINT]}>
-          <AudioPlayerProvider>
-            <SwitchingProbe />
-          </AudioPlayerProvider>
+          <PortalsProvider>
+            <AudioPlayerProvider>
+              <SwitchingProbe />
+            </AudioPlayerProvider>
+          </PortalsProvider>
         </BlobProvider>
       </AppContextProvider>,
     )
@@ -803,9 +809,11 @@ const renderTransport = () => {
   render(
     <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
       <BlobProvider endpoints={[]}>
-        <AudioPlayerProvider>
-          <TransportProbe />
-        </AudioPlayerProvider>
+        <PortalsProvider>
+          <AudioPlayerProvider>
+            <TransportProbe />
+          </AudioPlayerProvider>
+        </PortalsProvider>
       </BlobProvider>
     </AppContextProvider>,
   )
@@ -898,9 +906,11 @@ const renderMedia = () => {
   render(
     <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
       <BlobProvider endpoints={[]}>
-        <AudioPlayerProvider>
-          <MediaProbe />
-        </AudioPlayerProvider>
+        <PortalsProvider>
+          <AudioPlayerProvider>
+            <MediaProbe />
+          </AudioPlayerProvider>
+        </PortalsProvider>
       </BlobProvider>
     </AppContextProvider>,
   )
@@ -983,9 +993,11 @@ const sessionTree = (
 ) => (
   <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
     <BlobProvider endpoints={[]}>
-      <AudioPlayerProvider onPlaySession={onPlaySession}>
-        <SessionProbe url={url} />
-      </AudioPlayerProvider>
+      <PortalsProvider>
+        <AudioPlayerProvider onPlaySession={onPlaySession}>
+          <SessionProbe url={url} />
+        </AudioPlayerProvider>
+      </PortalsProvider>
     </BlobProvider>
   </AppContextProvider>
 )
@@ -1151,5 +1163,49 @@ describe('play sessions', () => {
     await waitFor(() => expect(onPlaySession).toHaveBeenCalledTimes(1))
     expect(reported(onPlaySession).recordingUrl).toBe(RECORDING_URL)
     expect(reported(onPlaySession).completion).toBeCloseTo(0.6)
+  })
+})
+
+// The player bar lives in App's bottom dock, not wherever the provider sits,
+// so the provider portals it into the slot App registers.
+describe('the player bar', () => {
+  afterEach(cleanup)
+
+  const tree = (withSlot: boolean) => (
+    <AppContextProvider value={{ type: 'web-client', worker: emptyWorker() }}>
+      <BlobProvider endpoints={[]}>
+        <PortalsProvider>
+          {withSlot && (
+            <div data-testid="slot">
+              <PortalContainer containerRefKey="audioPlayerPortal" />
+            </div>
+          )}
+          <AudioPlayerProvider>
+            <Probe />
+          </AudioPlayerProvider>
+        </PortalsProvider>
+      </BlobProvider>
+    </AppContextProvider>
+  )
+
+  it('renders into the audio player slot', async () => {
+    recording = { ...base }
+    render(tree(true))
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('slot')).getByRole('slider', {
+          name: 'Seek',
+        }),
+      ).toBeInTheDocument(),
+    )
+  })
+
+  it('renders nowhere when no slot is registered', async () => {
+    recording = { ...base }
+    render(tree(false))
+
+    await screen.findByTestId('state')
+    expect(screen.queryByRole('slider', { name: 'Seek' })).toBeNull()
   })
 })

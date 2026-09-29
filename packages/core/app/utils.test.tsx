@@ -1,7 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import { generateAutomergeUrl } from '@automerge/automerge-repo'
-import { isSyncServerUrl, writeAutomergeUrl, useAutomergeUrl } from './utils'
+import {
+  InvalidAutomergeUrlError,
+  InvalidStoredAutomergeUrlError,
+  isSyncServerUrl,
+  readAutomergeUrl,
+  writeAutomergeUrl,
+  useAutomergeUrl,
+} from './utils'
 
 const STORED_URL = generateAutomergeUrl()
 const SEED_URL = generateAutomergeUrl()
@@ -65,6 +72,93 @@ describe('useAutomergeUrl', () => {
 
     expect(() => writeAutomergeUrl(IMPORTED_URL)).not.toThrow()
     expect(localStorage.getItem('automergeUrl')).toBe(IMPORTED_URL)
+  })
+})
+
+describe('readAutomergeUrl', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('returns null on a device with nothing stored', () => {
+    expect(readAutomergeUrl()).toBeNull()
+  })
+
+  it('returns the stored url', () => {
+    localStorage.setItem('automergeUrl', STORED_URL)
+    expect(readAutomergeUrl()).toBe(STORED_URL)
+  })
+
+  it('prefers a pairing link over storage', () => {
+    localStorage.setItem('automergeUrl', STORED_URL)
+    window.history.replaceState({}, '', `/?am=${SEED_URL}`)
+    expect(readAutomergeUrl()).toBe(SEED_URL)
+  })
+
+  it('rejects a pairing link that is not an automerge url', () => {
+    localStorage.setItem('automergeUrl', STORED_URL)
+    window.history.replaceState({}, '', '/?am=not-a-url')
+    expect(() => readAutomergeUrl()).toThrow(InvalidAutomergeUrlError)
+  })
+
+  // Treating a bad stored value as missing would create a new library and
+  // write over it, losing whatever the user pasted.
+  it('rejects a stored value that is not an automerge url', () => {
+    localStorage.setItem('automergeUrl', 'not-a-url')
+    expect(() => readAutomergeUrl()).toThrow(InvalidStoredAutomergeUrlError)
+  })
+
+  // Scanning a host's QR code is how a user gets out of a bad stored value.
+  it('lets a valid pairing link through past a bad stored value', () => {
+    localStorage.setItem('automergeUrl', 'not-a-url')
+    window.history.replaceState({}, '', `/?am=${SEED_URL}`)
+    expect(readAutomergeUrl()).toBe(SEED_URL)
+  })
+
+  it('makes readers throw on a bad stored value', () => {
+    localStorage.setItem('automergeUrl', 'not-a-url')
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(() => render(<Probe />)).toThrow(InvalidStoredAutomergeUrlError)
+  })
+})
+
+// Both reload the page, which jsdom does not implement and will not let a test
+// spy on, so these check what the recovery leaves behind for the next load.
+describe('invalid url recovery', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/')
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('drops a bad pairing link and keeps the stored url', () => {
+    localStorage.setItem('automergeUrl', STORED_URL)
+    window.history.replaceState({}, '', '/?am=not-a-url&keep=1')
+
+    new InvalidAutomergeUrlError('not-a-url').recover()
+
+    expect(window.location.search).toBe('?keep=1')
+    expect(readAutomergeUrl()).toBe(STORED_URL)
+  })
+
+  it('clears a bad stored value so the next load starts a new library', () => {
+    localStorage.setItem('automergeUrl', 'not-a-url')
+
+    new InvalidStoredAutomergeUrlError('not-a-url').recover()
+
+    expect(localStorage.getItem('automergeUrl')).toBeNull()
+    expect(readAutomergeUrl()).toBeNull()
+  })
+
+  it('tells the user what clearing the stored value will do', () => {
+    const error = new InvalidStoredAutomergeUrlError('not-a-url')
+    expect(error.userMessage).toMatch(/new library/)
   })
 })
 
