@@ -113,15 +113,22 @@ if (servedByHost && 'serviceWorker' in navigator) {
     })
 }
 
-const worker = new Worker(new URL('./worker.ts', import.meta.url), {
-  type: 'module',
-})
+let worker: Worker | undefined
+function getWorker() {
+  if (!worker) {
+    worker = new Worker(new URL('./worker.ts', import.meta.url), {
+      type: 'module',
+    })
 
-worker.onmessageerror = (event) => {
-  console.error('worker.onmessageerror', event)
-}
-worker.onerror = (event) => {
-  console.error('worker.onerror', event)
+    worker.onmessageerror = (event) => {
+      console.error('worker.onmessageerror', event)
+    }
+    worker.onerror = (event) => {
+      console.error('worker.onerror', event)
+    }
+  }
+
+  return worker
 }
 
 type InitializeRepoParams = {
@@ -189,7 +196,7 @@ function WithWebClientContextProviders({
   return (
     <Providers
       values={{
-        appContext: { type: 'web-client' as const, worker },
+        appContext: { type: 'web-client' as const, worker: getWorker() },
         repoContext: repo,
         blobEndpoints,
         eventTarget,
