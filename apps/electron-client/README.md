@@ -14,10 +14,13 @@ It does three things:
    [LAN HTTPS and guest trust](#lan-https-and-guest-trust) for what turning that
    on involves.
 3. **Drives native audio.** Recording shells out to
-   [SoX](https://sourceforge.net/projects/sox/). Input selection uses
+   [SoX](https://formulae.brew.sh/formula/sox). Input selection uses
    [`switchaudio-osx`](https://github.com/deweller/switchaudio-osx). Both are
-   **macOS** binaries fetched by `yarn get-bin`, and the IPC channels in
-   `src/channels/` call them.
+   **macOS** binaries that `yarn get-bin` puts in `bin/`, and the IPC channels
+   in `src/channels/` call them. SoX is copied from Homebrew, and
+   `get-bin` installs it there if it is missing. Homebrew's SoX links to other
+   Homebrew libraries, so the packaged app only records on a Mac that has
+   Homebrew's `sox` installed.
 
 ## LAN HTTPS and guest trust
 

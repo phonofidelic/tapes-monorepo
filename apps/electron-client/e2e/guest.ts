@@ -173,23 +173,3 @@ export const failureLine = (page: Page) => page.getByText(PLAYBACK_FAILURE)
 /** The transport's own duration readout, which only fills in once audio decodes. */
 export const playerDuration = (page: Page) =>
   page.locator('p', { hasText: /^\d\d:\d\d:\d\d$/ }).last()
-
-/**
- * Hashes of the blobs a browser guest has cached, from playing or pinning them.
- * Meaningless in the renderer, which has no OPFS store. The electron client
- * caches into the blob store its own sync server owns.
- */
-export const cachedBlobHashes = (page: Page) =>
-  page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory()
-    const hashes: string[] = []
-    try {
-      const directory = await root.getDirectoryHandle('blobs')
-      for await (const handle of directory.values()) {
-        if (handle.kind === 'file') hashes.push(handle.name)
-      }
-    } catch {
-      // No blob has ever been cached on this device.
-    }
-    return hashes
-  })

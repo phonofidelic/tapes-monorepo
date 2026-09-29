@@ -249,6 +249,36 @@ async function readPairingToken(userDataPath: string): Promise<string> {
 }
 
 /**
+ * Waits for the navigation, which the app shows once it has a library.
+ *
+ * On a timeout it prints what the window shows instead and saves a screenshot
+ * to `test-results/`, because Playwright's own artifacts cover only the guest.
+ */
+async function waitForNavigation(page: Page): Promise<void> {
+  try {
+    await page
+      .getByRole('button', { name: 'Recorder' })
+      .waitFor({ state: 'visible', timeout: 30_000 })
+  } catch (error) {
+    const text = await page
+      .locator('body')
+      .innerText()
+      .catch(() => '(the window could not be read)')
+    const screenshot = path.join(
+      APP_ROOT,
+      'test-results',
+      `electron-no-navigation-${Date.now()}.png`,
+    )
+    await page.screenshot({ path: screenshot }).catch(() => {})
+    process.stderr.write(
+      `[renderer] The navigation never appeared. The window shows:\n${text}\n` +
+        `[renderer] Screenshot: ${screenshot}\n`,
+    )
+    throw error
+  }
+}
+
+/**
  * Launches the app, points it at a recording directory, and waits until it has
  * a library.
  *
@@ -284,14 +314,24 @@ export async function launchTapes(): Promise<LaunchedApp> {
   })
 
   const page = await app.firstWindow()
+  // Playwright records only the browser guest, so the renderer's errors are
+  // forwarded here or a failure inside the desktop app leaves no trace.
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') {
+      process.stderr.write(`[renderer] ${message.type()}: ${message.text()}\n`)
+    }
+  })
+  page.on('pageerror', (error) => {
+    process.stderr.write(
+      `[renderer] uncaught: ${error.stack ?? error.message}\n`,
+    )
+  })
   await waitForSyncServer()
   const pairingToken = await readPairingToken(userDataPath)
 
   // The bootstrap resolves the embedded server over IPC and only then builds
   // the repo, so the app renders "Loading..." until it has a library.
-  await page
-    .getByRole('button', { name: 'Recorder' })
-    .waitFor({ state: 'visible', timeout: 30_000 })
+  await waitForNavigation(page)
 
   const libraryUrl = (await page.evaluate(() =>
     localStorage.getItem('automergeUrl'),
@@ -324,9 +364,7 @@ export async function launchTapes(): Promise<LaunchedApp> {
     )
   }, storageLocation)
   await page.reload()
-  await page
-    .getByRole('button', { name: 'Recorder' })
-    .waitFor({ state: 'visible', timeout: 30_000 })
+  await waitForNavigation(page)
 
   return {
     app,
