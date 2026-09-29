@@ -108,23 +108,26 @@ function subscribeToAutomergeUrl(listener: () => void) {
 }
 
 export function readAutomergeUrl(): AutomergeUrl | null {
+  const url = new URLSearchParams(window.location.search).get(
+    AUTOMERGE_URL_QUERY_KEY,
+  )
+  // A missing url is normal: a fresh client has not created its document yet,
+  // and a guest opens Settings with nothing stored to paste a host url in. A
+  // stored value that is not an automerge url is not normal, and silently
+  // treating it as missing would overwrite whatever the user pasted wrong.
+  if (url !== null) {
+    if (!isValidAutomergeUrl(url)) {
+      throw new InvalidAutomergeUrlError(url)
+    }
+    return url
+  }
+
   const storedUrl = localStorage.getItem(AUTOMERGE_URL_LOCAL_STORAGE_KEY)
   if (storedUrl !== null && !isValidAutomergeUrl(storedUrl)) {
     throw new InvalidStoredAutomergeUrlError(storedUrl)
   }
 
-  const url = new URLSearchParams(window.location.search).get(
-    AUTOMERGE_URL_QUERY_KEY,
-  )
-
-  // A missing url is normal: a fresh client has not created its document yet,
-  // and a guest opens Settings with nothing stored to paste a host url in. A
-  // stored value that is not an automerge url is not normal, and silently
-  // treating it as missing would overwrite whatever the user pasted wrong.
-  if (url !== null && !isValidAutomergeUrl(url)) {
-    throw new InvalidAutomergeUrlError(url)
-  }
-  return url ?? storedUrl
+  return storedUrl
 }
 
 export function writeAutomergeUrl(url: string) {
