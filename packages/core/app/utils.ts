@@ -40,7 +40,7 @@ export class InvalidStoredAutomergeUrlError
   implements ErrorWithRecover
 {
   constructor(storedUrl: string) {
-    super(`The stored automerge URl '${storedUrl}' is invalid.`)
+    super(`The stored automerge URL '${storedUrl}' is invalid.`)
     this.name = 'InvalidStoredAutomergeUrlError'
     this.userMessage =
       'The library link saved on this device is invalid. Clear it to start a new library. You can then re-scan a QR code or paste a link in Settings.'
