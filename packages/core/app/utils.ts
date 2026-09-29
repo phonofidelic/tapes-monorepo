@@ -43,8 +43,8 @@ export class InvalidStoredAutomergeUrlError
     super(`The stored automerge URl '${storedUrl}' is invalid.`)
     this.name = 'InvalidStoredAutomergeUrlError'
     this.userMessage =
-      'You have stored an invalid automerge URl which cannot be used to connect to a library. Do you want to clear the invalid URL an initialize a new library?'
-    this.recoveryCta = 'Clear invalid URL and reload'
+      'There is invalid date stored on this device which cannot be used to connect to a linked library. Do you want to clear the invalid data and initialize a new library? You can also try re-scanning the QR code of the library you want to link to or pasting the link in Settings after clearing the invalid data.'
+    this.recoveryCta = 'Clear invalid data and reload'
   }
 
   public readonly userMessage: string
