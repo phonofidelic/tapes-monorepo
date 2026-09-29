@@ -1,26 +1,24 @@
 import { defineConfig } from 'eslint/config'
-import js from '@eslint/js'
-import eslintConfigPrettier from 'eslint-config-prettier'
-import turboPlugin from 'eslint-plugin-turbo'
+import eslintReact from '@eslint-react/eslint-plugin'
+import pluginReactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
+import { config as baseConfig } from './base.ts'
+import globals from 'globals'
 
 export const config = defineConfig({
   extends: [
-    js.configs.recommended,
-    eslintConfigPrettier,
+    ...baseConfig,
+    {
+      ...eslintReact.configs.recommended,
+      languageOptions: {
+        ...eslintReact.configs.recommended.languageOptions,
+        globals: {
+          ...globals.serviceworker,
+          ...globals.browser,
+        },
+      },
+    },
     tseslint.configs.recommended,
-    {
-      plugins: {
-        turbo: turboPlugin,
-      },
-      rules: {
-        'turbo/no-undeclared-env-vars': 'warn',
-      },
-    },
-    {
-      // Build output and CommonJS config shims (postcss.config.cjs, etc.) are
-      // not application source and should not be linted.
-      ignores: ['dist/**', '**/*.cjs'],
-    },
+    pluginReactHooks.configs.flat.recommended,
   ],
 })
