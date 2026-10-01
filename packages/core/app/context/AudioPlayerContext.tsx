@@ -231,7 +231,7 @@ export const AudioPlayerProvider = ({
 
   useEffect(() => {
     if (!audioRef.current) {
-      return
+      audioRef.current = new Audio()
     }
     // Detach whatever the player is holding before resolving anything.
     // Resolving is asynchronous and can fail outright, and until this ran the
