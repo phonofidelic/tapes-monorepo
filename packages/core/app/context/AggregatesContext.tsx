@@ -1,7 +1,7 @@
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -88,66 +88,75 @@ export function AggregatesProvider({
     snapshot?: AggregatesSnapshot
     error?: Error
   }>({})
-  const [loading, setLoading] = useState(false)
+  // Only refreshes set this. The first request for a host shows as loading
+  // because nothing is held for that host yet.
+  const [refreshing, setRefreshing] = useState(false)
 
   // Refs, not state. None of these are rendered, and changing one must not
   // rebuild the callback that reads it.
-  const etag = useRef<string | undefined>(undefined)
-  const fetchedAt = useRef(0)
-  const inFlight = useRef<AbortController | undefined>(undefined)
+  const etagRef = useRef<string | undefined>(undefined)
+  const fetchedAtRef = useRef(0)
+  const inFlightRef = useRef<AbortController | undefined>(undefined)
 
+  /** Starts a request. Returns false when the cache window makes it moot. */
   const load = useCallback(
-    (force: boolean) => {
+    (force: boolean): boolean => {
       if (!target) {
-        return
+        return false
       }
-      if (!force && Date.now() - fetchedAt.current < AGGREGATES_TTL_MS) {
-        return
+      if (!force && Date.now() - fetchedAtRef.current < AGGREGATES_TTL_MS) {
+        return false
       }
       // One request at a time. A reconnect can land while a slow request is
       // still out, and the later answer is the one to keep.
-      inFlight.current?.abort()
+      inFlightRef.current?.abort()
       const controller = new AbortController()
-      inFlight.current = controller
+      inFlightRef.current = controller
 
-      setLoading(true)
       fetchAggregates(target, {
         ipc,
-        etag: etag.current,
+        etag: etagRef.current,
         signal: controller.signal,
       })
-        .then((result) => {
-          if (controller.signal.aborted) {
-            return
-          }
-          fetchedAt.current = Date.now()
-          if (result.status === 'fresh') {
-            etag.current = result.snapshot.etag
-          }
-          // An unchanged answer keeps the held snapshot as it is.
-          setHeld((current) => ({
-            target,
-            snapshot:
-              result.status === 'fresh' ? result.snapshot : current.snapshot,
-          }))
-        })
-        .catch((cause: unknown) => {
-          if (controller.signal.aborted) {
-            return
-          }
-          // The held numbers stay. Stale counts beat a list that empties
-          // itself whenever the network drops.
-          setHeld((current) => ({
-            ...current,
-            error: cause instanceof Error ? cause : new Error(String(cause)),
-          }))
-        })
+        // Two-argument then rather than catch: the set-state-in-effect rule
+        // treats catch callbacks as synchronous.
+        .then(
+          (result) => {
+            if (controller.signal.aborted) {
+              return
+            }
+            fetchedAtRef.current = Date.now()
+            if (result.status === 'fresh') {
+              etagRef.current = result.snapshot.etag
+            }
+            // An unchanged answer keeps the held snapshot as it is.
+            setHeld((current) => ({
+              target,
+              snapshot:
+                result.status === 'fresh' ? result.snapshot : current.snapshot,
+            }))
+          },
+          (cause: unknown) => {
+            if (controller.signal.aborted) {
+              return
+            }
+            // The held numbers stay. Stale counts beat a list that empties
+            // itself whenever the network drops.
+            setHeld((current) => ({
+              target,
+              snapshot:
+                current.target === target ? current.snapshot : undefined,
+              error: cause instanceof Error ? cause : new Error(String(cause)),
+            }))
+          },
+        )
         .finally(() => {
-          if (inFlight.current === controller) {
-            inFlight.current = undefined
-            setLoading(false)
+          if (inFlightRef.current === controller) {
+            inFlightRef.current = undefined
+            setRefreshing(false)
           }
         })
+      return true
     },
     [target, ipc],
   )
@@ -155,14 +164,23 @@ export function AggregatesProvider({
   // A new host means new numbers, so the entity tag is cleared with it.
   // Revalidating one host's tag against another could return a wrong answer.
   useEffect(() => {
-    etag.current = undefined
-    fetchedAt.current = 0
+    etagRef.current = undefined
+    fetchedAtRef.current = 0
     load(true)
     return () => {
-      inFlight.current?.abort()
-      inFlight.current = undefined
+      inFlightRef.current?.abort()
+      inFlightRef.current = undefined
     }
   }, [load])
+
+  const refresh = useCallback(
+    (options?: { force?: boolean }) => {
+      if (load(options?.force ?? false)) {
+        setRefreshing(true)
+      }
+    },
+    [load],
+  )
 
   // Reconnecting is when the held numbers are most likely to be stale. The
   // device has been away, and a queued flush lands around the same time.
@@ -170,19 +188,16 @@ export function AggregatesProvider({
     if (typeof window === 'undefined') {
       return
     }
-    const revalidate = () => load(true)
+    const revalidate = () => refresh({ force: true })
     window.addEventListener('online', revalidate)
     return () => window.removeEventListener('online', revalidate)
-  }, [load])
-
-  const refresh = useCallback(
-    (options?: { force?: boolean }) => load(options?.force ?? false),
-    [load],
-  )
+  }, [refresh])
 
   // Numbers from a host we no longer point at belong to another library.
   // Dropping them here means no render shows them under the new host.
   const current = held.target === target ? held : undefined
+  // A refresh cut short by losing the host is not still loading.
+  const loading = target !== undefined && (current === undefined || refreshing)
 
   const value = useMemo<AggregatesState>(
     () => ({
@@ -200,15 +215,11 @@ export function AggregatesProvider({
     [current, loading, refresh],
   )
 
-  return (
-    <AggregatesContext.Provider value={value}>
-      {children}
-    </AggregatesContext.Provider>
-  )
+  return <AggregatesContext value={value}>{children}</AggregatesContext>
 }
 
 export function useAggregates(): AggregatesState {
-  return useContext(AggregatesContext)
+  return use(AggregatesContext)
 }
 
 /**

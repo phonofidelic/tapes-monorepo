@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 import type { BlobEndpoint } from '@/blobClient'
 
 /**
@@ -22,15 +22,11 @@ export function BlobProvider({
   endpoints: readonly BlobEndpoint[] | undefined
   children: React.ReactNode
 }) {
-  return (
-    <BlobContext.Provider value={endpoints ?? EMPTY}>
-      {children}
-    </BlobContext.Provider>
-  )
+  return <BlobContext value={endpoints ?? EMPTY}>{children}</BlobContext>
 }
 
 export function useBlobEndpoints(): readonly BlobEndpoint[] {
-  return useContext(BlobContext)
+  return use(BlobContext)
 }
 
 /**
@@ -39,5 +35,5 @@ export function useBlobEndpoints(): readonly BlobEndpoint[] {
  * own embedded server when it has one.
  */
 export function useUploadEndpoint(): BlobEndpoint | undefined {
-  return useContext(BlobContext)[0]
+  return use(BlobContext)[0]
 }

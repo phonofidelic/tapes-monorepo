@@ -20,11 +20,11 @@ import {
  */
 export default function InstallPrompt() {
   const deferredPrompt = useSyncExternalStore(subscribe, getDeferredPrompt)
-  const [dismissed, setLocallyDismissed] = useState(() => isDismissed())
+  const [locallyDismissed, setLocallyDismissed] = useState(() => isDismissed())
 
   // Already installed: there is nothing to offer, and on iOS the hint would
   // otherwise persist forever since there is no event to clear it.
-  if (dismissed || isStandalone()) {
+  if (locallyDismissed || isStandalone()) {
     return null
   }
 

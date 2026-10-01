@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import { createContext, use, useCallback, useRef, useState } from 'react'
 
 export type Settings = {
   audioInputDeviceId: string | undefined
@@ -78,11 +78,11 @@ export const SettingsProvider = ({
    * snapshot, and the second write would otherwise spread the value the first
    * one had already replaced.
    */
-  const latestSettings = useRef(settings)
+  const latestSettingsRef = useRef(settings)
 
   const setSetting = useCallback(
     <K extends SettingKey>(key: K, value: Settings[K]) => {
-      const updatedSettings = { ...latestSettings.current }
+      const updatedSettings = { ...latestSettingsRef.current }
       if (value === undefined) {
         // `undefined` is the single representation of unset: dropping the key
         // keeps the in-memory object identical to what a reload parses back,
@@ -92,7 +92,7 @@ export const SettingsProvider = ({
         updatedSettings[key] = value
       }
 
-      latestSettings.current = updatedSettings
+      latestSettingsRef.current = updatedSettings
       setSettings(updatedSettings)
       writeSettings(updatedSettings)
       notifySettingChange(key)
@@ -101,19 +101,19 @@ export const SettingsProvider = ({
   )
 
   return (
-    <SettingsContext.Provider
+    <SettingsContext
       value={{
         settings,
         setSetting,
       }}
     >
       {children}
-    </SettingsContext.Provider>
+    </SettingsContext>
   )
 }
 
 export function useSetting<K extends SettingKey>(setting: K) {
-  const context = useContext(SettingsContext)
+  const context = use(SettingsContext)
   if (context === null) {
     throw new Error('useSetting must be used within a SettingsProvider')
   }

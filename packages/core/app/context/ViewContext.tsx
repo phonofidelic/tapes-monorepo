@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, use, useState } from 'react'
 import { Library } from '@/views/Library'
 import { Recorder } from '@/views/Recorder'
 import { Settings } from '@/views/Settings'
@@ -15,25 +15,25 @@ const ViewContext = createContext<{
 } | null>(null)
 
 export function ViewProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setView] = useState<View>(() => {
+  const [currentViewContext, setCurrentViewContext] = useState<View>(() => {
     const storedView = localStorage.getItem('currentView')
     return storedView && isValidView(storedView) ? storedView : 'recorder'
   })
 
   const setCurrentView = (view: View) => {
     localStorage.setItem('currentView', view)
-    setView(view)
+    setCurrentViewContext(view)
   }
 
   return (
-    <ViewContext.Provider value={{ currentView, setCurrentView }}>
+    <ViewContext value={{ currentView: currentViewContext, setCurrentView }}>
       {children}
-    </ViewContext.Provider>
+    </ViewContext>
   )
 }
 
 export function useView() {
-  const context = useContext(ViewContext)
+  const context = use(ViewContext)
   if (!context) {
     throw new Error('useView must be used within a ViewProvider')
   }

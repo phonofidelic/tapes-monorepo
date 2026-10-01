@@ -1,4 +1,4 @@
-import React, { createContext, ErrorInfo, useContext } from 'react'
+import React, { createContext, ErrorInfo, use } from 'react'
 import { Button } from '@tapes-monorepo/ui'
 import { type ErrorWithRecover } from '@/types'
 import { ScreenLoader } from './ScreenLoader'
@@ -54,11 +54,11 @@ function ErrorContextProvider({
   children: React.ReactNode
   value: ErrorContextValue
 }) {
-  return <ErrorContext.Provider value={value}>{children}</ErrorContext.Provider>
+  return <ErrorContext value={value}>{children}</ErrorContext>
 }
 
 export function useErrorContext() {
-  const context = useContext(ErrorContext)
+  const context = use(ErrorContext)
 
   if (!context) {
     throw new Error(

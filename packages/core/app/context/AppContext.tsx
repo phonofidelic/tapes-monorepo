@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 import { IpcService } from '@/IpcService'
 
 export type AppContextValue =
@@ -20,11 +20,11 @@ export function AppContextProvider({
   children: React.ReactNode
   value: AppContextValue
 }) {
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>
+  return <AppContext value={value}>{children}</AppContext>
 }
 
 export function useAppContext() {
-  const context = useContext(AppContext)
+  const context = use(AppContext)
   if (context === null) {
     throw new Error('useAppContext must be used within a AppContextProvider')
   }

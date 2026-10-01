@@ -1,7 +1,7 @@
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -95,7 +95,7 @@ type OpenSession = {
 }
 
 type AudioPlayerContextValue = {
-  audioRef: React.RefObject<HTMLAudioElement>
+  audioRef: React.RefObject<HTMLAudioElement | null>
   currentTime: number
   duration: number
   /**
@@ -179,7 +179,8 @@ export const AudioPlayerProvider = ({
   const appContext = useAppContext()
   const blobEndpoints = useBlobEndpoints()
 
-  const audioRef = useRef<HTMLAudioElement>(new Audio())
+  const [audio] = useState(() => new Audio())
+  const audioRef = useRef(audio)
   const { container: audioPlayerPortal } = usePortals('audioPlayerPortal')
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
   const [playbackFailure, setPlaybackFailure] = useState<
@@ -660,7 +661,7 @@ export const AudioPlayerProvider = ({
   const seek = useCallback(
     (time: number) => {
       const limit = seekableDurationRef.current
-      if (!Number.isFinite(time) || limit <= 0) {
+      if (!audioRef.current || !Number.isFinite(time) || limit <= 0) {
         return
       }
       const next = Math.min(Math.max(time, 0), limit)
@@ -676,7 +677,7 @@ export const AudioPlayerProvider = ({
   )
 
   return (
-    <AudioPlayerContext.Provider
+    <AudioPlayerContext
       value={{
         audioRef,
         currentTime,
@@ -696,12 +697,12 @@ export const AudioPlayerProvider = ({
       {children}
       {/* The AudioPlayer renders in a portal directly under <main> in App.tsx */}
       {audioPlayerPortal && createPortal(<AudioPlayer />, audioPlayerPortal)}
-    </AudioPlayerContext.Provider>
+    </AudioPlayerContext>
   )
 }
 
 export const useAudioPlayer = (): AudioPlayerContextValue => {
-  const context = useContext(AudioPlayerContext)
+  const context = use(AudioPlayerContext)
 
   if (context === undefined) {
     throw new Error('useAudioPlayer must be used within an AudioPlayerProvider')
