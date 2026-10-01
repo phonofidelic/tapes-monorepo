@@ -1,7 +1,7 @@
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -92,37 +92,37 @@ export function AggregatesProvider({
 
   // Refs, not state. None of these are rendered, and changing one must not
   // rebuild the callback that reads it.
-  const etag = useRef<string | undefined>(undefined)
-  const fetchedAt = useRef(0)
-  const inFlight = useRef<AbortController | undefined>(undefined)
+  const etagRef = useRef<string | undefined>(undefined)
+  const fetchedAtRef = useRef(0)
+  const inFlightRef = useRef<AbortController | undefined>(undefined)
 
   const load = useCallback(
     (force: boolean) => {
       if (!target) {
         return
       }
-      if (!force && Date.now() - fetchedAt.current < AGGREGATES_TTL_MS) {
+      if (!force && Date.now() - fetchedAtRef.current < AGGREGATES_TTL_MS) {
         return
       }
       // One request at a time. A reconnect can land while a slow request is
       // still out, and the later answer is the one to keep.
-      inFlight.current?.abort()
+      inFlightRef.current?.abort()
       const controller = new AbortController()
-      inFlight.current = controller
+      inFlightRef.current = controller
 
       setLoading(true)
       fetchAggregates(target, {
         ipc,
-        etag: etag.current,
+        etag: etagRef.current,
         signal: controller.signal,
       })
         .then((result) => {
           if (controller.signal.aborted) {
             return
           }
-          fetchedAt.current = Date.now()
+          fetchedAtRef.current = Date.now()
           if (result.status === 'fresh') {
-            etag.current = result.snapshot.etag
+            etagRef.current = result.snapshot.etag
           }
           // An unchanged answer keeps the held snapshot as it is.
           setHeld((current) => ({
@@ -143,8 +143,8 @@ export function AggregatesProvider({
           }))
         })
         .finally(() => {
-          if (inFlight.current === controller) {
-            inFlight.current = undefined
+          if (inFlightRef.current === controller) {
+            inFlightRef.current = undefined
             setLoading(false)
           }
         })
@@ -155,12 +155,12 @@ export function AggregatesProvider({
   // A new host means new numbers, so the entity tag is cleared with it.
   // Revalidating one host's tag against another could return a wrong answer.
   useEffect(() => {
-    etag.current = undefined
-    fetchedAt.current = 0
+    etagRef.current = undefined
+    fetchedAtRef.current = 0
     load(true)
     return () => {
-      inFlight.current?.abort()
-      inFlight.current = undefined
+      inFlightRef.current?.abort()
+      inFlightRef.current = undefined
     }
   }, [load])
 
@@ -208,7 +208,7 @@ export function AggregatesProvider({
 }
 
 export function useAggregates(): AggregatesState {
-  return useContext(AggregatesContext)
+  return use(AggregatesContext)
 }
 
 /**

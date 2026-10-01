@@ -1,13 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-} from 'react'
+import { createContext, use, useCallback, useEffect, useRef } from 'react'
 
 type PortalsContextValue = {
-  refsMap: React.RefObject<
+  portalContainersMapRef: React.RefObject<
     Record<string, React.RefObject<HTMLDivElement | null>>
   >
   setRefsMap(
@@ -23,7 +17,7 @@ export const PortalsProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const refsMap = useRef<
+  const portalContainersMapRef = useRef<
     Record<string, React.RefObject<HTMLDivElement | null>>
   >({})
 
@@ -31,18 +25,18 @@ export const PortalsProvider = ({
     key: string,
     newValue: React.RefObject<HTMLDivElement | null>,
   ) => {
-    refsMap.current[key] = newValue
+    portalContainersMapRef.current[key] = newValue
   }
 
   return (
-    <PortalsContext.Provider
+    <PortalsContext
       value={{
-        refsMap,
+        portalContainersMapRef,
         setRefsMap,
       }}
     >
       {children}
-    </PortalsContext.Provider>
+    </PortalsContext>
   )
 }
 
@@ -55,7 +49,7 @@ export const usePortals = (
     newContainerRefValue: React.RefObject<HTMLDivElement | null>,
   ) => void
 } => {
-  const context = useContext(PortalsContext)
+  const context = use(PortalsContext)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   const setContainerRefValue = useCallback(
@@ -76,7 +70,7 @@ export const usePortals = (
 
   return {
     containerRef,
-    container: context.refsMap.current[containerRefKey]?.current,
+    container: context.portalContainersMapRef.current[containerRefKey]?.current,
     setContainerRefValue,
   }
 }

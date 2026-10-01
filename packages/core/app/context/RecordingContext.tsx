@@ -1,7 +1,7 @@
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -190,11 +190,7 @@ export const RecordingStateProvider = ({
     [isRecording, time, handleFilename, startRecording, stopRecording],
   )
 
-  return (
-    <RecordingContext.Provider value={value}>
-      {children}
-    </RecordingContext.Provider>
-  )
+  return <RecordingContext value={value}>{children}</RecordingContext>
 }
 
 // Function with retries to attempt finding supported mimetype
@@ -221,7 +217,7 @@ const getMediaRecorder = async (
 }
 
 export function useRecorder() {
-  const context = useContext(RecordingContext)
+  const context = use(RecordingContext)
   if (context === null) {
     throw new Error('useRecorder must be used within a RecordingProvider')
   }

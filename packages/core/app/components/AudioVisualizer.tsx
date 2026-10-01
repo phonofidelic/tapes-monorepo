@@ -10,7 +10,6 @@ export function AudioVisualizer({
   feature: 'frequency' | 'time-domain'
   containerRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches
       ? 'dark'
@@ -34,22 +33,23 @@ export function AudioVisualizer({
 
   useEffect(() => {
     const onResize = () => {
-      if (!containerRef.current) {
+      const container = containerRef.current
+      const canvas = canvasRef.current
+      if (!container || !canvas) {
         return
       }
 
-      const containerRect = containerRef.current.getBoundingClientRect()
-      setCanvasSize({
-        width: containerRect.width,
-        height: containerRect.height,
+      const observer = new ResizeObserver(([entry]) => {
+        canvas.width = entry.contentRect.width
+        canvas.height = entry.contentRect.height
       })
+      observer.observe(container)
+      return () => observer.disconnect()
     }
 
     onResize()
     window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-    }
+    return () => window.removeEventListener('resize', onResize)
   }, [containerRef])
 
   useEffect(() => {
@@ -118,16 +118,7 @@ export function AudioVisualizer({
     }
   }, [audioInputDeviceId, feature, theme])
 
-  return (
-    <canvas
-      ref={canvasRef}
-      width={canvasSize.width}
-      height={canvasSize.height}
-      style={{
-        transform: 'rotateX(180deg)',
-      }}
-    />
-  )
+  return <canvas className="size-full rotate-x-180" ref={canvasRef} />
 }
 
 const draw = ({

@@ -118,22 +118,8 @@ function LibraryListItem({
   const { pinState: readPinState, pin, unpin } = usePins()
   const pinState = readPinState(automergeUrl)
 
-  const initialized = useRef(false)
-  const previousRecordingName = useRef(recording?.name)
-
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false)
   const handleCloseMenu = useCallback(() => setIsOptionsMenuOpen(false), [])
-  const [, setEditedName] = useState(recording?.name)
-
-  useEffect(() => {
-    if (!recording || initialized.current) {
-      return
-    }
-
-    previousRecordingName.current = recording.name
-    setEditedName(recording.name)
-    initialized.current = true
-  }, [recording])
 
   if (!recording) {
     return null

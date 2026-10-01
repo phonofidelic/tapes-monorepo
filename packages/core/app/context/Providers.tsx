@@ -46,7 +46,7 @@ export function Providers({
     <AppContextProvider value={values.appContext}>
       <SettingsProvider>
         <ViewProvider>
-          <RepoContext.Provider value={values.repoContext}>
+          <RepoContext value={values.repoContext}>
             <RecordingStateProvider>
               <PortalsProvider>
                 {/* Pins need the endpoints to prefetch; the player needs pins to
@@ -67,7 +67,7 @@ export function Providers({
                 </BlobProvider>
               </PortalsProvider>
             </RecordingStateProvider>
-          </RepoContext.Provider>
+          </RepoContext>
         </ViewProvider>
       </SettingsProvider>
     </AppContextProvider>

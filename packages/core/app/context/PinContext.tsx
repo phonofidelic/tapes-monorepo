@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from 'react'
+import { createContext, use, useCallback, useMemo, useState } from 'react'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import type { BlobDescriptor } from '@/types'
 import { fetchBlobFromAny, replicateBlob } from '@/blobClient'
@@ -65,7 +59,7 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
   const appContext = useAppContext()
   const endpoints = useBlobEndpoints()
   const [pins, setPins] = useState<PinMap>(readPins)
-  const [pinning, setPinning] = useState<ReadonlySet<string>>(new Set())
+  const [pinning, setPinning] = useState<ReadonlySet<string>>(() => new Set())
 
   const pin = useCallback(
     async (url: AutomergeUrl, descriptor: BlobDescriptor) => {
@@ -150,11 +144,11 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     [pins, pinning, pin, unpin],
   )
 
-  return <PinContext.Provider value={value}>{children}</PinContext.Provider>
+  return <PinContext value={value}>{children}</PinContext>
 }
 
 export function usePins(): PinContextValue {
-  const context = useContext(PinContext)
+  const context = use(PinContext)
   if (context === null) {
     throw new Error('usePins must be used within a PinProvider')
   }
