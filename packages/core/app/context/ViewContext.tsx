@@ -15,18 +15,18 @@ const ViewContext = createContext<{
 } | null>(null)
 
 export function ViewProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setView] = useState<View>(() => {
+  const [currentViewContext, setCurrentViewContext] = useState<View>(() => {
     const storedView = localStorage.getItem('currentView')
     return storedView && isValidView(storedView) ? storedView : 'recorder'
   })
 
   const setCurrentView = (view: View) => {
     localStorage.setItem('currentView', view)
-    setView(view)
+    setCurrentViewContext(view)
   }
 
   return (
-    <ViewContext value={{ currentView, setCurrentView }}>
+    <ViewContext value={{ currentView: currentViewContext, setCurrentView }}>
       {children}
     </ViewContext>
   )
