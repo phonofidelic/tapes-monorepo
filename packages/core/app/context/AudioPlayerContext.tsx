@@ -179,7 +179,8 @@ export const AudioPlayerProvider = ({
   const appContext = useAppContext()
   const blobEndpoints = useBlobEndpoints()
 
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [audio] = useState(() => new Audio())
+  const audioRef = useRef(audio)
   const { container: audioPlayerPortal } = usePortals('audioPlayerPortal')
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle')
   const [playbackFailure, setPlaybackFailure] = useState<
@@ -230,9 +231,6 @@ export const AudioPlayerProvider = ({
   }, [changeRecordingDoc])
 
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio()
-    }
     // Detach whatever the player is holding before resolving anything.
     // Resolving is asynchronous and can fail outright, and until this ran the
     // element kept the previous recording's `src`: play an unavailable tape
@@ -522,9 +520,6 @@ export const AudioPlayerProvider = ({
   }, [])
 
   useEffect(() => {
-    if (!audioRef.current) {
-      return
-    }
     const audio = audioRef.current
     audio.load()
 
@@ -637,7 +632,7 @@ export const AudioPlayerProvider = ({
    * navigates away mid-tape.
    */
   useEffect(() => {
-    if (!audioRef.current || !isPlaying || !currentUrl) {
+    if (!isPlaying || !currentUrl) {
       return
     }
     const session: OpenSession = {
