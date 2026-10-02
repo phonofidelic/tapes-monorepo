@@ -198,9 +198,9 @@ __metadata:
   linkType: hard
 
 "@automerge/automerge@npm:2.2.8 - 3, @automerge/automerge@npm:^3.0.0":
-  version: 3.3.2
-  resolution: "@automerge/automerge@npm:3.3.2"
-  checksum: 10c0/4a191afa935575478d487184c8309483384d5c830f932a6f2ef4c23e5be525658eb0425fe8e08c0f0226823117bf7af719382100e222ff83aa8d44bc44d34f21
+  version: 3.5.0
+  resolution: "@automerge/automerge@npm:3.5.0"
+  checksum: 10c0/84c69eef62cb7af0024895fe2136dada677001df73d7cea7e0a3a7eb77fc9d8b03dab00c8178754a579d4399eea75601cea7d481cd16f1100568725cf67129b6
   languageName: node
   linkType: hard
 
