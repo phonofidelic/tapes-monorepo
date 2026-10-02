@@ -1857,29 +1857,33 @@ __metadata:
   linkType: hard
 
 "@dotenvx/dotenvx@npm:^2.0.0":
-  version: 2.14.0
-  resolution: "@dotenvx/dotenvx@npm:2.14.0"
+  version: 2.32.4
+  resolution: "@dotenvx/dotenvx@npm:2.32.4"
   dependencies:
-    "@dotenvx/primitives": "npm:^2.1.0"
-    "@dotenvx/tooling": "npm:^1.0.2"
+    "@dotenvx/primitives": "npm:^3.0.3"
+    "@dotenvx/tooling": "npm:^1.0.3"
+    global-agent: "npm:^3.0.0"
+    node-forge: "npm:^1.4.0"
+    undici: "npm:^6.28.1"
     yocto-spinner: "npm:^1.2.1"
   bin:
     dotenvx: src/cli/dotenvx.js
-  checksum: 10c0/10e031e77de73d78d05940ca4735346f7c2e2c71739642215b5b20485a4dde5cfd6ca102e6d269db98ccaf385b1671b3e8386b01498b8d924bc402237c602e66
+    dx: src/cli/dotenvx.js
+  checksum: 10c0/fc2433a397f7c438fb1ce1343f0bef4877597d27a5de1a2403fbbc2a3fa051f4bc9bad9740f3371f28efa5b235affdbc0f07c54da25708d8fda5b1570e061c7f
   languageName: node
   linkType: hard
 
-"@dotenvx/primitives@npm:^2.1.0":
-  version: 2.1.0
-  resolution: "@dotenvx/primitives@npm:2.1.0"
-  checksum: 10c0/2e6d66cfd34cd017e5dfd8a78fbfb2fc89e37e279e5e1a8ddfbc3a0b36fbab5873d962cb4998e20f163a057666ac64c363452fcd5e5f4afe35169cc9909bc81d
+"@dotenvx/primitives@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "@dotenvx/primitives@npm:3.0.3"
+  checksum: 10c0/b65aab7dd90e2b1d1098e8913080f7c8b40e43c8564841bbe1113597d53847b16b914c8a84cf33f1c3178369f1657c4b46893b811bb0b1b93aa6b7d0e43cc315
   languageName: node
   linkType: hard
 
-"@dotenvx/tooling@npm:^1.0.2":
-  version: 1.0.2
-  resolution: "@dotenvx/tooling@npm:1.0.2"
-  checksum: 10c0/1ed874b544434e707c9940ed1f3c0f200d81cb743f20528228f876cbdb53a09801c082ae1072f6068fcb282bf1eacfb293377bd7b6abe93f99bfef525d1076d6
+"@dotenvx/tooling@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "@dotenvx/tooling@npm:1.0.3"
+  checksum: 10c0/30ef129090715b69184f6489f2affba7e08c700913407edd6ccd27e989c5335b4434bf7ec8a955773ced37ec1e5d1ef4ca9cdc711cad091d00655b652bfc45ff
   languageName: node
   linkType: hard
 
@@ -14609,7 +14613,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-forge@npm:^1.3.1":
+"node-forge@npm:^1.3.1, node-forge@npm:^1.4.0":
   version: 1.4.0
   resolution: "node-forge@npm:1.4.0"
   checksum: 10c0/67330a5f1f95257a4c8a93b7d555abe87b5f15e350123aa396c97a21a8ca94f9c6549008eb2c73668a91e0d7e3a905785acbd8f8bd0751c29401292011f8f8e1
@@ -18446,6 +18450,13 @@ __metadata:
   version: 8.3.0
   resolution: "undici-types@npm:8.3.0"
   checksum: 10c0/c8aa7e2fbebfce519654dafadc0ece59be888d2ccaf180fb4495da875e7b536d2456345c384069c7e6f3e9c9ab7435f074957da306f142343eee86ff8048855a
+  languageName: node
+  linkType: hard
+
+"undici@npm:^6.28.1":
+  version: 6.29.0
+  resolution: "undici@npm:6.29.0"
+  checksum: 10c0/3fb2117985be977ba8b6bd6a242fec915e1b1d0f9681f5adb3f508fb1717352452d65bcfd3bed09e7c776cfda403a4e8edb24a318492f8b2d793439af2b8699b
   languageName: node
   linkType: hard
 
