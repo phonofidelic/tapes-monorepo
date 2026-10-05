@@ -26,7 +26,7 @@ export class SoxRecorder {
   private sox: ChildProcess | null = null
   private soxPath =
     process.env.NODE_ENV !== 'development'
-      ? path.resolve(process.resourcesPath, 'sox-14.4.2-macOS')
+      ? path.resolve('/opt/homebrew/bin', 'sox')
       : path.resolve(app.getAppPath(), 'bin', 'sox-14.4.2-macOS')
 
   /** Begins recording, or throws if sox never started. */
