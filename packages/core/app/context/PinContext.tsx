@@ -33,7 +33,15 @@ export type PinState = 'unpinned' | 'pinning' | 'pinned'
 
 type PinContextValue = {
   pinState: (url: AutomergeUrl) => PinState
-  pin: (url: AutomergeUrl, descriptor: BlobDescriptor) => Promise<void>
+  /**
+   * Fetches the audio and keeps it. A host that lacks it gets a copy, along
+   * with the signed statements listed in `attestations`.
+   */
+  pin: (
+    url: AutomergeUrl,
+    descriptor: BlobDescriptor,
+    attestations?: readonly string[],
+  ) => Promise<void>
   unpin: (url: AutomergeUrl) => Promise<void>
   pinnedHashes: ReadonlySet<string>
 }
@@ -62,7 +70,11 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
   const [pinning, setPinning] = useState<ReadonlySet<string>>(() => new Set())
 
   const pin = useCallback(
-    async (url: AutomergeUrl, descriptor: BlobDescriptor) => {
+    async (
+      url: AutomergeUrl,
+      descriptor: BlobDescriptor,
+      attestations: readonly string[] = [],
+    ) => {
       if (endpoints.length === 0) {
         return
       }
@@ -77,6 +89,13 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
             mimeType: descriptor.mimeType,
             docUrl: url,
             expectedHash: descriptor.hash,
+            attestations: {
+              hashes: attestations,
+              // A host without the audio cannot hold a verified claim on it.
+              sources: endpoints.filter(
+                (endpoint) => !missingFrom.includes(endpoint),
+              ),
+            },
           })
         }
         await cacheBlob(appContext, descriptor, blob, url)

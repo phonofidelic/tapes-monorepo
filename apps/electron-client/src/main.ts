@@ -10,6 +10,7 @@ import { getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
 import { isSyncServerCert } from './certManager'
+import { loadHostSigningKey } from './hostSigningKey'
 import { hashFromTapesBlobUrl } from './protocolUrls'
 import { IpcChannel } from '@tapes-monorepo/core'
 
@@ -54,6 +55,7 @@ export class MainWindow {
     // Some APIs can only be used after this event occurs.
     app.on('ready', () => {
       this.startSyncServer()
+      this.loadSigningKey()
       this.registerCustomProtocols()
       this.createWindow()
     })
@@ -171,6 +173,16 @@ export class MainWindow {
       await startSyncServerFromConfig()
     } catch (error) {
       console.error('Failed to start sync server:', error)
+    }
+  }
+
+  // Loaded at launch so the key exists before anything needs to sign, and so a
+  // keychain problem shows up in the log straight away.
+  private async loadSigningKey() {
+    try {
+      await loadHostSigningKey()
+    } catch (error) {
+      console.error('Failed to load host signing key:', error)
     }
   }
 

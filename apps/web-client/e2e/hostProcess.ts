@@ -8,6 +8,7 @@ import {
   startSyncServer,
   stopSyncServer,
 } from '../../electron-client/src/syncServer'
+import { createBlobStore } from '../../electron-client/src/blobStore'
 import type {
   BlobDescriptor,
   RecordingData,
@@ -224,10 +225,16 @@ async function recordings(): Promise<{ url: string; name: string }[]> {
   return found
 }
 
-/** Every object the host is holding, by hash. */
-async function objects(): Promise<{ hash: string; size: number }[]> {
+/**
+ * Every object the host is holding, by hash. Audio and the signed statements
+ * stored next to it share the store, so each carries its MIME type.
+ */
+async function objects(): Promise<
+  { hash: string; size: number; mimeType?: string }[]
+> {
   const root = path.join(paths!.blobRoot, 'objects')
-  const found: { hash: string; size: number }[] = []
+  const store = createBlobStore(paths!.blobRoot)
+  const found: { hash: string; size: number; mimeType?: string }[] = []
   let shards: string[]
   try {
     shards = await readdir(root)
@@ -237,7 +244,8 @@ async function objects(): Promise<{ hash: string; size: number }[]> {
   for (const shard of shards) {
     for (const entry of await readdir(path.join(root, shard))) {
       const { size } = await stat(path.join(root, shard, entry))
-      found.push({ hash: entry, size })
+      const meta = await store.stat(entry)
+      found.push({ hash: entry, size, mimeType: meta?.mimeType })
     }
   }
   return found

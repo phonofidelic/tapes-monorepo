@@ -3,7 +3,19 @@
  * reply contract: every handler echoes the request id it was given, which is
  * what lets two requests be in flight at once.
  */
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'crypto'
+import {
+  decodeSignedStatement,
+  exportPublicKey,
+  generateSigningKeyPair,
+  verifyStatement,
+  type RecordingClaim,
+  type Signed,
+} from '@tapes-monorepo/provenance'
+import { loadDeviceSigningKey } from './deviceSigningKey'
+
+vi.mock('./deviceSigningKey', () => ({ loadDeviceSigningKey: vi.fn() }))
 
 type WorkerReply = {
   type: string
@@ -50,7 +62,14 @@ const accessHandleFor = (entry: Entry) => ({
     target.set(entry.bytes.subarray(at, at + view.byteLength))
     return view.byteLength
   },
-  write: () => 0,
+  // Appends, which is all the recorder's one write per file needs.
+  write: (data: ArrayBuffer) => {
+    const bytes = new Uint8Array(entry.bytes.byteLength + data.byteLength)
+    bytes.set(entry.bytes)
+    bytes.set(new Uint8Array(data), entry.bytes.byteLength)
+    entry.bytes = bytes
+    return data.byteLength
+  },
   truncate: () => {},
   flush: () => {},
   close: () => {},
@@ -237,5 +256,108 @@ describe('request ids', () => {
     await settle()
 
     expect(replies).toEqual([])
+  })
+})
+
+describe('recorder:claim', () => {
+  const sha256 = (text: string) =>
+    createHash('sha256').update(text).digest('hex')
+
+  const claimDetails = {
+    mimeType: 'audio/webm',
+    startedAt: '2026-10-05T12:00:00.000Z',
+    endedAt: '2026-10-05T12:03:00.000Z',
+  }
+
+  const claimFrom = async (requestId: string) => {
+    await vi.waitFor(() => expect(replyFor(requestId)).toBeDefined())
+    const reply = replyFor(requestId)
+    expect(reply).toMatchObject({ success: true })
+    return decodeSignedStatement(
+      reply?.payload?.claim as string,
+    ) as Signed<RecordingClaim>
+  }
+
+  beforeEach(async () => {
+    vi.mocked(loadDeviceSigningKey).mockResolvedValue(
+      await generateSigningKeyPair(),
+    )
+  })
+
+  it('signs a claim over the bytes in the file', async () => {
+    addFile('take.webm', 'recorded audio')
+    const keyPair = await vi.mocked(loadDeviceSigningKey)()
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      requestId: 'one',
+    })
+    const signed = await claimFrom('one')
+
+    expect(signed.payload).toMatchObject({
+      blob: {
+        hash: sha256('recorded audio'),
+        size: 'recorded audio'.length,
+        mimeType: 'audio/webm',
+      },
+      startedAt: claimDetails.startedAt,
+      endedAt: claimDetails.endedAt,
+      deviceKey: await exportPublicKey(keyPair.publicKey),
+    })
+    expect(await verifyStatement(signed, keyPair.publicKey)).toBe(true)
+  })
+
+  // The last chunk is posted on `dataavailable`, just before the claim is
+  // asked for. Its write must land first, or the hash covers an empty file.
+  it('waits for a chunk write still in progress', async () => {
+    send('recorder:start', {
+      audioFormat: 'webm',
+      audioInputDeviceId: 'default',
+      requestId: 'start',
+    })
+    await settle()
+    const filename = replyFor('start')?.payload?.filename as string
+
+    // A chunk whose bytes arrive only when the test says so.
+    let release = () => {}
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const chunk = {
+      arrayBuffer: async () => {
+        await released
+        return new TextEncoder().encode('the last chunk').buffer
+      },
+    }
+
+    send('recorder:write', { chunk })
+    send('recorder:claim', { filename, ...claimDetails, requestId: 'one' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(replyFor('one')).toBeUndefined()
+
+    release()
+    const signed = await claimFrom('one')
+
+    expect(signed.payload.blob.hash).toBe(sha256('the last chunk'))
+  })
+
+  it('fails without a device key', async () => {
+    addFile('take.webm', 'recorded audio')
+    vi.mocked(loadDeviceSigningKey).mockRejectedValue(
+      new Error('no Ed25519 here'),
+    )
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      requestId: 'one',
+    })
+    await vi.waitFor(() => expect(replyFor('one')).toBeDefined())
+
+    expect(replyFor('one')).toMatchObject({
+      success: false,
+      error: 'no Ed25519 here',
+    })
   })
 })

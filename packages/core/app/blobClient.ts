@@ -1,3 +1,8 @@
+import {
+  HOST_RECEIPT_TYPE,
+  RECORDING_CLAIM_HEADER,
+  STATEMENT_MIME_TYPE,
+} from '@tapes-monorepo/provenance'
 import { SyncServerInfo } from './services/SyncService'
 import type { BlobDescriptor } from './types'
 
@@ -6,9 +11,11 @@ import type { BlobDescriptor } from './types'
  *
  * Recorded audio lives on the sync host, addressed by the sha-256 of its
  * bytes. The Automerge doc carries only the descriptor. Guests upload what
- * they record and fetch what they play. The host computes the hash while it
- * receives an upload. Never hash on the client: a phone would have to read a
- * 50 MB+ file, and `crypto.subtle` is unavailable in the plain-HTTP LAN mode.
+ * they record and fetch what they play. The host computes the address while
+ * it receives an upload. A recording may also carry a signed claim with the
+ * recorder's own hash, which the host can check against what it received.
+ * The host stores a verified claim and its receipt as blobs too, and the doc
+ * lists their hashes.
  */
 
 export type BlobEndpoint = {
@@ -259,7 +266,32 @@ async function failure(response: Response): Promise<BlobRequestError> {
 }
 
 /**
- * Uploads recorded bytes and returns the descriptor to write into the doc.
+ * What a host stored for one upload. Both parts are written into the
+ * recording's doc.
+ */
+export type StoredBlob = {
+  blob: BlobDescriptor
+  /**
+   * Hashes of the signed claim and receipt the host stored next to the audio.
+   * Empty when the upload carried no claim or the claim did not verify.
+   */
+  attestations: string[]
+}
+
+const HASH_PATTERN = /^[0-9a-f]{64}$/
+
+/** The hashes in a host's answer. A host that predates attestations sends none. */
+export function readAttestations(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (hash): hash is string =>
+          typeof hash === 'string' && HASH_PATTERN.test(hash),
+      )
+    : []
+}
+
+/**
+ * Uploads recorded bytes and returns what to write into the doc.
  * Pass the OPFS file handle as the body rather than a materialized buffer.
  * `fetch` streams it off disk, so a large recording never has to fit in JS
  * memory on a phone.
@@ -267,8 +299,14 @@ async function failure(response: Response): Promise<BlobRequestError> {
 export async function uploadBlob(
   endpoint: BlobEndpoint,
   body: Blob,
-  options: { mimeType: string; docUrl: string; signal?: AbortSignal },
-): Promise<BlobDescriptor> {
+  options: {
+    mimeType: string
+    docUrl: string
+    /** The recorder's encoded signed claim over these bytes, if it made one. */
+    claim?: string
+    signal?: AbortSignal
+  },
+): Promise<StoredBlob> {
   const response = await fetch(
     `${endpoint.baseUrl}/blobs?doc=${encodeURIComponent(options.docUrl)}`,
     {
@@ -277,6 +315,7 @@ export async function uploadBlob(
         ...authHeaders(endpoint),
         'Content-Type': options.mimeType,
         'X-Tapes-Recording-Url': options.docUrl,
+        ...(options.claim ? { [RECORDING_CLAIM_HEADER]: options.claim } : {}),
       },
       body,
       signal: options.signal,
@@ -287,12 +326,17 @@ export async function uploadBlob(
     throw await failure(response)
   }
 
-  const descriptor = (await response.json()) as BlobDescriptor
+  const answer = (await response.json()) as BlobDescriptor & {
+    attestations?: unknown
+  }
   return {
-    hash: descriptor.hash,
-    size: descriptor.size,
-    mimeType: descriptor.mimeType,
-    ext: descriptor.ext,
+    blob: {
+      hash: answer.hash,
+      size: answer.size,
+      mimeType: answer.mimeType,
+      ext: answer.ext,
+    },
+    attestations: readAttestations(answer.attestations),
   }
 }
 
@@ -533,6 +577,14 @@ export async function probeBlobEndpoints(
   })
 }
 
+/** Signed statements to copy along with a recording's audio. */
+export type ReplicatedAttestations = {
+  /** The recording's `attestations` list. */
+  hashes: readonly string[]
+  /** Hosts to fetch the statements from. */
+  sources: readonly BlobEndpoint[]
+}
+
 /**
  * Pushes bytes we already hold to hosts that turned out not to have them.
  *
@@ -540,32 +592,117 @@ export async function probeBlobEndpoints(
  * it. Otherwise a recording plays only while one particular machine is awake.
  * Best effort by design: a failed copy leaves the blob where it was, so this
  * never turns a successful playback into an error.
+ *
+ * The recording's signed statements go too, after the audio. A host stores a
+ * claim only once it holds the audio, and a receipt only once it holds the
+ * claim.
  */
 export async function replicateBlob(
   endpoints: readonly BlobEndpoint[],
   blob: Blob,
-  options: { mimeType: string; docUrl: string; expectedHash: string },
+  options: {
+    mimeType: string
+    docUrl: string
+    expectedHash: string
+    attestations?: ReplicatedAttestations
+  },
 ): Promise<void> {
+  if (endpoints.length === 0) {
+    return
+  }
+  // Fetched once while the audio uploads, then sent to every host.
+  const statements = fetchStatements(options.attestations)
   await Promise.all(
     endpoints.map(async (endpoint) => {
-      try {
-        const descriptor = await uploadBlob(endpoint, blob, {
-          mimeType: options.mimeType,
+      const copied = await copyBlob(endpoint, blob, {
+        mimeType: options.mimeType,
+        docUrl: options.docUrl,
+        expectedHash: options.expectedHash,
+        label: 'recording audio',
+      })
+      if (!copied) {
+        return
+      }
+      // In order, since a receipt is refused until its claim is stored.
+      for (const statement of await statements) {
+        await copyBlob(endpoint, statement.blob, {
+          mimeType: STATEMENT_MIME_TYPE,
           docUrl: options.docUrl,
+          expectedHash: statement.hash,
+          label: 'a signed statement',
         })
-        if (descriptor.hash !== options.expectedHash) {
-          // The host hashes the bytes as it streams them, so a mismatch means
-          // what we sent is not what the doc points at. Nothing to repair from
-          // here, but it should not pass silently.
-          console.warn(
-            `Replicated blob hashed as ${descriptor.hash}, expected ${options.expectedHash}`,
-          )
-        }
-      } catch (error) {
-        console.warn('Could not replicate recording audio to a host:', error)
       }
     }),
   )
+}
+
+/** Uploads one blob and reports whether the host took it. */
+async function copyBlob(
+  endpoint: BlobEndpoint,
+  blob: Blob,
+  options: {
+    mimeType: string
+    docUrl: string
+    expectedHash: string
+    label: string
+  },
+): Promise<boolean> {
+  try {
+    const { blob: stored } = await uploadBlob(endpoint, blob, {
+      mimeType: options.mimeType,
+      docUrl: options.docUrl,
+    })
+    if (stored.hash !== options.expectedHash) {
+      // The host hashes the bytes as it streams them, so a mismatch means
+      // what we sent is not what the doc points at. Nothing to repair from
+      // here, but it should not pass silently.
+      console.warn(
+        `Replicated blob hashed as ${stored.hash}, expected ${options.expectedHash}`,
+      )
+    }
+    return true
+  } catch (error) {
+    console.warn(`Could not replicate ${options.label} to a host:`, error)
+    return false
+  }
+}
+
+/**
+ * The statements that could be fetched, claims before receipts. One that
+ * cannot be fetched is skipped. The others are still worth copying.
+ */
+async function fetchStatements(
+  attestations: ReplicatedAttestations | undefined,
+): Promise<{ hash: string; blob: Blob }[]> {
+  if (!attestations || attestations.hashes.length === 0) {
+    return []
+  }
+  const fetched = await Promise.all(
+    attestations.hashes.map(async (hash) => {
+      try {
+        const { blob } = await fetchBlobFromAny(attestations.sources, hash)
+        return { hash, blob, isReceipt: await isReceipt(blob) }
+      } catch (error) {
+        console.warn('Could not fetch a signed statement to replicate:', error)
+        return null
+      }
+    }),
+  )
+  return fetched
+    .filter((statement) => statement !== null)
+    .sort((a, b) => Number(a.isReceipt) - Number(b.isReceipt))
+    .map(({ hash, blob }) => ({ hash, blob }))
+}
+
+async function isReceipt(blob: Blob): Promise<boolean> {
+  try {
+    const signed = JSON.parse(await blob.text()) as {
+      payload?: { type?: unknown }
+    }
+    return signed.payload?.type === HOST_RECEIPT_TYPE
+  } catch {
+    return false
+  }
 }
 
 /**

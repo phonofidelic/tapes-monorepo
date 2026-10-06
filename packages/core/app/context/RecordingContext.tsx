@@ -11,6 +11,7 @@ import { useAppContext } from './AppContext'
 import { getAudioStream } from '@/utils'
 import { useSetting } from './SettingsContext'
 import { callWorker } from '@/workerClient'
+import { recordingMimeType } from '@/blobUpload'
 
 const RecordingContext = createContext<{
   isRecording: boolean
@@ -18,7 +19,8 @@ const RecordingContext = createContext<{
   handleFilename: string | null
   setIsRecording: (state: boolean) => void
   startRecording: () => Promise<void>
-  stopRecording: () => Promise<void>
+  /** Resolves with the encoded signed claim, when one could be made. */
+  stopRecording: () => Promise<string | undefined>
 } | null>(null)
 
 export const RecordingStateProvider = ({
@@ -40,6 +42,8 @@ export const RecordingStateProvider = ({
   // below.
   const isStartingRef = useRef(false)
   const stopRequestedRef = useRef(false)
+  // What the claim needs to know about the recording in progress.
+  const takeRef = useRef<{ filename: string; startedAt: string } | null>(null)
 
   useEffect(() => {
     if (!isRecording) {
@@ -60,17 +64,24 @@ export const RecordingStateProvider = ({
    *
    * Stopping fires one last chunk event, so the chunk listener must stay
    * attached. The tracks are released after the recorder has stopped.
+   *
+   * Resolves on the `stop` event. By then the last chunk has been posted to
+   * the worker, so a message sent after it reaches the worker after the chunk.
    */
   const stopRecorder = useCallback((recorder: MediaRecorder) => {
-    recorder.addEventListener(
-      'stop',
-      () => {
-        recorder.stream.getTracks().forEach((track) => track.stop())
-      },
-      { once: true },
-    )
+    const stopped = new Promise<void>((resolve) => {
+      recorder.addEventListener(
+        'stop',
+        () => {
+          recorder.stream.getTracks().forEach((track) => track.stop())
+          resolve()
+        },
+        { once: true },
+      )
+    })
     recorder.stop()
     mediaRecorderRef.current = null
+    return stopped
   }, [])
 
   /**
@@ -136,12 +147,15 @@ export const RecordingStateProvider = ({
       })
       mediaRecorderRef.current = recorder
       recorder.start()
+      takeRef.current = { filename, startedAt: new Date().toISOString() }
 
       // The stop arrived while the microphone was still opening, so it had no
       // recorder to act on. Honour it now. Without this the microphone stays
       // open and the file the worker created is never written.
       if (stopRequestedRef.current) {
-        stopRecorder(recorder)
+        // That stop has already returned, so no claim is made for this take.
+        takeRef.current = null
+        void stopRecorder(recorder)
       }
     } finally {
       isStartingRef.current = false
@@ -151,12 +165,16 @@ export const RecordingStateProvider = ({
 
   /**
    * Flushes the file in the worker first, then stops the recorder. The final
-   * chunk is written after that, on the last `dataavailable`.
+   * chunk is written after that, on the last `dataavailable`. Then the worker
+   * hashes the finished file and signs a claim over it.
    */
   const stopRecording = useCallback(async () => {
     if (appContext.type !== 'web-client') {
-      return
+      return undefined
     }
+    const endedAt = new Date().toISOString()
+    const take = takeRef.current
+    takeRef.current = null
     setIsRecording(false)
     try {
       await callWorker(appContext.worker, 'recorder:stop')
@@ -170,13 +188,35 @@ export const RecordingStateProvider = ({
         // The microphone is still opening. `startRecording` stops the recorder
         // as soon as it has one.
         stopRequestedRef.current = true
-        return
+        return undefined
       }
       console.error('mediaRecorderRef.current is null')
-      return
+      return undefined
     }
-    stopRecorder(recorder)
-  }, [appContext, stopRecorder])
+    await stopRecorder(recorder)
+    if (!take) {
+      return undefined
+    }
+
+    // Signing is best effort. Without a key, as over plain HTTP where there is
+    // no WebCrypto, the recording is kept and uploaded unsigned.
+    try {
+      const { claim } = await callWorker<{ claim: string }>(
+        appContext.worker,
+        'recorder:claim',
+        {
+          filename: take.filename,
+          mimeType: recordingMimeType(audioFormat),
+          startedAt: take.startedAt,
+          endedAt,
+        },
+      )
+      return claim
+    } catch (error) {
+      console.warn('Recording saved without a signed claim:', error)
+      return undefined
+    }
+  }, [appContext, audioFormat, stopRecorder])
 
   const value = useMemo(
     () => ({

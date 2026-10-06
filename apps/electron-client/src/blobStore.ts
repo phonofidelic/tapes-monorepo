@@ -92,6 +92,29 @@ export const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'audio/webm': '.webm',
 }
 
+/** The MIME type the store records for a file it ingests by path. */
+export function mimeTypeOfFile(filepath: string): string {
+  return (
+    MIME_TYPE_BY_EXTENSION[path.extname(filepath).toLowerCase()] ??
+    'application/octet-stream'
+  )
+}
+
+/** The file's store address and size, read as a stream. */
+export async function hashFile(
+  filepath: string,
+): Promise<{ hash: string; size: number }> {
+  const hasher = crypto.createHash('sha256')
+  let size = 0
+  await pipeline(createReadStream(filepath), async function (chunks) {
+    for await (const chunk of chunks as AsyncIterable<Buffer>) {
+      size += chunk.length
+      hasher.update(chunk)
+    }
+  })
+  return { hash: hasher.digest('hex'), size }
+}
+
 export function isValidBlobHash(hash: string): boolean {
   return HASH_PATTERN.test(hash)
 }
@@ -116,6 +139,9 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     path.join(root, 'meta', shard(hash), `${hash}.json`)
   const refsPath = (hash: string) =>
     path.join(root, 'refs', shard(hash), `${hash}.json`)
+  // Keyed by a claim's hash. Names the receipt this host signed for it.
+  const receiptIndexPath = (hash: string) =>
+    path.join(root, 'receipts', shard(hash), `${hash}.json`)
 
   // The host is a single process, so serializing ref mutations per hash in
   // memory is enough to keep the refs file consistent under concurrent
@@ -219,13 +245,44 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     })
   }
 
-  /** Unlinks all three files for a hash. Callers hold the per-hash lock. */
+  /** Unlinks every file for a hash. Callers hold the per-hash lock. */
   async function unlinkAll(hash: string): Promise<void> {
     await Promise.all([
       rm(objectPath(hash), { force: true }),
       rm(metaPath(hash), { force: true }),
       rm(refsPath(hash), { force: true }),
+      rm(receiptIndexPath(hash), { force: true }),
     ])
+  }
+
+  /**
+   * The hash of the receipt this host signed for a claim, if it recorded one.
+   * The receipt itself may since have been removed, so callers check it.
+   */
+  async function findReceipt(claimHash: string): Promise<string | null> {
+    if (!isValidBlobHash(claimHash)) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(
+        await readFile(receiptIndexPath(claimHash), 'utf-8'),
+      ) as { receipt?: unknown }
+      return typeof parsed.receipt === 'string' &&
+        isValidBlobHash(parsed.receipt)
+        ? parsed.receipt
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  async function recordReceipt(
+    claimHash: string,
+    receiptHash: string,
+  ): Promise<void> {
+    await writeJsonAtomic(receiptIndexPath(claimHash), {
+      receipt: receiptHash,
+    })
   }
 
   /**
@@ -297,9 +354,9 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
   /**
    * Streams an upload into the store, hashing as it goes.
    *
-   * The host hashes rather than the client. A phone would otherwise read a
-   * 50 MB file into memory, and `crypto.subtle` is unavailable in the
-   * plain-HTTP LAN mode the host can be configured into.
+   * The host computes the address itself and never trusts one from the
+   * client. A guest may also send a signed claim with its own hash, but a
+   * guest on plain HTTP has no `crypto.subtle` and sends none.
    */
   async function ingestStream(
     source: Readable,
@@ -381,20 +438,8 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     options: { docUrl: string; mimeType?: string },
   ): Promise<IngestFileResult> {
     const ext = path.extname(filepath).toLowerCase()
-    const mimeType =
-      options.mimeType ??
-      MIME_TYPE_BY_EXTENSION[ext] ??
-      'application/octet-stream'
-
-    const hasher = crypto.createHash('sha256')
-    let size = 0
-    await pipeline(createReadStream(filepath), async function (chunks) {
-      for await (const chunk of chunks as AsyncIterable<Buffer>) {
-        size += chunk.length
-        hasher.update(chunk)
-      }
-    })
-    const hash = hasher.digest('hex')
+    const mimeType = options.mimeType ?? mimeTypeOfFile(filepath)
+    const { hash, size } = await hashFile(filepath)
 
     if (await has(hash)) {
       await addRef(hash, options.docUrl)
@@ -545,5 +590,7 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     listObjects,
     remove,
     sweepTmp,
+    findReceipt,
+    recordReceipt,
   }
 }

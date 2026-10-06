@@ -1,3 +1,5 @@
+import type { ClaimVerification } from '@tapes-monorepo/provenance'
+
 /**
  * The request/response contract between core and a platform backend.
  *
@@ -78,7 +80,8 @@ export type StopRecordingResponse =
     }
   | {
       success: true
-      data: { filepath: string }
+      /** `claim` is the encoded signed claim, absent if signing failed. */
+      data: { filepath: string; claim?: string }
     }
 
 export type EditRecordingResponse =
@@ -109,7 +112,16 @@ export type PutBlobResponse =
     }
   | {
       success: true
-      data: { hash: string; size: number; mimeType: string; ext: string }
+      data: {
+        hash: string
+        size: number
+        mimeType: string
+        ext: string
+        /** What the host made of the recording's claim. */
+        claim: ClaimVerification
+        /** Store hashes of the claim and receipt, when the claim verified. */
+        attestations: string[]
+      }
     }
 
 export type HasBlobResponse =
@@ -161,7 +173,12 @@ export type IpcSendArgs =
       // for a legacy doc that predates the blob store; deleting has to cope
       // with either being missing.
       IpcRequest & {
-        data: { filepath?: string; hash?: string; docUrl?: string }
+        data: {
+          filepath?: string
+          hash?: string
+          attestations?: string[]
+          docUrl?: string
+        }
       },
     ]
   | ['storage:read-file', IpcRequest & { data: { filepath: string } }]
@@ -182,7 +199,9 @@ export type IpcSendArgs =
   | ['sync:set-https-enabled', IpcRequest & { data: { enabled: boolean } }]
   | [
       'blob:put-file',
-      IpcRequest & { data: { filepath: string; docUrl: string } },
+      IpcRequest & {
+        data: { filepath: string; docUrl: string; claim?: string }
+      },
     ]
   | ['blob:has', IpcRequest & { data: { hash: string } }]
   | ['library:announce', IpcRequest & { data: { url: string } }]

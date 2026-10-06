@@ -149,8 +149,10 @@ export function seedRecording(options: {
 }
 
 /** Every object the host is holding, by hash. */
-export function hostObjects(): Promise<{ hash: string; size: number }[]> {
-  return send<{ hash: string; size: number }[]>({ type: 'objects' })
+export type HostObject = { hash: string; size: number; mimeType?: string }
+
+export function hostObjects(): Promise<HostObject[]> {
+  return send<HostObject[]>({ type: 'objects' })
 }
 
 /** The library's recordings, by name and url, as the host has them. */

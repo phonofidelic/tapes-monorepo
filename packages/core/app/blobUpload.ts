@@ -1,7 +1,11 @@
 import type { AppContextValue } from './context/AppContext'
-import type { BlobDescriptor } from './types'
 import type { IpcService, PutBlobResponse } from './IpcService'
-import { uploadBlob, type BlobEndpoint } from './blobClient'
+import {
+  readAttestations,
+  uploadBlob,
+  type BlobEndpoint,
+  type StoredBlob,
+} from './blobClient'
 import { callWorker } from './workerClient'
 
 /**
@@ -18,6 +22,19 @@ export type PendingUpload = {
   docUrl: string
   /** OPFS filename on web, absolute path on electron. */
   filepath: string
+  /**
+   * The recorder's encoded signed claim. Kept with the queued upload because
+   * it was signed at stop and cannot be made again later.
+   */
+  claim?: string
+}
+
+/**
+ * The MIME type a web recording is uploaded under when its OPFS file has none.
+ * The worker uses the same rule for the claim, so both name the same type.
+ */
+export function recordingMimeType(audioFormat: string | undefined): string {
+  return audioFormat ? `audio/${audioFormat}` : 'audio/mp4'
 }
 
 export function readPendingUploads(storage: Storage): PendingUpload[] {
@@ -47,8 +64,8 @@ export function removePendingUpload(storage: Storage, docUrl: string) {
 }
 
 /**
- * Sends a recording's audio to the host and returns the descriptor to write
- * into its doc. On web the OPFS file is handed to `fetch` as-is, so it
+ * Sends a recording's audio to the host and returns the descriptor and
+ * attestation hashes to write into its doc. On web the OPFS file is handed to `fetch` as-is, so it
  * streams off disk and neither side holds the whole recording in memory. On
  * electron the file is already on the host's own disk, so it is ingested over
  * IPC and nothing crosses the network.
@@ -59,15 +76,17 @@ export async function uploadRecordingBlob({
   docUrl,
   filepath,
   mimeType,
+  claim,
 }: {
   appContext: AppContextValue
   endpoint: BlobEndpoint
   docUrl: string
   filepath: string
   mimeType: string
-}): Promise<BlobDescriptor> {
+  claim?: string
+}): Promise<StoredBlob> {
   if (appContext.type === 'electron-client') {
-    return ingestHostFile(appContext.ipc, { filepath, docUrl })
+    return ingestHostFile(appContext.ipc, { filepath, docUrl, claim })
   }
 
   const { file } = await callWorker<{ file: File }>(
@@ -78,25 +97,36 @@ export async function uploadRecordingBlob({
   return uploadBlob(endpoint, file, {
     mimeType: file.type || mimeType,
     docUrl,
+    claim,
   })
 }
 
 /**
  * Adds a file that is already on the host's disk to its blob store and returns
- * the descriptor to write into the recording's doc. The store hardlinks the
+ * what to write into the recording's doc. The store hardlinks the
  * file, so the bytes are neither copied nor sent over the network.
  *
  * Electron only. A web guest has no host filesystem to name.
  */
 export async function ingestHostFile(
   ipc: IpcService,
-  { filepath, docUrl }: { filepath: string; docUrl: string },
-): Promise<BlobDescriptor> {
+  {
+    filepath,
+    docUrl,
+    claim,
+  }: { filepath: string; docUrl: string; claim?: string },
+): Promise<StoredBlob> {
   const response = await ipc.send<PutBlobResponse>('blob:put-file', {
-    data: { filepath, docUrl },
+    data: { filepath, docUrl, claim },
   })
   if (!response.success) {
     throw response.error
   }
-  return response.data
+  // The host's verdict on the claim stays out of the doc. The stored
+  // statements carry it.
+  const { hash, size, mimeType, ext, attestations } = response.data
+  return {
+    blob: { hash, size, mimeType, ext },
+    attestations: readAttestations(attestations),
+  }
 }

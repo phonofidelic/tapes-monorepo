@@ -1,6 +1,13 @@
 import type http from 'http'
+import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
+import {
+  RECORDING_CLAIM_HEADER,
+  STATEMENT_MIME_TYPE,
+} from '@tapes-monorepo/provenance'
 import { BlobTooLargeError, isValidBlobHash, type BlobStore } from './blobStore'
+import { verifyClaimOnIngest } from './claimIngest'
+import { checkUploadedStatement, readStatementBody } from './statementUpload'
 import { isAuthorized } from './tokenAuth'
 import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
 
@@ -12,6 +19,16 @@ import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
  * Must stay mounted ahead of the static handler in the sync server. Its SPA
  * fallback answers any unmatched path with index.html and a 200, so a blob
  * route behind it would hand the audio element HTML and fail as a decode error.
+ *
+ * An upload may carry the recorder's signed claim in a header. The host checks
+ * it against the bytes it stored and answers with a receipt, or with the
+ * reason the claim did not verify. A bad claim never fails the upload. A
+ * verified claim and its receipt are stored as JSON objects in the same store,
+ * so guests fetch them by hash like audio.
+ *
+ * Uploads are audio, or a signed statement sent as JSON. A client sends
+ * statements when it copies a recording to a host that lacked it. A statement
+ * is stored only if it binds to what this host already holds.
  */
 
 export const BLOB_PATH_PREFIX = '/blobs'
@@ -32,6 +49,8 @@ export type BlobHandlerOptions = {
   token?: string
   maxBlobBytes?: number
   maxStoreBytes?: number
+  /** The host's key for signing receipts. Without it, none are issued. */
+  loadSigningKey?: () => Promise<CryptoKeyPair>
 }
 
 type ParsedRange =
@@ -86,6 +105,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
     token,
     maxBlobBytes = DEFAULT_MAX_BLOB_BYTES,
     maxStoreBytes = DEFAULT_MAX_STORE_BYTES,
+    loadSigningKey,
   } = options
 
   async function handleUpload(
@@ -97,9 +117,12 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
       .split(';')[0]
       .trim()
       .toLowerCase()
-    if (!contentType.startsWith('audio/')) {
+    const isStatement = contentType === STATEMENT_MIME_TYPE
+    if (!isStatement && !contentType.startsWith('audio/')) {
       request.resume()
-      sendJson(response, 415, { error: 'Expected an audio/* Content-Type' })
+      sendJson(response, 415, {
+        error: `Expected an audio/* or ${STATEMENT_MIME_TYPE} Content-Type`,
+      })
       return
     }
 
@@ -118,18 +141,31 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
       return
     }
 
+    if (isStatement) {
+      await handleStatementUpload(request, response, docUrl)
+      return
+    }
+
     try {
       const { meta, deduped } = await store.ingestStream(request, {
         mimeType: contentType,
         docUrl,
         maxBytes: maxBlobBytes,
       })
+      const claimHeader = request.headers[RECORDING_CLAIM_HEADER.toLowerCase()]
+      const { claim, attestations } = await verifyClaimOnIngest(
+        Array.isArray(claimHeader) ? claimHeader.join(',') : claimHeader,
+        meta,
+        { loadSigningKey, store, docUrl },
+      )
       sendJson(response, deduped ? 200 : 201, {
         hash: meta.hash,
         size: meta.size,
         mimeType: meta.mimeType,
         ext: meta.ext,
         deduped,
+        claim,
+        attestations,
       })
     } catch (error) {
       if (error instanceof BlobTooLargeError) {
@@ -141,6 +177,48 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
       }
       throw error
     }
+  }
+
+  async function handleStatementUpload(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    docUrl: string,
+  ) {
+    let bytes: Buffer
+    try {
+      bytes = await readStatementBody(request)
+    } catch (error) {
+      if (error instanceof BlobTooLargeError) {
+        sendJson(response, 413, { error: error.message })
+        request.destroy()
+        return
+      }
+      throw error
+    }
+
+    const check = await checkUploadedStatement(bytes, store)
+    if (!check.ok) {
+      sendJson(response, 422, {
+        error: `Statement not stored: ${check.problem}`,
+        problem: check.problem,
+      })
+      return
+    }
+
+    // Uploads carry no file name, so the extension is set here, as claim
+    // ingest does.
+    const { meta, deduped } = await store.ingestStream(Readable.from([bytes]), {
+      mimeType: STATEMENT_MIME_TYPE,
+      ext: '.json',
+      docUrl,
+    })
+    sendJson(response, deduped ? 200 : 201, {
+      hash: meta.hash,
+      size: meta.size,
+      mimeType: meta.mimeType,
+      ext: meta.ext,
+      deduped,
+    })
   }
 
   async function handleDownload(

@@ -96,6 +96,11 @@ type SyncServerOptions = {
    * certificate store.
    */
   rootCertFingerprint?: string
+  /**
+   * The host's provenance signing key, for receipts on uploaded recordings.
+   * Passed in because loading it needs electron, which this module avoids.
+   */
+  loadSigningKey?: () => Promise<CryptoKeyPair>
 }
 
 type RunningSyncServer = {
@@ -444,6 +449,7 @@ export async function startSyncServer(
     eventStorePath,
     pairingToken,
     rootCertFingerprint,
+    loadSigningKey,
   } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
 
@@ -512,7 +518,11 @@ export async function startSyncServer(
   }
 
   const handleBlobRequest = blobStore
-    ? createBlobRequestHandler({ store: blobStore, token: pairingToken })
+    ? createBlobRequestHandler({
+        store: blobStore,
+        token: pairingToken,
+        loadSigningKey,
+      })
     : unavailableBlobRequestHandler
 
   const handleEventRequest = eventStore

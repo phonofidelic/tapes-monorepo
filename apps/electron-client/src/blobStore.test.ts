@@ -264,6 +264,33 @@ describe('remove', () => {
   })
 })
 
+describe('receipt index', () => {
+  it('names the receipt recorded for a claim', async () => {
+    const store = createBlobStore(root)
+    const claim = sha256('a claim')
+    const receipt = sha256('a receipt')
+
+    expect(await store.findReceipt(claim)).toBeNull()
+    await store.recordReceipt(claim, receipt)
+
+    expect(await store.findReceipt(claim)).toBe(receipt)
+  })
+
+  it('forgets the entry when the claim is removed', async () => {
+    const store = createBlobStore(root)
+    const { meta } = await store.ingestStream(Readable.from(['a claim']), {
+      mimeType: 'application/json',
+      ext: '.json',
+      docUrl: DOC_A,
+    })
+    await store.recordReceipt(meta.hash, sha256('a receipt'))
+
+    await store.releaseRef(meta.hash, DOC_A)
+
+    expect(await store.findReceipt(meta.hash)).toBeNull()
+  })
+})
+
 async function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of stream) {

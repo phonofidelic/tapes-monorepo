@@ -2,6 +2,7 @@ import path from 'path'
 import { readdir } from 'fs/promises'
 import type { Repo, AutomergeUrl } from '@automerge/automerge-repo/slim'
 import type { RecordingData, RecordingRepoState } from '@tapes-monorepo/core'
+import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import type { BlobStore, StoredObject } from './blobStore'
 
 /**
@@ -10,7 +11,8 @@ import type { BlobStore, StoredObject } from './blobStore'
  * Refcounts miss objects whose owner never announced itself: a crash between
  * writing an object and its ref record, a peer that deleted a recording while
  * offline, or an upload abandoned outside `tmp/`. This walks every library
- * document the host holds and unlinks objects none of them reference.
+ * document the host holds and unlinks objects none of them reference. A
+ * recording references its audio and its attestations.
  * Kept out of `blobStore.ts` so the store stays free of Automerge and Electron
  * imports and can be tested in a plain node process.
  */
@@ -102,6 +104,20 @@ async function storedDocumentUrls(
  */
 function isRootDoc(doc: Doc | undefined): doc is Doc & RecordingRepoState {
   return Array.isArray(doc?.recordings)
+}
+
+/** Whether a stored signed statement is still owned by a live recording. */
+async function isOwnedStatement(
+  store: BlobStore,
+  hash: string,
+  recordingUrls: Set<AutomergeUrl>,
+): Promise<boolean> {
+  const meta = await store.stat(hash)
+  if (meta?.mimeType !== STATEMENT_MIME_TYPE) {
+    return false
+  }
+  const refs = await store.refs(hash)
+  return refs.some((ref) => recordingUrls.has(ref as AutomergeUrl))
 }
 
 /**
@@ -196,6 +212,15 @@ export async function collectOrphanedBlobs({
     if (blob && typeof blob.hash === 'string') {
       live.add(blob.hash)
     }
+    // Signed statements about the recording, stored next to its audio.
+    const attestations = doc?.attestations
+    if (Array.isArray(attestations)) {
+      for (const hash of attestations) {
+        if (typeof hash === 'string') {
+          live.add(hash)
+        }
+      }
+    }
   }
 
   const swept: string[] = []
@@ -223,6 +248,12 @@ export async function collectOrphanedBlobs({
     // legitimately unreachable for a while. ctime is when the store took it.
     if (now - object.ctimeMs < graceMs) {
       skippedYoung += 1
+      continue
+    }
+    // Any peer can edit a recording's attestations list. Dropping a hash from
+    // it must not delete the statement, so a statement stays while the
+    // recording that stored it is still in a library.
+    if (await isOwnedStatement(store, object.hash, recordingUrls)) {
       continue
     }
     if (await store.remove(object.hash)) {
