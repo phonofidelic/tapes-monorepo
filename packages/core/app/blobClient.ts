@@ -10,6 +10,8 @@ import type { BlobDescriptor } from './types'
  * they record and fetch what they play. The host computes the address while
  * it receives an upload. A recording may also carry a signed claim with the
  * recorder's own hash, which the host can check against what it received.
+ * The host stores a verified claim and its receipt as blobs too, and the doc
+ * lists their hashes.
  */
 
 export type BlobEndpoint = {
@@ -260,7 +262,32 @@ async function failure(response: Response): Promise<BlobRequestError> {
 }
 
 /**
- * Uploads recorded bytes and returns the descriptor to write into the doc.
+ * What a host stored for one upload. Both parts are written into the
+ * recording's doc.
+ */
+export type StoredBlob = {
+  blob: BlobDescriptor
+  /**
+   * Hashes of the signed claim and receipt the host stored next to the audio.
+   * Empty when the upload carried no claim or the claim did not verify.
+   */
+  attestations: string[]
+}
+
+const HASH_PATTERN = /^[0-9a-f]{64}$/
+
+/** The hashes in a host's answer. A host that predates attestations sends none. */
+export function readAttestations(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (hash): hash is string =>
+          typeof hash === 'string' && HASH_PATTERN.test(hash),
+      )
+    : []
+}
+
+/**
+ * Uploads recorded bytes and returns what to write into the doc.
  * Pass the OPFS file handle as the body rather than a materialized buffer.
  * `fetch` streams it off disk, so a large recording never has to fit in JS
  * memory on a phone.
@@ -275,7 +302,7 @@ export async function uploadBlob(
     claim?: string
     signal?: AbortSignal
   },
-): Promise<BlobDescriptor> {
+): Promise<StoredBlob> {
   const response = await fetch(
     `${endpoint.baseUrl}/blobs?doc=${encodeURIComponent(options.docUrl)}`,
     {
@@ -295,12 +322,17 @@ export async function uploadBlob(
     throw await failure(response)
   }
 
-  const descriptor = (await response.json()) as BlobDescriptor
+  const answer = (await response.json()) as BlobDescriptor & {
+    attestations?: unknown
+  }
   return {
-    hash: descriptor.hash,
-    size: descriptor.size,
-    mimeType: descriptor.mimeType,
-    ext: descriptor.ext,
+    blob: {
+      hash: answer.hash,
+      size: answer.size,
+      mimeType: answer.mimeType,
+      ext: answer.ext,
+    },
+    attestations: readAttestations(answer.attestations),
   }
 }
 
@@ -557,16 +589,16 @@ export async function replicateBlob(
   await Promise.all(
     endpoints.map(async (endpoint) => {
       try {
-        const descriptor = await uploadBlob(endpoint, blob, {
+        const { blob: stored } = await uploadBlob(endpoint, blob, {
           mimeType: options.mimeType,
           docUrl: options.docUrl,
         })
-        if (descriptor.hash !== options.expectedHash) {
+        if (stored.hash !== options.expectedHash) {
           // The host hashes the bytes as it streams them, so a mismatch means
           // what we sent is not what the doc points at. Nothing to repair from
           // here, but it should not pass silently.
           console.warn(
-            `Replicated blob hashed as ${descriptor.hash}, expected ${options.expectedHash}`,
+            `Replicated blob hashed as ${stored.hash}, expected ${options.expectedHash}`,
           )
         }
       } catch (error) {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
 import type { RecordingData, RecordingRepoState } from '@tapes-monorepo/core'
+import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import { collectOrphanedBlobs, DEFAULT_GRACE_MS } from './blobGc'
 import { createBlobStore } from './blobStore'
 
@@ -62,6 +63,30 @@ async function ingest(contents: string, docUrl: string) {
     docUrl,
   })
   return meta.hash
+}
+
+async function ingestStatement(contents: string, docUrl: string) {
+  const { meta } = await store().ingestStream(Readable.from([contents]), {
+    mimeType: STATEMENT_MIME_TYPE,
+    ext: '.json',
+    docUrl,
+  })
+  return meta.hash
+}
+
+/** Sets a recording's attestations list, as any peer can. */
+async function setAttestations(recordingUrl: AutomergeUrl, hashes: string[]) {
+  const repo = openRepo()
+  const handle = await repo.find<RecordingData>(recordingUrl)
+  handle.change((doc) => {
+    doc.attestations = hashes
+  })
+  await repo.flush()
+}
+
+async function recordingUrlsOf(root: AutomergeUrl) {
+  const handle = await openRepo().find<RecordingRepoState>(root)
+  return [...handle.doc().recordings]
 }
 
 /**
@@ -312,5 +337,74 @@ describe('collectOrphanedBlobs', () => {
     expect(result.abortedReason).toBeUndefined()
     expect(result.live).toBe(0)
     expect(result.scanned).toBe(0)
+  })
+
+  describe('attestations', () => {
+    it('keeps a statement a recording lists', async () => {
+      const { root } = await seedLibrary([{ contents: 'signed audio' }])
+      const [recordingUrl] = await recordingUrlsOf(root)
+      // Stored under another document, so only the list can keep it.
+      const claim = await ingestStatement('{"claim":1}', 'automerge:elsewhere')
+      await setAttestations(recordingUrl, [claim])
+
+      const result = await collectOrphanedBlobs({
+        repo: openRepo(),
+        store: store(),
+        storagePath,
+        seedRoots: [root],
+        now: afterGrace(),
+      })
+
+      expect(result.live).toBe(2)
+      expect(result.swept).toEqual([])
+      expect(await store().has(claim)).toBe(true)
+    })
+
+    // A peer can only drop a hash from the list. That must not delete the
+    // statement while the recording that stored it is still there.
+    it('keeps a statement a peer dropped from a live recording', async () => {
+      const { root } = await seedLibrary([{ contents: 'signed audio' }])
+      const [recordingUrl] = await recordingUrlsOf(root)
+      const claim = await ingestStatement('{"claim":1}', recordingUrl)
+      await setAttestations(recordingUrl, [])
+
+      const result = await collectOrphanedBlobs({
+        repo: openRepo(),
+        store: store(),
+        storagePath,
+        seedRoots: [root],
+        now: afterGrace(),
+      })
+
+      expect(result.swept).toEqual([])
+      expect(await store().has(claim)).toBe(true)
+    })
+
+    it('sweeps statements once their recording leaves the library', async () => {
+      const { root, hashes } = await seedLibrary([
+        { contents: 'deleted audio' },
+      ])
+      const [recordingUrl] = await recordingUrlsOf(root)
+      const claim = await ingestStatement('{"claim":1}', recordingUrl)
+      await setAttestations(recordingUrl, [claim])
+
+      const editing = openRepo()
+      const library = await editing.find<RecordingRepoState>(root)
+      library.change((doc) => {
+        doc.recordings.splice(0, 1)
+      })
+      await editing.flush()
+
+      const result = await collectOrphanedBlobs({
+        repo: openRepo(),
+        store: store(),
+        storagePath,
+        seedRoots: [root],
+        now: afterGrace(),
+      })
+
+      expect(result.swept.sort()).toEqual([claim, hashes[0]].sort())
+      expect(await store().has(claim)).toBe(false)
+    })
   })
 })

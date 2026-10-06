@@ -17,7 +17,9 @@ import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
  *
  * An upload may carry the recorder's signed claim in a header. The host checks
  * it against the bytes it stored and answers with a receipt, or with the
- * reason the claim did not verify. A bad claim never fails the upload.
+ * reason the claim did not verify. A bad claim never fails the upload. A
+ * verified claim and its receipt are stored as JSON objects in the same store,
+ * so guests fetch them by hash like audio. Uploads must still be audio.
  */
 
 export const BLOB_PATH_PREFIX = '/blobs'
@@ -134,10 +136,10 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
         maxBytes: maxBlobBytes,
       })
       const claimHeader = request.headers[RECORDING_CLAIM_HEADER.toLowerCase()]
-      const claim = await verifyClaimOnIngest(
+      const { claim, attestations } = await verifyClaimOnIngest(
         Array.isArray(claimHeader) ? claimHeader.join(',') : claimHeader,
         meta,
-        loadSigningKey,
+        { loadSigningKey, store, docUrl },
       )
       sendJson(response, deduped ? 200 : 201, {
         hash: meta.hash,
@@ -146,6 +148,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
         ext: meta.ext,
         deduped,
         claim,
+        attestations,
       })
     } catch (error) {
       if (error instanceof BlobTooLargeError) {

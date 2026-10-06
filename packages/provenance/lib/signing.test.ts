@@ -5,9 +5,10 @@ import {
   importPublicKey,
   signStatement,
   statementAddress,
+  statementBytes,
   verifyStatement,
 } from './signing'
-import { fromBase64Url, toBase64Url } from './encoding'
+import { fromBase64Url, sha256Hex, toBase64Url } from './encoding'
 import { RECORDING_CLAIM_TYPE, type RecordingClaim } from './types'
 
 const hex = (text: string) =>
@@ -154,6 +155,19 @@ describe('statementAddress', () => {
 
     expect(await statementAddress(signed)).toMatch(/^[0-9a-f]{64}$/)
     expect(await statementAddress(forged)).not.toBe(
+      await statementAddress(signed),
+    )
+  })
+})
+
+describe('statementBytes', () => {
+  // A content-addressed store files the statement under the hash of these
+  // bytes, so that hash has to be the statement's address.
+  it('hashes to the statement address', async () => {
+    const keys = await generateSigningKeyPair()
+    const signed = await signStatement(claim('k'), keys.privateKey)
+
+    expect(await sha256Hex(statementBytes(signed))).toBe(
       await statementAddress(signed),
     )
   })

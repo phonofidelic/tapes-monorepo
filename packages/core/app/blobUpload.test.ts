@@ -50,9 +50,9 @@ describe('recordingMimeType', () => {
 })
 
 describe('ingestHostFile', () => {
-  // The descriptor is written into the shared doc. The host's verdict on the
-  // claim is not part of it.
-  it('returns only the blob descriptor', async () => {
+  // The descriptor and attestation hashes are written into the shared doc.
+  // The host's verdict on the claim is not.
+  it('returns the blob descriptor and attestations, not the verdict', async () => {
     const send = vi.fn().mockResolvedValue({
       success: true,
       data: {
@@ -61,6 +61,7 @@ describe('ingestHostFile', () => {
         mimeType: 'audio/wav',
         ext: '.wav',
         claim: { status: 'verified', receipt: 'receipt' },
+        attestations: ['cd'.repeat(32)],
       },
     })
 
@@ -71,10 +72,13 @@ describe('ingestHostFile', () => {
     })
 
     expect(descriptor).toEqual({
-      hash: 'ab'.repeat(32),
-      size: 4,
-      mimeType: 'audio/wav',
-      ext: '.wav',
+      blob: {
+        hash: 'ab'.repeat(32),
+        size: 4,
+        mimeType: 'audio/wav',
+        ext: '.wav',
+      },
+      attestations: ['cd'.repeat(32)],
     })
   })
 })
