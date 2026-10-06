@@ -226,7 +226,11 @@ function LibraryListItem({
                           return
                         }
                         if (recording.blob) {
-                          await pin(automergeUrl, recording.blob)
+                          await pin(
+                            automergeUrl,
+                            recording.blob,
+                            recording.attestations,
+                          )
                         }
                       }}
                     >

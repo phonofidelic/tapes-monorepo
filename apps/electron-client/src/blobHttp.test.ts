@@ -5,6 +5,7 @@ import { mkdtemp, readdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  createHostReceipt,
   createRecordingClaim,
   decodeSignedStatement,
   encodeSignedStatement,
@@ -12,8 +13,10 @@ import {
   generateSigningKeyPair,
   RECORDING_CLAIM_HEADER,
   statementAddress,
+  statementBytes,
   verifyStatement,
   type HostReceipt,
+  type RecordingClaim,
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { startSyncServer, stopSyncServer } from './syncServer'
@@ -650,5 +653,157 @@ describe('repeat uploads of one claim', () => {
       headers: authed(),
     })
     expect(fetched.status).toBe(200)
+  })
+})
+
+describe('signed statements on upload', () => {
+  const asText = (signed: Signed<unknown>) =>
+    new TextDecoder().decode(statementBytes(signed))
+
+  const sendStatement = (origin: string, body: string) =>
+    upload(origin, body, { contentType: 'application/json' })
+
+  async function signedClaim() {
+    return createRecordingClaim(
+      {
+        blob: { hash: AUDIO_HASH, size: AUDIO.length, mimeType: 'audio/wav' },
+        startedAt: '2026-10-05T12:00:00.000Z',
+        endedAt: '2026-10-05T12:03:00.000Z',
+      },
+      await generateSigningKeyPair(),
+    )
+  }
+
+  async function receiptFor(claim: Signed<RecordingClaim>) {
+    return createHostReceipt(
+      claim,
+      await generateSigningKeyPair(),
+      new Date('2026-10-05T12:03:01.000Z'),
+    )
+  }
+
+  async function problemOf(response: Response) {
+    expect(response.status).toBe(422)
+    return ((await response.json()) as { problem: string }).problem
+  }
+
+  it('stores a claim on audio it holds, under the claim address', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+
+    const response = await sendStatement(origin, asText(claim))
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { hash: string; ext: string }
+    expect(body.hash).toBe(await statementAddress(claim))
+    expect(body.ext).toBe('.json')
+    const fetched = await fetch(`${origin}/blobs/${body.hash}`, {
+      headers: authed(),
+    })
+    expect(fetched.headers.get('content-type')).toBe('application/json')
+    expect(await fetched.json()).toEqual(claim)
+  })
+
+  it('refuses a claim on audio it does not hold', async () => {
+    const { origin } = await startHost()
+
+    const response = await sendStatement(origin, asText(await signedClaim()))
+
+    expect(await problemOf(response)).toBe('audio-missing')
+  })
+
+  it('refuses a claim whose signature does not verify', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    const tampered = {
+      ...claim,
+      payload: { ...claim.payload, startedAt: '2020-01-01T00:00:00.000Z' },
+    }
+
+    const response = await sendStatement(origin, asText(tampered))
+
+    expect(await problemOf(response)).toBe('bad-signature')
+  })
+
+  it('refuses a statement that is not in canonical form', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+
+    const response = await sendStatement(
+      origin,
+      JSON.stringify(await signedClaim(), null, 2),
+    )
+
+    expect(await problemOf(response)).toBe('not-canonical')
+  })
+
+  it('refuses bytes that are not a known statement', async () => {
+    const { origin } = await startHost()
+
+    expect(await problemOf(await sendStatement(origin, 'not json'))).toBe(
+      'malformed',
+    )
+    expect(
+      await problemOf(
+        await sendStatement(origin, '{"payload":{"type":"x"},"signature":""}'),
+      ),
+    ).toBe('unknown-type')
+  })
+
+  it('stores a receipt only once its claim is stored', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    const receipt = await receiptFor(claim)
+
+    const early = await sendStatement(origin, asText(receipt))
+    expect(await problemOf(early)).toBe('claim-missing')
+
+    await sendStatement(origin, asText(claim))
+    const late = await sendStatement(origin, asText(receipt))
+    expect(late.status).toBe(201)
+    await expect(late.json()).resolves.toMatchObject({
+      hash: await statementAddress(receipt),
+    })
+  })
+
+  it('refuses a receipt naming a claim that was stored as audio', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    await upload(origin, asText(claim))
+
+    const response = await sendStatement(
+      origin,
+      asText(await receiptFor(claim)),
+    )
+
+    expect(await problemOf(response)).toBe('claim-missing')
+  })
+
+  it('refuses a receipt whose signature does not verify', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    await sendStatement(origin, asText(claim))
+    const receipt = await receiptFor(claim)
+    const tampered = {
+      ...receipt,
+      payload: { ...receipt.payload, receivedAt: '2020-01-01T00:00:00.000Z' },
+    }
+
+    const response = await sendStatement(origin, asText(tampered))
+
+    expect(await problemOf(response)).toBe('bad-signature')
+  })
+
+  it('rejects an oversized statement', async () => {
+    const { origin } = await startHost()
+
+    const response = await sendStatement(origin, 'x'.repeat(70 * 1024))
+
+    expect(response.status).toBe(413)
   })
 })

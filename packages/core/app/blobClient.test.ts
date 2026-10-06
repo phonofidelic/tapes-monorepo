@@ -33,6 +33,7 @@ const jsonResponse = (status: number, body: unknown) =>
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('resolveBlobEndpoints', () => {
@@ -578,6 +579,103 @@ describe('replicateBlob', () => {
         expectedHash: HASH,
       }),
     ).resolves.toBeUndefined()
+  })
+
+  describe('with attestations', () => {
+    const CLAIM_HASH = 'c'.repeat(64)
+    const RECEIPT_HASH = 'b'.repeat(64)
+    const CLAIM = JSON.stringify({
+      payload: { type: 'tapes/recording@1' },
+      signature: 'claim-sig',
+    })
+    const RECEIPT = JSON.stringify({
+      payload: { type: 'tapes/receipt@1', claim: CLAIM_HASH },
+      signature: 'receipt-sig',
+    })
+    const HASH_BY_BODY: Record<string, string> = {
+      'audio bytes': HASH,
+      [CLAIM]: CLAIM_HASH,
+      [RECEIPT]: RECEIPT_HASH,
+    }
+
+    /**
+     * LOCAL serves the statements. REMOTE accepts uploads and answers with the
+     * hash of whatever it was sent.
+     */
+    function stubReplication(
+      options: { audioStatus?: number; missing?: string[] } = {},
+    ) {
+      const uploads: { contentType: string; body: string }[] = []
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith(LOCAL.baseUrl)) {
+          const hash = url.slice(`${LOCAL.baseUrl}/blobs/`.length)
+          const body = { [CLAIM_HASH]: CLAIM, [RECEIPT_HASH]: RECEIPT }[hash]
+          return body && !options.missing?.includes(hash)
+            ? new Response(body, { status: 200 })
+            : jsonResponse(404, { error: 'Unknown blob' })
+        }
+        const contentType = (init?.headers as Record<string, string>)[
+          'Content-Type'
+        ]
+        const body = await (init?.body as Blob).text()
+        uploads.push({ contentType, body })
+        if (contentType === 'audio/wav' && options.audioStatus) {
+          return jsonResponse(options.audioStatus, { error: 'Nope' })
+        }
+        return jsonResponse(201, { hash: HASH_BY_BODY[body], size: 1 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      return uploads
+    }
+
+    const replicate = () =>
+      replicateBlob([REMOTE], new Blob(['audio bytes']), {
+        mimeType: 'audio/wav',
+        docUrl: DOC,
+        expectedHash: HASH,
+        attestations: {
+          // Listed receipt first, to show the order is decided by type.
+          hashes: [RECEIPT_HASH, CLAIM_HASH],
+          sources: [LOCAL],
+        },
+      })
+
+    it('sends the audio, then the claim, then the receipt', async () => {
+      const uploads = stubReplication()
+
+      await replicate()
+
+      expect(uploads).toEqual([
+        { contentType: 'audio/wav', body: 'audio bytes' },
+        { contentType: 'application/json', body: CLAIM },
+        { contentType: 'application/json', body: RECEIPT },
+      ])
+    })
+
+    it('sends no statements to a host that refused the audio', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const uploads = stubReplication({ audioStatus: 507 })
+
+      await replicate()
+
+      expect(uploads.map((upload) => upload.contentType)).toEqual(['audio/wav'])
+    })
+
+    it('still sends the statements it could fetch', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const uploads = stubReplication({ missing: [RECEIPT_HASH] })
+
+      await replicate()
+
+      expect(uploads.map((upload) => upload.body)).toEqual([
+        'audio bytes',
+        CLAIM,
+      ])
+      expect(warn).toHaveBeenCalledWith(
+        'Could not fetch a signed statement to replicate:',
+        expect.any(BlobFetchError),
+      )
+    })
   })
 })
 
