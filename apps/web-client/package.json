@@ -24,6 +24,7 @@
     "@automerge/automerge-repo-react-hooks": "^2.0.0",
     "@automerge/automerge-repo-storage-indexeddb": "^2.0.0",
     "@tapes-monorepo/core": "*",
+    "@tapes-monorepo/provenance": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -40,6 +41,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^10.0.0",
     "eslint-plugin-import": "^2.31.0",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^17.0.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.3.3",
