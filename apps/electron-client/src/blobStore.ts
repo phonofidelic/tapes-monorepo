@@ -139,6 +139,9 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     path.join(root, 'meta', shard(hash), `${hash}.json`)
   const refsPath = (hash: string) =>
     path.join(root, 'refs', shard(hash), `${hash}.json`)
+  // Keyed by a claim's hash. Names the receipt this host signed for it.
+  const receiptIndexPath = (hash: string) =>
+    path.join(root, 'receipts', shard(hash), `${hash}.json`)
 
   // The host is a single process, so serializing ref mutations per hash in
   // memory is enough to keep the refs file consistent under concurrent
@@ -242,13 +245,44 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     })
   }
 
-  /** Unlinks all three files for a hash. Callers hold the per-hash lock. */
+  /** Unlinks every file for a hash. Callers hold the per-hash lock. */
   async function unlinkAll(hash: string): Promise<void> {
     await Promise.all([
       rm(objectPath(hash), { force: true }),
       rm(metaPath(hash), { force: true }),
       rm(refsPath(hash), { force: true }),
+      rm(receiptIndexPath(hash), { force: true }),
     ])
+  }
+
+  /**
+   * The hash of the receipt this host signed for a claim, if it recorded one.
+   * The receipt itself may since have been removed, so callers check it.
+   */
+  async function findReceipt(claimHash: string): Promise<string | null> {
+    if (!isValidBlobHash(claimHash)) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(
+        await readFile(receiptIndexPath(claimHash), 'utf-8'),
+      ) as { receipt?: unknown }
+      return typeof parsed.receipt === 'string' &&
+        isValidBlobHash(parsed.receipt)
+        ? parsed.receipt
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  async function recordReceipt(
+    claimHash: string,
+    receiptHash: string,
+  ): Promise<void> {
+    await writeJsonAtomic(receiptIndexPath(claimHash), {
+      receipt: receiptHash,
+    })
   }
 
   /**
@@ -556,5 +590,7 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     listObjects,
     remove,
     sweepTmp,
+    findReceipt,
+    recordReceipt,
   }
 }

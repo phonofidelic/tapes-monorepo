@@ -1,24 +1,33 @@
 import { Readable } from 'stream'
 import {
+  HOST_RECEIPT_TYPE,
   STATEMENT_MIME_TYPE,
   checkRecordingClaim,
   createHostReceipt,
   decodeSignedStatement,
   encodeSignedStatement,
+  statementAddress,
   statementBytes,
+  verifyStatement,
   type ClaimVerification,
+  type HostReceipt,
+  type RecordingClaim,
   type Signed,
 } from '@tapes-monorepo/provenance'
 import type { BlobStore } from './blobStore'
 
 /**
- * Checks the claim that came with an upload. If it holds, signs a host receipt
- * for it and stores both statements in the blob store, next to the audio.
- * Shared by the `/blobs` upload route and the electron recorder's file ingest.
+ * Checks the claim that came with an upload. If it holds, countersigns it with
+ * a host receipt and stores both statements in the blob store, next to the
+ * audio. Shared by the `/blobs` upload route and the electron recorder's file
+ * ingest.
  *
  * A failed check never fails the upload. The audio is kept and reported as
  * unverified. Rejecting it would lose the take, and a hash mismatch would fail
  * the same way on every retry.
+ *
+ * A claim gets one receipt per host. A repeat upload of the same claim gets the
+ * receipt signed the first time, so its time stays the first arrival.
  *
  * Do not import `electron` here. The sync server uses this module, and it
  * stays testable in a plain node process.
@@ -41,36 +50,33 @@ type ClaimIngestResult = {
   attestations: string[]
 }
 
+// The host is a single process, so an in-memory queue per claim is enough to
+// stop two concurrent uploads of one claim from each signing a receipt.
+const claimLocks = new Map<string, Promise<unknown>>()
+
+function withClaimLock<T>(claimHash: string, fn: () => Promise<T>): Promise<T> {
+  const previous = claimLocks.get(claimHash) ?? Promise.resolve()
+  const run = previous.then(fn)
+  const settled = run.catch(() => undefined)
+  claimLocks.set(claimHash, settled)
+  void settled.then(() => {
+    if (claimLocks.get(claimHash) === settled) {
+      claimLocks.delete(claimHash)
+    }
+  })
+  return run
+}
+
 export async function verifyClaimOnIngest(
   encodedClaim: string | undefined,
   received: { hash: string; size: number },
   options: ClaimIngestOptions,
 ): Promise<ClaimIngestResult> {
-  const { claim, statements } = await verifyClaim(
-    encodedClaim,
-    received,
-    options.loadSigningKey,
-  )
-  return {
-    claim,
-    attestations: await storeStatements(
-      statements,
-      options.store,
-      options.docUrl,
-    ),
-  }
-}
-
-async function verifyClaim(
-  encodedClaim: string | undefined,
-  received: { hash: string; size: number },
-  loadSigningKey: (() => Promise<CryptoKeyPair>) | undefined,
-): Promise<{ claim: ClaimVerification; statements: Signed<unknown>[] }> {
-  // Read the clock before any async work, so the receipt says when the bytes
+  // Read the clock before any async work, so a new receipt says when the bytes
   // arrived rather than when signing finished.
   const receivedAt = new Date()
   if (encodedClaim === undefined) {
-    return { claim: { status: 'unsigned' }, statements: [] }
+    return { claim: { status: 'unsigned' }, attestations: [] }
   }
 
   const signed = decodeSignedStatement(encodedClaim)
@@ -85,31 +91,127 @@ async function verifyClaim(
     // Not stored. A statement that does not verify is evidence of nothing.
     return {
       claim: { status: 'unverified', problem: check.problem },
-      statements: [],
+      attestations: [],
     }
   }
 
-  // The claim stands on its own without a receipt, so a missing host key
-  // leaves it verified but uncountersigned.
+  const claimHash = await statementAddress(check.claim)
+  return withClaimLock(claimHash, async () => {
+    const receipt = await receiptFor(
+      check.claim,
+      claimHash,
+      receivedAt,
+      options,
+    )
+    // The claim stands on its own without a receipt, so a missing host key
+    // leaves it verified but uncountersigned.
+    if (!receipt) {
+      return {
+        claim: { status: 'verified' },
+        attestations: await storeStatements(
+          [check.claim],
+          options.store,
+          options.docUrl,
+        ),
+      }
+    }
+
+    // Storing a reused receipt again dedupes it and adds this document as an
+    // owner, so it is kept as long as any recording that lists it.
+    const attestations = await storeStatements(
+      [check.claim, receipt.signed],
+      options.store,
+      options.docUrl,
+    )
+    if (receipt.isNew) {
+      await indexReceipt(options.store, claimHash, receipt.signed, attestations)
+    }
+    return {
+      claim: {
+        status: 'verified',
+        receipt: encodeSignedStatement(receipt.signed),
+      },
+      attestations,
+    }
+  })
+}
+
+/** The receipt this host already signed for the claim, or a new one. */
+async function receiptFor(
+  claim: Signed<RecordingClaim>,
+  claimHash: string,
+  receivedAt: Date,
+  { loadSigningKey, store }: ClaimIngestOptions,
+): Promise<{ signed: Signed<HostReceipt>; isNew: boolean } | null> {
   if (!loadSigningKey) {
-    return { claim: { status: 'verified' }, statements: [check.claim] }
+    return null
   }
   try {
-    const receipt = await createHostReceipt(
-      check.claim,
-      await loadSigningKey(),
-      receivedAt,
-    )
+    const keyPair = await loadSigningKey()
+    const existing = await readOwnReceipt(store, claimHash, keyPair)
+    if (existing) {
+      return { signed: existing, isNew: false }
+    }
     return {
-      claim: { status: 'verified', receipt: encodeSignedStatement(receipt) },
-      statements: [check.claim, receipt],
+      signed: await createHostReceipt(claim, keyPair, receivedAt),
+      isNew: true,
     }
   } catch (error) {
     console.warn(
       'Verified a recording claim but could not sign a receipt:',
       error,
     )
-    return { claim: { status: 'verified' }, statements: [check.claim] }
+    return null
+  }
+}
+
+/**
+ * The indexed receipt for a claim, if it is still stored and verifies against
+ * the host's current key. After a key reset the host signs a new one.
+ */
+async function readOwnReceipt(
+  store: BlobStore,
+  claimHash: string,
+  keyPair: CryptoKeyPair,
+): Promise<Signed<HostReceipt> | null> {
+  const hash = await store.findReceipt(claimHash)
+  if (!hash || !(await store.has(hash))) {
+    return null
+  }
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of store.read(hash)) {
+      chunks.push(chunk as Buffer)
+    }
+    const stored = JSON.parse(
+      Buffer.concat(chunks).toString('utf-8'),
+    ) as Signed<HostReceipt>
+    const matches =
+      stored.payload.type === HOST_RECEIPT_TYPE &&
+      stored.payload.claim === claimHash &&
+      (await verifyStatement(stored, keyPair.publicKey))
+    return matches ? stored : null
+  } catch {
+    return null
+  }
+}
+
+/** Records a new receipt in the index, once it is safely in the store. */
+async function indexReceipt(
+  store: BlobStore,
+  claimHash: string,
+  receipt: Signed<HostReceipt>,
+  stored: string[],
+): Promise<void> {
+  const receiptHash = await statementAddress(receipt)
+  if (!stored.includes(receiptHash)) {
+    return
+  }
+  try {
+    await store.recordReceipt(claimHash, receiptHash)
+  } catch (error) {
+    // The receipt is stored and listed. A retry would only sign another one.
+    console.warn('Could not index a host receipt:', error)
   }
 }
 
