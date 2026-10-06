@@ -118,5 +118,7 @@ export async function ingestHostFile(
   if (!response.success) {
     throw response.error
   }
-  return response.data
+  // Only the descriptor goes into the doc, not the host's verdict on the claim.
+  const { hash, size, mimeType, ext } = response.data
+  return { hash, size, mimeType, ext }
 }

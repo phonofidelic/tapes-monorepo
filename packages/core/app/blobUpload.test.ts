@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { IpcService } from './IpcService'
 import {
   addPendingUpload,
+  ingestHostFile,
   readPendingUploads,
   recordingMimeType,
   removePendingUpload,
@@ -44,5 +46,35 @@ describe('recordingMimeType', () => {
   it('names the audio format, or mp4 when there is none', () => {
     expect(recordingMimeType('webm')).toBe('audio/webm')
     expect(recordingMimeType(undefined)).toBe('audio/mp4')
+  })
+})
+
+describe('ingestHostFile', () => {
+  // The descriptor is written into the shared doc. The host's verdict on the
+  // claim is not part of it.
+  it('returns only the blob descriptor', async () => {
+    const send = vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        hash: 'ab'.repeat(32),
+        size: 4,
+        mimeType: 'audio/wav',
+        ext: '.wav',
+        claim: { status: 'verified', receipt: 'receipt' },
+      },
+    })
+
+    const descriptor = await ingestHostFile({ send } as unknown as IpcService, {
+      filepath: '/take.wav',
+      docUrl: 'automerge:a',
+      claim: 'claim',
+    })
+
+    expect(descriptor).toEqual({
+      hash: 'ab'.repeat(32),
+      size: 4,
+      mimeType: 'audio/wav',
+      ext: '.wav',
+    })
   })
 })
