@@ -259,9 +259,7 @@ function LibraryListItem({
                                 data: {
                                   filepath: recording.filepath,
                                   hash: recording.blob?.hash,
-                                  attestations: [
-                                    ...(recording.attestations ?? []),
-                                  ],
+                                  attestations: recording.attestations ?? [],
                                   docUrl: recording.url,
                                 },
                               },
