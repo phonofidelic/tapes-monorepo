@@ -18,6 +18,7 @@ import { useUploadEndpoint } from '@/context/BlobContext'
 import {
   addPendingUpload,
   readPendingUploads,
+  recordingMimeType,
   removePendingUpload,
   uploadRecordingBlob,
 } from '@/blobUpload'
@@ -57,6 +58,8 @@ export function Recorder() {
   )
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [filepath, setFilepath] = useState('')
+  // The signed claim for the recording at `filepath`, made when it stopped.
+  const [claim, setClaim] = useState<string | undefined>()
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(NEW_RECORDING_DEFAULT_NAME)
   const [hasErrors, setHasErrors] = useState(false)
@@ -68,9 +71,18 @@ export function Recorder() {
    * Having no host is the ordinary state of a standalone web client.
    */
   const storeRecordingAudio = useCallback(
-    async (docUrl: AutomergeUrl, recordingFilepath: string) => {
+    async (
+      docUrl: AutomergeUrl,
+      recordingFilepath: string,
+      recordingClaim: string | undefined,
+    ) => {
+      const pending = {
+        docUrl,
+        filepath: recordingFilepath,
+        claim: recordingClaim,
+      }
       if (!blobEndpoint) {
-        addPendingUpload(localStorage, { docUrl, filepath: recordingFilepath })
+        addPendingUpload(localStorage, pending)
         return
       }
       try {
@@ -79,7 +91,8 @@ export function Recorder() {
           endpoint: blobEndpoint,
           docUrl,
           filepath: recordingFilepath,
-          mimeType: audioFormat ? `audio/${audioFormat}` : 'audio/mp4',
+          mimeType: recordingMimeType(audioFormat),
+          claim: recordingClaim,
         })
         const handle = await repo.find<RecordingData>(docUrl)
         handle.change((doc) => {
@@ -88,7 +101,7 @@ export function Recorder() {
         removePendingUpload(localStorage, docUrl)
       } catch (error) {
         console.error('Failed to store recording audio on the host:', error)
-        addPendingUpload(localStorage, { docUrl, filepath: recordingFilepath })
+        addPendingUpload(localStorage, pending)
       }
     },
     [appContext, audioFormat, blobEndpoint, repo],
@@ -102,7 +115,11 @@ export function Recorder() {
       return
     }
     for (const pending of readPendingUploads(localStorage)) {
-      void storeRecordingAudio(pending.docUrl as AutomergeUrl, pending.filepath)
+      void storeRecordingAudio(
+        pending.docUrl as AutomergeUrl,
+        pending.filepath,
+        pending.claim,
+      )
     }
   }, [blobEndpoint, storeRecordingAudio])
 
@@ -124,6 +141,7 @@ export function Recorder() {
     // Capture everything the doc needs before the first `await`. The Save and
     // Enter handlers reset this state synchronously right after invoking this.
     const recordingFilepath = filepath
+    const recordingClaim = claim
     const recordingName = editedName || NEW_RECORDING_DEFAULT_NAME
     const recordingDuration = time
 
@@ -159,7 +177,7 @@ export function Recorder() {
 
       // Off the critical path. The descriptor lands as a second change once
       // the host has the bytes, which the player's effect already re-runs on.
-      void storeRecordingAudio(url, recordingFilepath)
+      void storeRecordingAudio(url, recordingFilepath, recordingClaim)
     } finally {
       isSavingRef.current = false
     }
@@ -336,9 +354,10 @@ export function Recorder() {
                     }
 
                     if (appContext.type === 'web-client' && isRecording) {
-                      await stopRecording()
+                      const stoppedClaim = await stopRecording()
                       if (handleFilename) {
                         setFilepath(handleFilename)
+                        setClaim(stoppedClaim)
                         setIsEditorOpen(true)
                       }
                       return
@@ -390,6 +409,7 @@ export function Recorder() {
                       }
 
                       setFilepath(stopResponse.data.filepath)
+                      setClaim(stopResponse.data.claim)
                       setIsEditorOpen(true)
                     }
                   }}

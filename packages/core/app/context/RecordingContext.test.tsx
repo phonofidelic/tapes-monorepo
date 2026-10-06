@@ -58,7 +58,7 @@ class FakeMediaRecorder extends EventTarget {
 /** The two callbacks under test, reached through the context. */
 type Controls = {
   startRecording: () => Promise<void>
-  stopRecording: () => Promise<void>
+  stopRecording: () => Promise<string | undefined>
 }
 
 const renderProvider = () => {
@@ -156,6 +156,68 @@ describe('RecordingStateProvider', () => {
     expect(recorders[0].stopped).toBe(true)
     await waitFor(() => expect(track.stopped).toBe(true))
     expect(consoleError).not.toHaveBeenCalled()
+  })
+
+  it('asks the worker for a claim once the recorder has stopped', async () => {
+    const { stream } = fakeStream()
+    vi.mocked(getAudioStream).mockResolvedValue(stream)
+    const controls = renderProvider()
+
+    await act(async () => {
+      await controls.startRecording()
+    })
+
+    vi.mocked(callWorker).mockImplementation(async (_worker, type) => {
+      if (type === 'recorder:claim') {
+        // The last chunk is posted on `dataavailable`, before `stop` fires.
+        expect(recorders[0].stopped).toBe(true)
+        return { claim: 'signed-claim' }
+      }
+      return {}
+    })
+
+    let claim: string | undefined
+    await act(async () => {
+      claim = await controls.stopRecording()
+    })
+
+    expect(claim).toBe('signed-claim')
+    expect(callWorker).toHaveBeenCalledWith(
+      expect.anything(),
+      'recorder:claim',
+      expect.objectContaining({
+        filename: 'a.wav',
+        mimeType: 'audio/device-a',
+        startedAt: expect.any(String),
+        endedAt: expect.any(String),
+      }),
+    )
+  })
+
+  it('stops without a claim when signing fails', async () => {
+    const { stream } = fakeStream()
+    vi.mocked(getAudioStream).mockResolvedValue(stream)
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const controls = renderProvider()
+
+    await act(async () => {
+      await controls.startRecording()
+    })
+
+    vi.mocked(callWorker).mockImplementation(async (_worker, type) => {
+      if (type === 'recorder:claim') {
+        throw new Error('no device key')
+      }
+      return {}
+    })
+
+    let claim: string | undefined = 'unset'
+    await act(async () => {
+      claim = await controls.stopRecording()
+    })
+
+    expect(claim).toBeUndefined()
+    expect(consoleWarn).toHaveBeenCalled()
   })
 
   it('releases the microphone when the recorder cannot be constructed', async () => {

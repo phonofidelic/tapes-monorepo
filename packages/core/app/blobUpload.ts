@@ -18,6 +18,19 @@ export type PendingUpload = {
   docUrl: string
   /** OPFS filename on web, absolute path on electron. */
   filepath: string
+  /**
+   * The recorder's encoded signed claim. Kept with the queued upload because
+   * it was signed at stop and cannot be made again later.
+   */
+  claim?: string
+}
+
+/**
+ * The MIME type a web recording is uploaded under when its OPFS file has none.
+ * The worker uses the same rule for the claim, so both name the same type.
+ */
+export function recordingMimeType(audioFormat: string | undefined): string {
+  return audioFormat ? `audio/${audioFormat}` : 'audio/mp4'
 }
 
 export function readPendingUploads(storage: Storage): PendingUpload[] {
@@ -59,15 +72,17 @@ export async function uploadRecordingBlob({
   docUrl,
   filepath,
   mimeType,
+  claim,
 }: {
   appContext: AppContextValue
   endpoint: BlobEndpoint
   docUrl: string
   filepath: string
   mimeType: string
+  claim?: string
 }): Promise<BlobDescriptor> {
   if (appContext.type === 'electron-client') {
-    return ingestHostFile(appContext.ipc, { filepath, docUrl })
+    return ingestHostFile(appContext.ipc, { filepath, docUrl, claim })
   }
 
   const { file } = await callWorker<{ file: File }>(
@@ -78,6 +93,7 @@ export async function uploadRecordingBlob({
   return uploadBlob(endpoint, file, {
     mimeType: file.type || mimeType,
     docUrl,
+    claim,
   })
 }
 
@@ -90,10 +106,14 @@ export async function uploadRecordingBlob({
  */
 export async function ingestHostFile(
   ipc: IpcService,
-  { filepath, docUrl }: { filepath: string; docUrl: string },
+  {
+    filepath,
+    docUrl,
+    claim,
+  }: { filepath: string; docUrl: string; claim?: string },
 ): Promise<BlobDescriptor> {
   const response = await ipc.send<PutBlobResponse>('blob:put-file', {
-    data: { filepath, docUrl },
+    data: { filepath, docUrl, claim },
   })
   if (!response.success) {
     throw response.error
