@@ -1,3 +1,4 @@
+import { RECORDING_CLAIM_HEADER } from '@tapes-monorepo/provenance'
 import { SyncServerInfo } from './services/SyncService'
 import type { BlobDescriptor } from './types'
 
@@ -6,9 +7,9 @@ import type { BlobDescriptor } from './types'
  *
  * Recorded audio lives on the sync host, addressed by the sha-256 of its
  * bytes. The Automerge doc carries only the descriptor. Guests upload what
- * they record and fetch what they play. The host computes the hash while it
- * receives an upload. Never hash on the client: a phone would have to read a
- * 50 MB+ file, and `crypto.subtle` is unavailable in the plain-HTTP LAN mode.
+ * they record and fetch what they play. The host computes the address while
+ * it receives an upload. A recording may also carry a signed claim with the
+ * recorder's own hash, which the host can check against what it received.
  */
 
 export type BlobEndpoint = {
@@ -267,7 +268,13 @@ async function failure(response: Response): Promise<BlobRequestError> {
 export async function uploadBlob(
   endpoint: BlobEndpoint,
   body: Blob,
-  options: { mimeType: string; docUrl: string; signal?: AbortSignal },
+  options: {
+    mimeType: string
+    docUrl: string
+    /** The recorder's encoded signed claim over these bytes, if it made one. */
+    claim?: string
+    signal?: AbortSignal
+  },
 ): Promise<BlobDescriptor> {
   const response = await fetch(
     `${endpoint.baseUrl}/blobs?doc=${encodeURIComponent(options.docUrl)}`,
@@ -277,6 +284,7 @@ export async function uploadBlob(
         ...authHeaders(endpoint),
         'Content-Type': options.mimeType,
         'X-Tapes-Recording-Url': options.docUrl,
+        ...(options.claim ? { [RECORDING_CLAIM_HEADER]: options.claim } : {}),
       },
       body,
       signal: options.signal,

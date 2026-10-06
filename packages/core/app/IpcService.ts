@@ -78,7 +78,8 @@ export type StopRecordingResponse =
     }
   | {
       success: true
-      data: { filepath: string }
+      /** `claim` is the encoded signed claim, absent if signing failed. */
+      data: { filepath: string; claim?: string }
     }
 
 export type EditRecordingResponse =
@@ -182,7 +183,9 @@ export type IpcSendArgs =
   | ['sync:set-https-enabled', IpcRequest & { data: { enabled: boolean } }]
   | [
       'blob:put-file',
-      IpcRequest & { data: { filepath: string; docUrl: string } },
+      IpcRequest & {
+        data: { filepath: string; docUrl: string; claim?: string }
+      },
     ]
   | ['blob:has', IpcRequest & { data: { hash: string } }]
   | ['library:announce', IpcRequest & { data: { url: string } }]
