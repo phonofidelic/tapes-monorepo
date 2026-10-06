@@ -540,3 +540,115 @@ describe('recording claims on upload', () => {
     ])
   })
 })
+
+describe('repeat uploads of one claim', () => {
+  type ClaimAnswer = {
+    claim: { status: string; receipt: string }
+    attestations: string[]
+  }
+
+  const claimOverAudio = async () =>
+    encodeSignedStatement(
+      await createRecordingClaim(
+        {
+          blob: { hash: AUDIO_HASH, size: AUDIO.length, mimeType: 'audio/wav' },
+          startedAt: '2026-10-05T12:00:00.000Z',
+          endedAt: '2026-10-05T12:03:00.000Z',
+        },
+        await generateSigningKeyPair(),
+      ),
+    )
+
+  // A later upload must read a later clock, or a fresh receipt would come out
+  // byte-identical to the first and the test could not tell them apart.
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 5))
+
+  const send = async (
+    origin: string,
+    claim: string,
+    doc = DOC,
+  ): Promise<ClaimAnswer> =>
+    (await (await upload(origin, AUDIO, { claim, doc })).json()) as ClaimAnswer
+
+  it('answers a retry with the first receipt', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin } = await startHost({ loadSigningKey: async () => hostKey })
+    const claim = await claimOverAudio()
+
+    const first = await send(origin, claim)
+    await tick()
+    const retry = await send(origin, claim)
+
+    expect(retry.claim.receipt).toBe(first.claim.receipt)
+    expect(retry.attestations).toEqual(first.attestations)
+  })
+
+  it('answers concurrent uploads with one receipt', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin } = await startHost({ loadSigningKey: async () => hostKey })
+    const claim = await claimOverAudio()
+
+    const [a, b] = await Promise.all([send(origin, claim), send(origin, claim)])
+
+    expect(a.claim.receipt).toBe(b.claim.receipt)
+  })
+
+  it('adds a second document as an owner of the reused receipt', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin, blobRoot } = await startHost({
+      loadSigningKey: async () => hostKey,
+    })
+    const claim = await claimOverAudio()
+
+    const first = await send(origin, claim, DOC)
+    await tick()
+    const second = await send(origin, claim, 'automerge:doc-b')
+
+    expect(second.attestations).toEqual(first.attestations)
+    const store = createBlobStore(blobRoot)
+    expect(await store.refs(first.attestations[1])).toEqual([
+      DOC,
+      'automerge:doc-b',
+    ])
+  })
+
+  it('signs a new receipt after the host key changes', async () => {
+    const keys = [
+      await generateSigningKeyPair(),
+      await generateSigningKeyPair(),
+    ]
+    let current = 0
+    const { origin } = await startHost({
+      loadSigningKey: async () => keys[current],
+    })
+    const claim = await claimOverAudio()
+
+    const first = await send(origin, claim)
+    current = 1
+    await tick()
+    const second = await send(origin, claim)
+
+    expect(second.claim.receipt).not.toBe(first.claim.receipt)
+    const receipt = decodeSignedStatement(second.claim.receipt)!
+    expect(await verifyStatement(receipt, keys[1].publicKey)).toBe(true)
+  })
+
+  it('signs a new receipt when the first was removed from the store', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin, blobRoot } = await startHost({
+      loadSigningKey: async () => hostKey,
+    })
+    const claim = await claimOverAudio()
+
+    const first = await send(origin, claim)
+    await createBlobStore(blobRoot).remove(first.attestations[1])
+    await tick()
+    const second = await send(origin, claim)
+
+    expect(second.claim.receipt).not.toBe(first.claim.receipt)
+    const fetched = await fetch(`${origin}/blobs/${second.attestations[1]}`, {
+      headers: authed(),
+    })
+    expect(fetched.status).toBe(200)
+  })
+})
