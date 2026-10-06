@@ -503,6 +503,96 @@ describe('recording claims on upload', () => {
     expect(await verifyStatement(stored, hostKey.publicKey)).toBe(true)
   })
 
+  it('answers a retried upload with the receipt it already signed', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin, blobRoot } = await startHost({
+      loadSigningKey: async () => hostKey,
+    })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    type Body = { claim: { receipt: string }; attestations: string[] }
+    const first = (await (
+      await upload(origin, AUDIO, { claim })
+    ).json()) as Body
+    // A new receipt would carry a later arrival time, so it would differ.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const retry = (await (
+      await upload(origin, AUDIO, { claim })
+    ).json()) as Body
+
+    expect(retry.claim.receipt).toBe(first.claim.receipt)
+    expect(retry.attestations).toEqual(first.attestations)
+    const objects = await createBlobStore(blobRoot).listObjects()
+    expect(objects.map(({ hash }) => hash).sort()).toEqual(
+      [AUDIO_HASH, ...first.attestations].sort(),
+    )
+  })
+
+  it('adds a second document as an owner of the reused receipt', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin, blobRoot } = await startHost({
+      loadSigningKey: async () => hostKey,
+    })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    await upload(origin, AUDIO, { claim })
+    const response = await upload(origin, AUDIO, {
+      claim,
+      doc: 'automerge:doc-b',
+    })
+    const { attestations } = (await response.json()) as {
+      attestations: string[]
+    }
+
+    const store = createBlobStore(blobRoot)
+    for (const hash of attestations) {
+      expect(await store.refs(hash)).toEqual([DOC, 'automerge:doc-b'])
+    }
+  })
+
+  it('signs a new receipt once the old one has left the store', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin, blobRoot } = await startHost({
+      loadSigningKey: async () => hostKey,
+    })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    type Body = { claim: { receipt: string }; attestations: string[] }
+    const first = (await (
+      await upload(origin, AUDIO, { claim })
+    ).json()) as Body
+    await createBlobStore(blobRoot).remove(first.attestations[1])
+    const retry = (await (
+      await upload(origin, AUDIO, { claim })
+    ).json()) as Body
+
+    // The answer must name a receipt the store holds, not the removed one.
+    expect(await createBlobStore(blobRoot).has(retry.attestations[1])).toBe(
+      true,
+    )
+  })
+
+  it('does not reuse a receipt signed with a key the host no longer holds', async () => {
+    const keys = [
+      await generateSigningKeyPair(),
+      await generateSigningKeyPair(),
+    ]
+    let calls = 0
+    const { origin } = await startHost({
+      loadSigningKey: async () => keys[Math.min(calls++, 1)],
+    })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    type Body = { claim: { receipt: string } }
+    await upload(origin, AUDIO, { claim })
+    const retry = (await (
+      await upload(origin, AUDIO, { claim })
+    ).json()) as Body
+
+    const receipt = decodeSignedStatement(retry.claim.receipt)!
+    expect(await verifyStatement(receipt, keys[1].publicKey)).toBe(true)
+  })
+
   it('stores nothing for a claim that does not verify', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { origin } = await startHost({

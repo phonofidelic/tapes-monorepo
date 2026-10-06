@@ -264,6 +264,31 @@ describe('remove', () => {
   })
 })
 
+describe('receipt index', () => {
+  it('records which receipt belongs to a claim', async () => {
+    const store = createBlobStore(root)
+    const claim = sha256('claim')
+    const receipt = sha256('receipt')
+
+    expect(await store.receiptFor(claim)).toBeNull()
+    await store.setReceiptFor(claim, receipt)
+    expect(await store.receiptFor(claim)).toBe(receipt)
+  })
+
+  it('drops the entry when the claim object is removed', async () => {
+    const store = createBlobStore(root)
+    const { meta } = await store.ingestStream(Readable.from(['claim']), {
+      mimeType: 'application/json',
+      docUrl: DOC_A,
+    })
+    await store.setReceiptFor(meta.hash, sha256('receipt'))
+
+    await store.releaseRef(meta.hash, DOC_A)
+
+    expect(await store.receiptFor(meta.hash)).toBeNull()
+  })
+})
+
 async function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of stream) {

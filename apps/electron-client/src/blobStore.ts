@@ -139,6 +139,8 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     path.join(root, 'meta', shard(hash), `${hash}.json`)
   const refsPath = (hash: string) =>
     path.join(root, 'refs', shard(hash), `${hash}.json`)
+  const receiptPath = (hash: string) =>
+    path.join(root, 'receipts', shard(hash), `${hash}.json`)
 
   // The host is a single process, so serializing ref mutations per hash in
   // memory is enough to keep the refs file consistent under concurrent
@@ -242,13 +244,49 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     })
   }
 
-  /** Unlinks all three files for a hash. Callers hold the per-hash lock. */
+  /** Unlinks an object and its sidecars. Callers hold the per-hash lock. */
   async function unlinkAll(hash: string): Promise<void> {
     await Promise.all([
       rm(objectPath(hash), { force: true }),
       rm(metaPath(hash), { force: true }),
       rm(refsPath(hash), { force: true }),
+      rm(receiptPath(hash), { force: true }),
     ])
+  }
+
+  /**
+   * The hash of the receipt this host signed for a stored claim, or null if
+   * none was recorded. The receipt object may since have been removed, so
+   * callers must check it is still there.
+   */
+  async function receiptFor(claimHash: string): Promise<string | null> {
+    if (!isValidBlobHash(claimHash)) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(
+        await readFile(receiptPath(claimHash), 'utf-8'),
+      ) as { receipt?: unknown }
+      return typeof parsed.receipt === 'string' &&
+        isValidBlobHash(parsed.receipt)
+        ? parsed.receipt
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  // Kept beside the claim's sidecars, so removing the claim drops the entry.
+  async function setReceiptFor(
+    claimHash: string,
+    receiptHash: string,
+  ): Promise<void> {
+    if (!isValidBlobHash(claimHash) || !isValidBlobHash(receiptHash)) {
+      throw new Error('Expected store hashes for a claim and its receipt')
+    }
+    await withLock(claimHash, () =>
+      writeJsonAtomic(receiptPath(claimHash), { receipt: receiptHash }),
+    )
   }
 
   /**
@@ -556,5 +594,7 @@ export function createBlobStore(root: string, deps: BlobStoreDeps = {}) {
     listObjects,
     remove,
     sweepTmp,
+    receiptFor,
+    setReceiptFor,
   }
 }
