@@ -3,7 +3,19 @@ import http from 'http'
 import path from 'path'
 import { mkdtemp, readdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  createRecordingClaim,
+  decodeSignedStatement,
+  encodeSignedStatement,
+  exportPublicKey,
+  generateSigningKeyPair,
+  RECORDING_CLAIM_HEADER,
+  statementAddress,
+  verifyStatement,
+  type HostReceipt,
+  type Signed,
+} from '@tapes-monorepo/provenance'
 import { startSyncServer, stopSyncServer } from './syncServer'
 import { createBlobStore } from './blobStore'
 import { createBlobRequestHandler } from './blobHttp'
@@ -23,6 +35,7 @@ async function tempDir(prefix: string) {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await stopSyncServer()
   if (extraServer) {
     await new Promise<void>((resolve) => extraServer!.close(() => resolve()))
@@ -36,9 +49,13 @@ afterEach(async () => {
 type Host = { origin: string; blobRoot: string }
 
 async function startHost(
-  options: { withBundle?: boolean; withStore?: boolean } = {},
+  options: {
+    withBundle?: boolean
+    withStore?: boolean
+    loadSigningKey?: () => Promise<CryptoKeyPair>
+  } = {},
 ): Promise<Host> {
-  const { withBundle = false, withStore = true } = options
+  const { withBundle = false, withStore = true, loadSigningKey } = options
   const storagePath = await tempDir('tapes-sync-')
   const blobRoot = await tempDir('tapes-blobs-')
 
@@ -59,6 +76,7 @@ async function startHost(
     webClientPath,
     blobStorePath: withStore ? blobRoot : undefined,
     pairingToken: withStore ? TOKEN : undefined,
+    loadSigningKey,
   })
 
   return { origin: `http://127.0.0.1:${info.port}`, blobRoot }
@@ -67,15 +85,21 @@ async function startHost(
 function upload(
   origin: string,
   body: string,
-  init: { token?: string | null; contentType?: string; doc?: string } = {},
+  init: {
+    token?: string | null
+    contentType?: string
+    doc?: string
+    claim?: string
+  } = {},
 ) {
-  const { token = TOKEN, contentType = 'audio/wav', doc = DOC } = init
+  const { token = TOKEN, contentType = 'audio/wav', doc = DOC, claim } = init
   const query = doc ? `?doc=${encodeURIComponent(doc)}` : ''
   return fetch(`${origin}/blobs${query}`, {
     method: 'POST',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'Content-Type': contentType,
+      ...(claim ? { [RECORDING_CLAIM_HEADER]: claim } : {}),
     },
     body,
   })
@@ -356,5 +380,114 @@ describe('upload limits', () => {
       doc: 'automerge:doc-b',
     })
     expect(second.status).toBe(507)
+  })
+})
+
+describe('recording claims on upload', () => {
+  const claimOver = async (
+    bytes: string,
+    device: CryptoKeyPair,
+  ): Promise<string> =>
+    encodeSignedStatement(
+      await createRecordingClaim(
+        {
+          blob: {
+            hash: crypto.createHash('sha256').update(bytes).digest('hex'),
+            size: bytes.length,
+            mimeType: 'audio/wav',
+          },
+          startedAt: '2026-10-05T12:00:00.000Z',
+          endedAt: '2026-10-05T12:03:00.000Z',
+        },
+        device,
+      ),
+    )
+
+  it('reports an upload without a claim as unsigned', async () => {
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+
+    const response = await upload(origin, AUDIO)
+
+    await expect(response.json()).resolves.toMatchObject({
+      claim: { status: 'unsigned' },
+    })
+  })
+
+  it('answers a valid claim with a receipt signed by the host', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin } = await startHost({ loadSigningKey: async () => hostKey })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    const response = await upload(origin, AUDIO, { claim })
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as {
+      claim: { status: string; receipt: string }
+    }
+    expect(body.claim.status).toBe('verified')
+    const receipt = decodeSignedStatement(
+      body.claim.receipt,
+    ) as Signed<HostReceipt>
+    expect(await verifyStatement(receipt, hostKey.publicKey)).toBe(true)
+    expect(receipt.payload).toMatchObject({
+      type: 'tapes/receipt@1',
+      claim: await statementAddress(decodeSignedStatement(claim)!),
+      hostKey: await exportPublicKey(hostKey.publicKey),
+    })
+  })
+
+  it('keeps the audio when the claim covers other bytes', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+    const claim = await claimOver(
+      'different audio',
+      await generateSigningKeyPair(),
+    )
+
+    const response = await upload(origin, AUDIO, { claim })
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      hash: AUDIO_HASH,
+      claim: { status: 'unverified', problem: 'hash-mismatch' },
+    })
+    const stored = await fetch(`${origin}/blobs/${AUDIO_HASH}`, {
+      headers: authed(),
+    })
+    expect(await stored.text()).toBe(AUDIO)
+  })
+
+  it('reports a header that is not a claim as malformed', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+
+    const response = await upload(origin, AUDIO, { claim: 'not-a-claim' })
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      claim: { status: 'unverified', problem: 'malformed' },
+    })
+  })
+
+  it('verifies the claim without a receipt when the host key fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { origin } = await startHost({
+      loadSigningKey: () =>
+        Promise.reject(new Error('safeStorage unavailable')),
+    })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    const response = await upload(origin, AUDIO, { claim })
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      claim: { status: 'verified' },
+    })
   })
 })

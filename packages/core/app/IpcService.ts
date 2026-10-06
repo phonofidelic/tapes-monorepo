@@ -1,3 +1,5 @@
+import type { ClaimVerification } from '@tapes-monorepo/provenance'
+
 /**
  * The request/response contract between core and a platform backend.
  *
@@ -110,7 +112,14 @@ export type PutBlobResponse =
     }
   | {
       success: true
-      data: { hash: string; size: number; mimeType: string; ext: string }
+      data: {
+        hash: string
+        size: number
+        mimeType: string
+        ext: string
+        /** What the host made of the recording's claim. */
+        claim: ClaimVerification
+      }
     }
 
 export type HasBlobResponse =

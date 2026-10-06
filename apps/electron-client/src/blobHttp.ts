@@ -1,6 +1,8 @@
 import type http from 'http'
 import { pipeline } from 'stream/promises'
+import { RECORDING_CLAIM_HEADER } from '@tapes-monorepo/provenance'
 import { BlobTooLargeError, isValidBlobHash, type BlobStore } from './blobStore'
+import { verifyClaimOnIngest } from './claimIngest'
 import { isAuthorized } from './tokenAuth'
 import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
 
@@ -12,6 +14,10 @@ import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
  * Must stay mounted ahead of the static handler in the sync server. Its SPA
  * fallback answers any unmatched path with index.html and a 200, so a blob
  * route behind it would hand the audio element HTML and fail as a decode error.
+ *
+ * An upload may carry the recorder's signed claim in a header. The host checks
+ * it against the bytes it stored and answers with a receipt, or with the
+ * reason the claim did not verify. A bad claim never fails the upload.
  */
 
 export const BLOB_PATH_PREFIX = '/blobs'
@@ -32,6 +38,8 @@ export type BlobHandlerOptions = {
   token?: string
   maxBlobBytes?: number
   maxStoreBytes?: number
+  /** The host's key for signing receipts. Without it, none are issued. */
+  loadSigningKey?: () => Promise<CryptoKeyPair>
 }
 
 type ParsedRange =
@@ -86,6 +94,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
     token,
     maxBlobBytes = DEFAULT_MAX_BLOB_BYTES,
     maxStoreBytes = DEFAULT_MAX_STORE_BYTES,
+    loadSigningKey,
   } = options
 
   async function handleUpload(
@@ -124,12 +133,19 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
         docUrl,
         maxBytes: maxBlobBytes,
       })
+      const claimHeader = request.headers[RECORDING_CLAIM_HEADER.toLowerCase()]
+      const claim = await verifyClaimOnIngest(
+        Array.isArray(claimHeader) ? claimHeader.join(',') : claimHeader,
+        meta,
+        loadSigningKey,
+      )
       sendJson(response, deduped ? 200 : 201, {
         hash: meta.hash,
         size: meta.size,
         mimeType: meta.mimeType,
         ext: meta.ext,
         deduped,
+        claim,
       })
     } catch (error) {
       if (error instanceof BlobTooLargeError) {

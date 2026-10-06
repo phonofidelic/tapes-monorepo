@@ -10,6 +10,7 @@
 
 export * from './canonicalJson'
 export * from './encoding'
+export * from './hostReceipt'
 export * from './recordingClaim'
 export * from './signing'
 export * from './types'

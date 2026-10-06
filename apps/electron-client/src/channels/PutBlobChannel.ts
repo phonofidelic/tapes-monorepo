@@ -1,4 +1,6 @@
 import { asError } from '@/asError'
+import { verifyClaimOnIngest } from '@/claimIngest'
+import { loadHostSigningKey } from '@/hostSigningKey'
 import { getBlobStore } from '@/syncServer'
 import {
   IpcChannel,
@@ -11,9 +13,16 @@ import {
  * Ingests a just-recorded file into the host's blob store, hardlinking it so
  * the bytes are not duplicated. The renderer writes the returned descriptor
  * into the recording doc; guests then fetch by hash over `/blobs`.
+ *
+ * The stop channel's claim comes along, and is checked and receipted the same
+ * way as a guest's upload.
  */
 export class PutBlobChannel implements IpcChannel {
   name: ValidIpcChanel = 'blob:put-file'
+
+  constructor(
+    private loadSigningKey: () => Promise<CryptoKeyPair> = loadHostSigningKey,
+  ) {}
 
   async handle(request: IpcRequest): Promise<PutBlobResponse> {
     const { data } = request
@@ -30,6 +39,11 @@ export class PutBlobChannel implements IpcChannel {
       const { meta } = await store.ingestFile(data.filepath, {
         docUrl: data.docUrl,
       })
+      const claim = await verifyClaimOnIngest(
+        data.claim,
+        meta,
+        this.loadSigningKey,
+      )
       return {
         success: true,
         data: {
@@ -37,6 +51,7 @@ export class PutBlobChannel implements IpcChannel {
           size: meta.size,
           mimeType: meta.mimeType,
           ext: meta.ext,
+          claim,
         },
       }
     } catch (error) {
@@ -48,7 +63,7 @@ export class PutBlobChannel implements IpcChannel {
 
 const isValidPutBlobRequestData = (
   data: unknown,
-): data is { filepath: string; docUrl: string } =>
+): data is { filepath: string; docUrl: string; claim?: string } =>
   typeof data === 'object' &&
   data !== null &&
   'filepath' in data &&
@@ -56,4 +71,7 @@ const isValidPutBlobRequestData = (
   data.filepath.length > 0 &&
   'docUrl' in data &&
   typeof data.docUrl === 'string' &&
-  data.docUrl.length > 0
+  data.docUrl.length > 0 &&
+  (!('claim' in data) ||
+    data.claim === undefined ||
+    typeof data.claim === 'string')
