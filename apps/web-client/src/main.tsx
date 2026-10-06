@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import './index.css'
 import { WebClientAppShell } from './WebClientAppShell'
 import { App } from '@tapes-monorepo/core'
+import { loadDeviceSigningKey } from './deviceSigningKey'
 
 if (!window.Worker) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -17,6 +18,12 @@ if (!window.Worker) {
   if (!rootElement) {
     throw new Error('Root element not found')
   }
+
+  // Created at startup so the key exists before anything needs to sign. A
+  // browser without Ed25519 still records, just without signatures.
+  loadDeviceSigningKey().catch((error: unknown) => {
+    console.warn('No device signing key:', error)
+  })
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
