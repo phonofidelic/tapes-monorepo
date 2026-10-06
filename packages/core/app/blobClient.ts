@@ -1,4 +1,8 @@
-import { RECORDING_CLAIM_HEADER } from '@tapes-monorepo/provenance'
+import {
+  HOST_RECEIPT_TYPE,
+  RECORDING_CLAIM_HEADER,
+  STATEMENT_MIME_TYPE,
+} from '@tapes-monorepo/provenance'
 import { SyncServerInfo } from './services/SyncService'
 import type { BlobDescriptor } from './types'
 
@@ -573,6 +577,14 @@ export async function probeBlobEndpoints(
   })
 }
 
+/** Signed statements to copy along with a recording's audio. */
+export type ReplicatedAttestations = {
+  /** The recording's `attestations` list. */
+  hashes: readonly string[]
+  /** Hosts to fetch the statements from. */
+  sources: readonly BlobEndpoint[]
+}
+
 /**
  * Pushes bytes we already hold to hosts that turned out not to have them.
  *
@@ -580,32 +592,117 @@ export async function probeBlobEndpoints(
  * it. Otherwise a recording plays only while one particular machine is awake.
  * Best effort by design: a failed copy leaves the blob where it was, so this
  * never turns a successful playback into an error.
+ *
+ * The recording's signed statements go too, after the audio. A host stores a
+ * claim only once it holds the audio, and a receipt only once it holds the
+ * claim.
  */
 export async function replicateBlob(
   endpoints: readonly BlobEndpoint[],
   blob: Blob,
-  options: { mimeType: string; docUrl: string; expectedHash: string },
+  options: {
+    mimeType: string
+    docUrl: string
+    expectedHash: string
+    attestations?: ReplicatedAttestations
+  },
 ): Promise<void> {
+  if (endpoints.length === 0) {
+    return
+  }
+  // Fetched once while the audio uploads, then sent to every host.
+  const statements = fetchStatements(options.attestations)
   await Promise.all(
     endpoints.map(async (endpoint) => {
-      try {
-        const { blob: stored } = await uploadBlob(endpoint, blob, {
-          mimeType: options.mimeType,
+      const copied = await copyBlob(endpoint, blob, {
+        mimeType: options.mimeType,
+        docUrl: options.docUrl,
+        expectedHash: options.expectedHash,
+        label: 'recording audio',
+      })
+      if (!copied) {
+        return
+      }
+      // In order, since a receipt is refused until its claim is stored.
+      for (const statement of await statements) {
+        await copyBlob(endpoint, statement.blob, {
+          mimeType: STATEMENT_MIME_TYPE,
           docUrl: options.docUrl,
+          expectedHash: statement.hash,
+          label: 'a signed statement',
         })
-        if (stored.hash !== options.expectedHash) {
-          // The host hashes the bytes as it streams them, so a mismatch means
-          // what we sent is not what the doc points at. Nothing to repair from
-          // here, but it should not pass silently.
-          console.warn(
-            `Replicated blob hashed as ${stored.hash}, expected ${options.expectedHash}`,
-          )
-        }
-      } catch (error) {
-        console.warn('Could not replicate recording audio to a host:', error)
       }
     }),
   )
+}
+
+/** Uploads one blob and reports whether the host took it. */
+async function copyBlob(
+  endpoint: BlobEndpoint,
+  blob: Blob,
+  options: {
+    mimeType: string
+    docUrl: string
+    expectedHash: string
+    label: string
+  },
+): Promise<boolean> {
+  try {
+    const { blob: stored } = await uploadBlob(endpoint, blob, {
+      mimeType: options.mimeType,
+      docUrl: options.docUrl,
+    })
+    if (stored.hash !== options.expectedHash) {
+      // The host hashes the bytes as it streams them, so a mismatch means
+      // what we sent is not what the doc points at. Nothing to repair from
+      // here, but it should not pass silently.
+      console.warn(
+        `Replicated blob hashed as ${stored.hash}, expected ${options.expectedHash}`,
+      )
+    }
+    return true
+  } catch (error) {
+    console.warn(`Could not replicate ${options.label} to a host:`, error)
+    return false
+  }
+}
+
+/**
+ * The statements that could be fetched, claims before receipts. One that
+ * cannot be fetched is skipped. The others are still worth copying.
+ */
+async function fetchStatements(
+  attestations: ReplicatedAttestations | undefined,
+): Promise<{ hash: string; blob: Blob }[]> {
+  if (!attestations || attestations.hashes.length === 0) {
+    return []
+  }
+  const fetched = await Promise.all(
+    attestations.hashes.map(async (hash) => {
+      try {
+        const { blob } = await fetchBlobFromAny(attestations.sources, hash)
+        return { hash, blob, isReceipt: await isReceipt(blob) }
+      } catch (error) {
+        console.warn('Could not fetch a signed statement to replicate:', error)
+        return null
+      }
+    }),
+  )
+  return fetched
+    .filter((statement) => statement !== null)
+    .sort((a, b) => Number(a.isReceipt) - Number(b.isReceipt))
+    .map(({ hash, blob }) => ({ hash, blob }))
+}
+
+async function isReceipt(blob: Blob): Promise<boolean> {
+  try {
+    const signed = JSON.parse(await blob.text()) as {
+      payload?: { type?: unknown }
+    }
+    return signed.payload?.type === HOST_RECEIPT_TYPE
+  } catch {
+    return false
+  }
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   type Signed,
 } from '@tapes-monorepo/provenance'
 import type { BlobStore } from './blobStore'
+import { readStoredStatement } from './statementUpload'
 
 /**
  * Checks the claim that came with an upload. If it holds, countersigns it with
@@ -175,25 +176,14 @@ async function readOwnReceipt(
   keyPair: CryptoKeyPair,
 ): Promise<Signed<HostReceipt> | null> {
   const hash = await store.findReceipt(claimHash)
-  if (!hash || !(await store.has(hash))) {
-    return null
-  }
-  try {
-    const chunks: Buffer[] = []
-    for await (const chunk of store.read(hash)) {
-      chunks.push(chunk as Buffer)
-    }
-    const stored = JSON.parse(
-      Buffer.concat(chunks).toString('utf-8'),
-    ) as Signed<HostReceipt>
-    const matches =
-      stored.payload.type === HOST_RECEIPT_TYPE &&
-      stored.payload.claim === claimHash &&
-      (await verifyStatement(stored, keyPair.publicKey))
-    return matches ? stored : null
-  } catch {
-    return null
-  }
+  const stored = hash
+    ? ((await readStoredStatement(store, hash)) as Signed<HostReceipt> | null)
+    : null
+  const matches =
+    stored?.payload?.type === HOST_RECEIPT_TYPE &&
+    stored.payload.claim === claimHash &&
+    (await verifyStatement(stored, keyPair.publicKey))
+  return matches ? stored : null
 }
 
 /** Records a new receipt in the index, once it is safely in the store. */
