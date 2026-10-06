@@ -24,7 +24,7 @@ import type { BlobStore } from './blobStore'
  * stays testable in a plain node process.
  */
 
-export type ClaimIngestOptions = {
+type ClaimIngestOptions = {
   /** The host's key for signing receipts. Without it, none are issued. */
   loadSigningKey?: () => Promise<CryptoKeyPair>
   /** Where verified statements are kept, owned by the recording's document. */
@@ -32,7 +32,7 @@ export type ClaimIngestOptions = {
   docUrl: string
 }
 
-export type ClaimIngestResult = {
+type ClaimIngestResult = {
   claim: ClaimVerification
   /**
    * Store hashes of the signed claim and receipt, for the recording's
