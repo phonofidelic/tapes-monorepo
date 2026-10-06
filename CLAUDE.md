@@ -22,6 +22,9 @@ agent needs on top of that:
   sync socket. Plain TypeScript, no React, no Node. The Electron main process
   cannot import `core` (its entry is the React app), so shared wire rules live
   here instead of being copied into both sides.
+- `packages/provenance` — signed statements about recordings, with canonical
+  JSON and Ed25519 signing over WebCrypto. Plain TypeScript like
+  `sync-protocol`, for the same reason.
 - `packages/ui` — shared React components. `packages/{eslint,tailwind,typescript}-config` — shared config.
 - `apps/web-client` — browser shell. Owns mic capture and a Playwright e2e suite.
 - `apps/electron-client` — desktop host. Embedded sync server, native audio,
