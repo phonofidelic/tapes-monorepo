@@ -119,6 +119,8 @@ export type PutBlobResponse =
         ext: string
         /** What the host made of the recording's claim. */
         claim: ClaimVerification
+        /** Store hashes of the claim and receipt, when the claim verified. */
+        attestations: string[]
       }
     }
 
@@ -171,7 +173,12 @@ export type IpcSendArgs =
       // for a legacy doc that predates the blob store; deleting has to cope
       // with either being missing.
       IpcRequest & {
-        data: { filepath?: string; hash?: string; docUrl?: string }
+        data: {
+          filepath?: string
+          hash?: string
+          attestations?: string[]
+          docUrl?: string
+        }
       },
     ]
   | ['storage:read-file', IpcRequest & { data: { filepath: string } }]

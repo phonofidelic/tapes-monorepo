@@ -14,8 +14,8 @@ import {
  * the bytes are not duplicated. The renderer writes the returned descriptor
  * into the recording doc; guests then fetch by hash over `/blobs`.
  *
- * The stop channel's claim comes along, and is checked and receipted the same
- * way as a guest's upload.
+ * The stop channel's claim comes along, and is checked, receipted and stored
+ * the same way as a guest's upload.
  */
 export class PutBlobChannel implements IpcChannel {
   name: ValidIpcChanel = 'blob:put-file'
@@ -39,10 +39,10 @@ export class PutBlobChannel implements IpcChannel {
       const { meta } = await store.ingestFile(data.filepath, {
         docUrl: data.docUrl,
       })
-      const claim = await verifyClaimOnIngest(
+      const { claim, attestations } = await verifyClaimOnIngest(
         data.claim,
         meta,
-        this.loadSigningKey,
+        { loadSigningKey: this.loadSigningKey, store, docUrl: data.docUrl },
       )
       return {
         success: true,
@@ -52,6 +52,7 @@ export class PutBlobChannel implements IpcChannel {
           mimeType: meta.mimeType,
           ext: meta.ext,
           claim,
+          attestations,
         },
       }
     } catch (error) {

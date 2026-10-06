@@ -91,6 +91,19 @@ export async function verifyStatement(
   }
 }
 
+/** The MIME type a signed statement is stored and served under. */
+export const STATEMENT_MIME_TYPE = 'application/json'
+
+/**
+ * The bytes a signed statement is stored as: its canonical JSON. A store that
+ * addresses objects by sha-256 files it under its `statementAddress`.
+ */
+export function statementBytes(
+  signed: Signed<unknown>,
+): Uint8Array<ArrayBuffer> {
+  return encoder.encode(canonicalJson(signed))
+}
+
 /**
  * The sha-256 of the signed statement's canonical JSON. This is where it is
  * stored in the host's blob store and how other statements refer to it.
@@ -98,5 +111,5 @@ export async function verifyStatement(
 export async function statementAddress(
   signed: Signed<unknown>,
 ): Promise<string> {
-  return sha256Hex(encoder.encode(canonicalJson(signed)))
+  return sha256Hex(statementBytes(signed))
 }

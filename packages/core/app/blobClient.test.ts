@@ -139,10 +139,8 @@ describe('uploadBlob', () => {
     })
 
     expect(descriptor).toEqual({
-      hash: HASH,
-      size: 12,
-      mimeType: 'audio/wav',
-      ext: '.wav',
+      blob: { hash: HASH, size: 12, mimeType: 'audio/wav', ext: '.wav' },
+      attestations: [],
     })
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe(
@@ -175,6 +173,27 @@ describe('uploadBlob', () => {
     expect(init.headers).toMatchObject({
       'X-Tapes-Recording-Claim': 'encoded-claim',
     })
+  })
+
+  it('returns the attestation hashes the host stored, dropping anything else', async () => {
+    const claimHash = 'c'.repeat(64)
+    stubFetch(
+      jsonResponse(201, {
+        hash: HASH,
+        size: 8,
+        mimeType: 'audio/wav',
+        ext: '.wav',
+        attestations: [claimHash, 'not-a-hash', 7],
+      }),
+    )
+
+    const { attestations } = await uploadBlob(ENDPOINT, new Blob(['x']), {
+      mimeType: 'audio/wav',
+      docUrl: DOC,
+      claim: 'encoded-claim',
+    })
+
+    expect(attestations).toEqual([claimHash])
   })
 
   it('throws a typed error carrying the status', async () => {

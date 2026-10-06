@@ -1,7 +1,11 @@
 import type { AppContextValue } from './context/AppContext'
-import type { BlobDescriptor } from './types'
 import type { IpcService, PutBlobResponse } from './IpcService'
-import { uploadBlob, type BlobEndpoint } from './blobClient'
+import {
+  readAttestations,
+  uploadBlob,
+  type BlobEndpoint,
+  type StoredBlob,
+} from './blobClient'
 import { callWorker } from './workerClient'
 
 /**
@@ -60,8 +64,8 @@ export function removePendingUpload(storage: Storage, docUrl: string) {
 }
 
 /**
- * Sends a recording's audio to the host and returns the descriptor to write
- * into its doc. On web the OPFS file is handed to `fetch` as-is, so it
+ * Sends a recording's audio to the host and returns the descriptor and
+ * attestation hashes to write into its doc. On web the OPFS file is handed to `fetch` as-is, so it
  * streams off disk and neither side holds the whole recording in memory. On
  * electron the file is already on the host's own disk, so it is ingested over
  * IPC and nothing crosses the network.
@@ -80,7 +84,7 @@ export async function uploadRecordingBlob({
   filepath: string
   mimeType: string
   claim?: string
-}): Promise<BlobDescriptor> {
+}): Promise<StoredBlob> {
   if (appContext.type === 'electron-client') {
     return ingestHostFile(appContext.ipc, { filepath, docUrl, claim })
   }
@@ -99,7 +103,7 @@ export async function uploadRecordingBlob({
 
 /**
  * Adds a file that is already on the host's disk to its blob store and returns
- * the descriptor to write into the recording's doc. The store hardlinks the
+ * what to write into the recording's doc. The store hardlinks the
  * file, so the bytes are neither copied nor sent over the network.
  *
  * Electron only. A web guest has no host filesystem to name.
@@ -111,14 +115,18 @@ export async function ingestHostFile(
     docUrl,
     claim,
   }: { filepath: string; docUrl: string; claim?: string },
-): Promise<BlobDescriptor> {
+): Promise<StoredBlob> {
   const response = await ipc.send<PutBlobResponse>('blob:put-file', {
     data: { filepath, docUrl, claim },
   })
   if (!response.success) {
     throw response.error
   }
-  // Only the descriptor goes into the doc, not the host's verdict on the claim.
-  const { hash, size, mimeType, ext } = response.data
-  return { hash, size, mimeType, ext }
+  // The host's verdict on the claim stays out of the doc. The stored
+  // statements carry it.
+  const { hash, size, mimeType, ext, attestations } = response.data
+  return {
+    blob: { hash, size, mimeType, ext },
+    attestations: readAttestations(attestations),
+  }
 }

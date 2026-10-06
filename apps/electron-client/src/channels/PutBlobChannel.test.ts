@@ -8,6 +8,7 @@ import {
   decodeSignedStatement,
   encodeSignedStatement,
   generateSigningKeyPair,
+  statementAddress,
   verifyStatement,
 } from '@tapes-monorepo/provenance'
 import { createBlobStore, type BlobStore } from '@/blobStore'
@@ -70,6 +71,31 @@ describe('PutBlobChannel', () => {
     }
     const receipt = decodeSignedStatement(response.data.claim.receipt!)!
     expect(await verifyStatement(receipt, hostKey.publicKey)).toBe(true)
+  })
+
+  it('stores the claim and receipt under the recording document', async () => {
+    store = createBlobStore(mkdtempSync(path.join(tmpdir(), 'tapes-blobs-')))
+    const hostKey = await generateSigningKeyPair()
+    const channel = new PutBlobChannel(async () => hostKey)
+    const claim = await claimOver(AUDIO, hostKey)
+
+    const response = await channel.handle({
+      data: { filepath: recordedFile(), docUrl: DOC, claim },
+    })
+
+    if (!response.success || response.data.claim.status !== 'verified') {
+      throw new Error(
+        `Expected a verified claim, got ${JSON.stringify(response)}`,
+      )
+    }
+    const receipt = decodeSignedStatement(response.data.claim.receipt!)!
+    const [claimHash, receiptHash] = response.data.attestations
+    expect(claimHash).toBe(
+      await statementAddress(decodeSignedStatement(claim)!),
+    )
+    expect(receiptHash).toBe(await statementAddress(receipt))
+    expect(await store.refs(claimHash)).toEqual([DOC])
+    expect(await store.refs(receiptHash)).toEqual([DOC])
   })
 
   it('stores the file when its claim does not match', async () => {

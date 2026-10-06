@@ -313,9 +313,32 @@ describe('deleting', () => {
       data: {
         filepath: '/recordings/take-one.wav',
         hash: HASH,
+        attestations: [],
         docUrl: RECORDING_URL,
       },
     })
+  })
+
+  it('releases the attestations along with the audio', async () => {
+    const claimHash = 'c'.repeat(64)
+    const receiptHash = 'd'.repeat(64)
+    recording = { ...withBlob(), attestations: [claimHash, receiptHash] }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderLibrary(webContext, [ENDPOINT])
+    await userEvent.click(screen.getByTitle('Options'))
+    await userEvent.click(screen.getByText('Delete'))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    const released = fetchMock.mock.calls.map(([url]) => url as string)
+    expect(released).toEqual([
+      expect.stringContaining(`/blobs/${HASH}?`),
+      expect.stringContaining(`/blobs/${claimHash}?`),
+      expect.stringContaining(`/blobs/${receiptHash}?`),
+    ])
   })
 
   // The IPC delete above reaches only the embedded store, so a desktop app in

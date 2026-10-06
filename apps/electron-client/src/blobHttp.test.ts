@@ -475,6 +475,49 @@ describe('recording claims on upload', () => {
     })
   })
 
+  it('stores the claim and receipt so a guest can fetch and verify them', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const { origin } = await startHost({ loadSigningKey: async () => hostKey })
+    const claim = await claimOver(AUDIO, await generateSigningKeyPair())
+
+    const response = await upload(origin, AUDIO, { claim })
+    const body = (await response.json()) as {
+      claim: { receipt: string }
+      attestations: string[]
+    }
+
+    const signedClaim = decodeSignedStatement(claim)!
+    const receipt = decodeSignedStatement(body.claim.receipt)!
+    expect(body.attestations).toEqual([
+      await statementAddress(signedClaim),
+      await statementAddress(receipt),
+    ])
+
+    const fetched = await fetch(`${origin}/blobs/${body.attestations[1]}`, {
+      headers: authed(),
+    })
+    expect(fetched.status).toBe(200)
+    expect(fetched.headers.get('content-type')).toBe('application/json')
+    const stored = (await fetched.json()) as Signed<HostReceipt>
+    expect(stored).toEqual(receipt)
+    expect(await verifyStatement(stored, hostKey.publicKey)).toBe(true)
+  })
+
+  it('stores nothing for a claim that does not verify', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+    const claim = await claimOver(
+      'different audio',
+      await generateSigningKeyPair(),
+    )
+
+    const response = await upload(origin, AUDIO, { claim })
+
+    await expect(response.json()).resolves.toMatchObject({ attestations: [] })
+  })
+
   it('verifies the claim without a receipt when the host key fails', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { origin } = await startHost({
@@ -486,8 +529,14 @@ describe('recording claims on upload', () => {
     const response = await upload(origin, AUDIO, { claim })
 
     expect(response.status).toBe(201)
-    await expect(response.json()).resolves.toMatchObject({
-      claim: { status: 'verified' },
-    })
+    const body = (await response.json()) as {
+      claim: { status: string }
+      attestations: string[]
+    }
+    expect(body.claim.status).toBe('verified')
+    // The claim alone is still worth keeping.
+    expect(body.attestations).toEqual([
+      await statementAddress(decodeSignedStatement(claim)!),
+    ])
   })
 })

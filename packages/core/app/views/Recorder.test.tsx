@@ -243,6 +243,39 @@ describe('saving a recording', () => {
     // The upload streams the OPFS File itself rather than a buffer.
     expect(fetchMock.mock.calls[0][1].body).toBe(file)
     expect(localStorage.getItem('tapes.pendingBlobUploads')).toBe('[]')
+    // No claim was verified, so there is nothing to reference.
+    expect(documentWrites.find((write) => write.blob)).not.toHaveProperty(
+      'attestations',
+    )
+  })
+
+  it('references the statements the host stored next to the audio', async () => {
+    const attestations = ['c'.repeat(64), 'd'.repeat(64)]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            hash: HASH,
+            size: 5,
+            mimeType: 'audio/webm',
+            ext: '.webm',
+            attestations,
+          }),
+          { status: 201 },
+        ),
+      ),
+    )
+
+    renderRecorder(ENDPOINT, recordedFile())
+    await saveRecording()
+
+    await waitFor(() =>
+      expect(documentWrites.some((write) => write.blob)).toBe(true),
+    )
+    expect(documentWrites.find((write) => write.blob)?.attestations).toEqual(
+      attestations,
+    )
   })
 
   it('still saves, and queues a retry, when the upload fails', async () => {
