@@ -23,6 +23,7 @@
     "@automerge/automerge-repo-network-websocket": "^2.0.0",
     "@automerge/automerge-repo-react-hooks": "^2.0.0",
     "@automerge/automerge-repo-storage-indexeddb": "^2.0.0",
+    "@noble/hashes": "^1.8.0",
     "@tapes-monorepo/core": "*",
     "@tapes-monorepo/provenance": "*",
     "react": "^19.0.0",

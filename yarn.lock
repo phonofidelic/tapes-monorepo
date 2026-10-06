@@ -4480,7 +4480,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@noble/hashes@npm:^1.1.5, @noble/hashes@npm:^1.2.0":
+"@noble/hashes@npm:^1.1.5, @noble/hashes@npm:^1.2.0, @noble/hashes@npm:^1.8.0":
   version: 1.8.0
   resolution: "@noble/hashes@npm:1.8.0"
   checksum: 10c0/06a0b52c81a6fa7f04d67762e08b2c476a00285858150caeaaff4037356dd5e119f45b2a530f638b77a5eeca013168ec1b655db41bae3236cb2e9d511484fc77
@@ -6000,6 +6000,7 @@ __metadata:
     "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/provenance": "npm:*"
     "@tapes-monorepo/sync-protocol": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
@@ -19488,6 +19489,7 @@ __metadata:
     "@automerge/automerge-repo-network-websocket": "npm:^2.0.0"
     "@automerge/automerge-repo-react-hooks": "npm:^2.0.0"
     "@automerge/automerge-repo-storage-indexeddb": "npm:^2.0.0"
+    "@noble/hashes": "npm:^1.8.0"
     "@playwright/test": "npm:^1.61.1"
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@tapes-monorepo/core": "npm:*"

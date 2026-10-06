@@ -14,7 +14,8 @@ export const CORS_HEADERS: Record<string, string> = {
   // a cookie: a hostile page can send the request but cannot mint the token.
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,HEAD,POST,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization,content-type,range',
+  'Access-Control-Allow-Headers':
+    'authorization,content-type,range,x-tapes-recording-claim',
   'Access-Control-Expose-Headers':
     'content-length,content-range,accept-ranges,etag',
   'Access-Control-Max-Age': '86400',

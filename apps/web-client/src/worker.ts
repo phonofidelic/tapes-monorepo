@@ -11,8 +11,17 @@
  * A request always gets an answer, including one this file fails to handle:
  * `callWorker` settles on the reply and on nothing else, so a silent handler
  * hangs its caller for the life of the page.
+ *
+ * The worker also signs each finished recording, because it holds the files
+ * and can read the device key from IndexedDB.
  */
-export {}
+import { sha256 } from '@noble/hashes/sha2'
+import { bytesToHex } from '@noble/hashes/utils'
+import {
+  createRecordingClaim,
+  encodeSignedStatement,
+} from '@tapes-monorepo/provenance'
+import { loadDeviceSigningKey } from './deviceSigningKey'
 
 declare global {
   interface DedicatedWorkerGlobalScope {
@@ -39,6 +48,17 @@ type EventData =
   | {
       type: 'recorder:stop'
       payload: {
+        requestId: string
+      }
+    }
+  | {
+      type: 'recorder:claim'
+      payload: {
+        filename: string
+        /** Used when the OPFS file has no type, as the upload does. */
+        mimeType: string
+        startedAt: string
+        endedAt: string
         requestId: string
       }
     }
@@ -114,6 +134,41 @@ const ctx: DedicatedWorkerGlobalScope =
 ctx.fileHandle = null
 ctx.accessHandle = null
 
+// The chunk write in progress. Handlers run concurrently across their awaits,
+// so a claim requested right after the last chunk waits on this.
+let pendingWrite: Promise<void> = Promise.resolve()
+
+/**
+ * Hashes in chunks off a stream, so a long recording is never held in memory
+ * whole. WebCrypto can only digest a complete buffer.
+ */
+async function sha256Hex(file: Blob): Promise<string> {
+  const hasher = sha256.create()
+  const reader = file.stream().getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) {
+      return bytesToHex(hasher.digest())
+    }
+    hasher.update(value)
+  }
+}
+
+async function writeChunk(chunk: Blob) {
+  if (!ctx.accessHandle) {
+    return
+  }
+  try {
+    const bytes = await chunk.arrayBuffer()
+    ctx.accessHandle.write(bytes)
+    ctx.accessHandle.flush()
+    ctx.accessHandle.close()
+    ctx.accessHandle = null
+  } catch (error) {
+    console.error('error writing to file:', error)
+  }
+}
+
 onmessage = async (event) => {
   const { type, payload }: EventData = event.data
   // Read off the raw message rather than the narrowed payload: this has to
@@ -152,16 +207,8 @@ onmessage = async (event) => {
         // `dataavailable` listener that has nothing to wait for, and the last
         // one lands after the recording has already been stopped.
         const { chunk } = payload as { chunk: Blob }
-        if (ctx.accessHandle) {
-          try {
-            ctx.accessHandle.write(await chunk.arrayBuffer())
-            ctx.accessHandle.flush()
-            ctx.accessHandle.close()
-            ctx.accessHandle = null
-          } catch (error) {
-            console.error('error writing to file:', error)
-          }
-        }
+        pendingWrite = writeChunk(chunk)
+        await pendingWrite
         break
       }
       case 'recorder:stop': {
@@ -171,6 +218,36 @@ onmessage = async (event) => {
         }
 
         respond('recorder:stop', requestId, true)
+        break
+      }
+      case 'recorder:claim': {
+        // Hashes the bytes this device captured and signs a claim over them,
+        // before anything is uploaded. Fails without a device key, and the
+        // caller then uploads unsigned.
+        const { filename, mimeType, startedAt, endedAt, requestId } = payload
+        try {
+          await pendingWrite
+          const keyPair = await loadDeviceSigningKey()
+          const root = await navigator.storage.getDirectory()
+          const file = await (await root.getFileHandle(filename)).getFile()
+          const signed = await createRecordingClaim(
+            {
+              blob: {
+                hash: await sha256Hex(file),
+                size: file.size,
+                mimeType: file.type || mimeType,
+              },
+              startedAt,
+              endedAt,
+            },
+            keyPair,
+          )
+          respond('recorder:claim', requestId, true, {
+            claim: encodeSignedStatement(signed),
+          })
+        } catch (error) {
+          respond('recorder:claim', requestId, false, undefined, error)
+        }
         break
       }
       case 'storage:get': {

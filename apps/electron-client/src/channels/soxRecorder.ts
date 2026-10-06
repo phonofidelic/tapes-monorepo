@@ -21,8 +21,16 @@ const STOP_TIMEOUT_MS = 5_000
  * * Manual: https://explainshell.com/explain/1/sox
  * * Homebrew: https://formulae.brew.sh/formula/sox
  */
+/** A finished recording: the file sox wrote, and when it ran. */
+export type RecordedTake = {
+  filepath: string
+  startedAt: string
+  endedAt: string
+}
+
 export class SoxRecorder {
   private filepath: string | null = null
+  private startedAt: string | null = null
   private sox: ChildProcess | null = null
   private soxPath =
     process.env.NODE_ENV !== 'development'
@@ -66,6 +74,7 @@ export class SoxRecorder {
     // recording in progress for the stop channel to find.
     this.sox = sox
     this.filepath = filepath
+    this.startedAt = new Date().toISOString()
 
     // Debug sox output:
     // this.sox?.stdout?.on('data', (chunk) => console.log(chunk.toString()))
@@ -73,12 +82,15 @@ export class SoxRecorder {
   }
 
   /** Stops the recording and returns the file it wrote. */
-  public async stop(): Promise<string> {
+  public async stop(): Promise<RecordedTake> {
     const sox = this.sox
     const filepath = this.filepath
-    if (!sox || !filepath) {
+    const startedAt = this.startedAt
+    if (!sox || !filepath || !startedAt) {
       throw new Error('No recording is in progress')
     }
+    // The moment the user asked to stop, not when sox finished shutting down.
+    const endedAt = new Date().toISOString()
 
     // SIGINT, not SIGQUIT. sox only seeks back to patch the WAV header with the
     // real data-chunk size when it shuts down cleanly. Killed with SIGQUIT it
@@ -102,6 +114,7 @@ export class SoxRecorder {
 
     this.sox = null
     this.filepath = null
-    return filepath
+    this.startedAt = null
+    return { filepath, startedAt, endedAt }
   }
 }

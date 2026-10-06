@@ -157,6 +157,24 @@ describe('uploadBlob', () => {
     // The File/Blob is handed to fetch as-is so it streams off disk rather
     // than being read into memory.
     expect(init.body).toBe(body)
+    expect(init.headers).not.toHaveProperty('X-Tapes-Recording-Claim')
+  })
+
+  it("sends the recorder's signed claim with the upload", async () => {
+    const fetchMock = stubFetch(
+      jsonResponse(201, { hash: HASH, size: 8, mimeType: 'audio/wav' }),
+    )
+
+    await uploadBlob(ENDPOINT, new Blob(['recorded']), {
+      mimeType: 'audio/wav',
+      docUrl: DOC,
+      claim: 'encoded-claim',
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.headers).toMatchObject({
+      'X-Tapes-Recording-Claim': 'encoded-claim',
+    })
   })
 
   it('throws a typed error carrying the status', async () => {
