@@ -23,3 +23,9 @@ export const GUEST_PORT = 4176
 
 /** Stands in for the token `sync-server.json` mints per install. */
 export const PAIRING_TOKEN = 'e2e-pairing-token'
+
+/**
+ * A second headless host, for the spec that copies a recording between hosts.
+ * Nothing proxies to it. The guest reaches it as a remote sync server.
+ */
+export const SECOND_HOST_PORT = 9102
