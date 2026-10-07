@@ -63,7 +63,7 @@ export default defineConfig({
       testIgnore: [
         /pwa\.spec\.ts/,
         /two-device\.spec\.ts/,
-        /attestation-replication\.spec\.ts/,
+        /statement-replication\.spec\.ts/,
         /playback-events\.spec\.ts/,
         /streaming\.spec\.ts/,
         /hostBundle\.setup\.ts/,
@@ -85,8 +85,7 @@ export default defineConfig({
     },
     {
       name: 'two-device',
-      testMatch:
-        /(two-device|playback-events|attestation-replication)\.spec\.ts/,
+      testMatch: /(two-device|playback-events|statement-replication)\.spec\.ts/,
       use: {
         browserName: 'chromium',
         baseURL: GUEST_URL,

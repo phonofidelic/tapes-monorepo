@@ -81,8 +81,8 @@ test('pinning copies the audio, claim and receipt to a host that lacked them', a
   page,
 }) => {
   // The source host stored a claim and a receipt, and the doc lists both.
-  expect(tape.attestations).toHaveLength(2)
-  const hashes = [tape.descriptor.hash, ...tape.attestations]
+  expect(tape.statements).toHaveLength(2)
+  const hashes = [tape.descriptor.hash, ...tape.statements]
   expect(await hostObjects()).toEqual([])
 
   await pair(page)
@@ -105,7 +105,7 @@ test('pinning copies the audio, claim and receipt to a host that lacked them', a
     (await hostObjects()).map((object) => [object.hash, object]),
   )
   expect(copied.get(tape.descriptor.hash)?.mimeType).toBe('audio/wav')
-  for (const hash of tape.attestations) {
+  for (const hash of tape.statements) {
     expect(copied.get(hash)?.mimeType).toBe('application/json')
   }
 

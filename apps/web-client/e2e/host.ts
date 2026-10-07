@@ -25,7 +25,7 @@ export type SeededRecording = {
   url: AutomergeUrl
   descriptor: BlobDescriptor
   /** Hashes of the claim and receipt the host stored, as the doc lists them. */
-  attestations: string[]
+  statements: string[]
 }
 
 export type HostOptions = {
