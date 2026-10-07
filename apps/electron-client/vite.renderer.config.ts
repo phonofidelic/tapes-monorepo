@@ -36,7 +36,7 @@ export default defineConfig(({ command }) => ({
         '../../packages/core/dist/core.css',
       ),
       // In dev, resolve the shared UI library to its TypeScript sources instead
-      // of the bundle `vp build --watch` emits. Rolldown minifies that bundle
+      // of the bundle `vite build --watch` emits. Rolldown minifies that bundle
       // (`function n(...)`, `export { n as Button }`), so react-refresh cannot
       // recognise the exports as components and never installs an HMR boundary
       // — every edit in packages/ui bubbled up to a full page reload. The
