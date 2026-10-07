@@ -18,7 +18,7 @@ export class DeleteRecordingChannel implements IpcChannel {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
-    const { filepath, hash, attestations = [], docUrl } = data
+    const { filepath, hash, statements = [], docUrl } = data
 
     try {
       // Two links can hold the audio: the user's own file, and the blob store
@@ -28,8 +28,8 @@ export class DeleteRecordingChannel implements IpcChannel {
         await getBlobStore()?.releaseRef(hash, docUrl)
       }
       if (docUrl) {
-        for (const attestation of attestations) {
-          await getBlobStore()?.releaseRef(attestation, docUrl)
+        for (const statement of statements) {
+          await getBlobStore()?.releaseRef(statement, docUrl)
         }
       }
       if (filepath) {
@@ -49,18 +49,18 @@ const isValidDeleteRecordingRequestData = (
 ): data is {
   filepath?: string
   hash?: string
-  attestations?: string[]
+  statements?: string[]
   docUrl?: string
 } => {
   if (typeof data !== 'object' || data === null) {
     return false
   }
   if (
-    'attestations' in data &&
-    data.attestations !== undefined &&
+    'statements' in data &&
+    data.statements !== undefined &&
     !(
-      Array.isArray(data.attestations) &&
-      data.attestations.every(
+      Array.isArray(data.statements) &&
+      data.statements.every(
         (hash) => typeof hash === 'string' && isValidBlobHash(hash),
       )
     )

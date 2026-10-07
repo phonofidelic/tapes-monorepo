@@ -22,14 +22,14 @@ async function put(contents: string, mimeType: string) {
 }
 
 describe('DeleteRecordingChannel', () => {
-  it('releases the attestations along with the audio', async () => {
+  it('releases the statements along with the audio', async () => {
     store = createBlobStore(mkdtempSync(path.join(tmpdir(), 'tapes-blobs-')))
     const audio = await put('recorded audio', 'audio/wav')
     const claim = await put('{"claim":1}', 'application/json')
     const receipt = await put('{"receipt":1}', 'application/json')
 
     const response = await new DeleteRecordingChannel().handle({
-      data: { hash: audio, attestations: [claim, receipt], docUrl: DOC },
+      data: { hash: audio, statements: [claim, receipt], docUrl: DOC },
     })
 
     expect(response).toEqual({ success: true })
@@ -38,12 +38,12 @@ describe('DeleteRecordingChannel', () => {
     expect(await store.has(receipt)).toBe(false)
   })
 
-  it('rejects an attestations list that is not hashes', async () => {
+  it('rejects a statements list that is not hashes', async () => {
     await expect(
       new DeleteRecordingChannel().handle({
         data: {
           hash: 'a'.repeat(64),
-          attestations: ['../../outside'],
+          statements: ['../../outside'],
           docUrl: DOC,
         },
       }),

@@ -313,16 +313,16 @@ describe('deleting', () => {
       data: {
         filepath: '/recordings/take-one.wav',
         hash: HASH,
-        attestations: [],
+        statements: [],
         docUrl: RECORDING_URL,
       },
     })
   })
 
-  it('releases the attestations along with the audio', async () => {
+  it('releases the statements along with the audio', async () => {
     const claimHash = 'c'.repeat(64)
     const receiptHash = 'd'.repeat(64)
-    recording = { ...withBlob(), attestations: [claimHash, receiptHash] }
+    recording = { ...withBlob(), statements: [claimHash, receiptHash] }
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 204 }))

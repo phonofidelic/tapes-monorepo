@@ -486,17 +486,17 @@ describe('recording claims on upload', () => {
     const response = await upload(origin, AUDIO, { claim })
     const body = (await response.json()) as {
       claim: { receipt: string }
-      attestations: string[]
+      statements: string[]
     }
 
     const signedClaim = decodeSignedStatement(claim)!
     const receipt = decodeSignedStatement(body.claim.receipt)!
-    expect(body.attestations).toEqual([
+    expect(body.statements).toEqual([
       await statementAddress(signedClaim),
       await statementAddress(receipt),
     ])
 
-    const fetched = await fetch(`${origin}/blobs/${body.attestations[1]}`, {
+    const fetched = await fetch(`${origin}/blobs/${body.statements[1]}`, {
       headers: authed(),
     })
     expect(fetched.status).toBe(200)
@@ -518,7 +518,7 @@ describe('recording claims on upload', () => {
 
     const response = await upload(origin, AUDIO, { claim })
 
-    await expect(response.json()).resolves.toMatchObject({ attestations: [] })
+    await expect(response.json()).resolves.toMatchObject({ statements: [] })
   })
 
   it('verifies the claim without a receipt when the host key fails', async () => {
@@ -534,11 +534,11 @@ describe('recording claims on upload', () => {
     expect(response.status).toBe(201)
     const body = (await response.json()) as {
       claim: { status: string }
-      attestations: string[]
+      statements: string[]
     }
     expect(body.claim.status).toBe('verified')
     // The claim alone is still worth keeping.
-    expect(body.attestations).toEqual([
+    expect(body.statements).toEqual([
       await statementAddress(decodeSignedStatement(claim)!),
     ])
   })
@@ -547,7 +547,7 @@ describe('recording claims on upload', () => {
 describe('repeat uploads of one claim', () => {
   type ClaimAnswer = {
     claim: { status: string; receipt: string }
-    attestations: string[]
+    statements: string[]
   }
 
   const claimOverAudio = async () =>
@@ -583,7 +583,7 @@ describe('repeat uploads of one claim', () => {
     const retry = await send(origin, claim)
 
     expect(retry.claim.receipt).toBe(first.claim.receipt)
-    expect(retry.attestations).toEqual(first.attestations)
+    expect(retry.statements).toEqual(first.statements)
   })
 
   it('answers concurrent uploads with one receipt', async () => {
@@ -607,9 +607,9 @@ describe('repeat uploads of one claim', () => {
     await tick()
     const second = await send(origin, claim, 'automerge:doc-b')
 
-    expect(second.attestations).toEqual(first.attestations)
+    expect(second.statements).toEqual(first.statements)
     const store = createBlobStore(blobRoot)
-    expect(await store.refs(first.attestations[1])).toEqual([
+    expect(await store.refs(first.statements[1])).toEqual([
       DOC,
       'automerge:doc-b',
     ])
@@ -644,12 +644,12 @@ describe('repeat uploads of one claim', () => {
     const claim = await claimOverAudio()
 
     const first = await send(origin, claim)
-    await createBlobStore(blobRoot).remove(first.attestations[1])
+    await createBlobStore(blobRoot).remove(first.statements[1])
     await tick()
     const second = await send(origin, claim)
 
     expect(second.claim.receipt).not.toBe(first.claim.receipt)
-    const fetched = await fetch(`${origin}/blobs/${second.attestations[1]}`, {
+    const fetched = await fetch(`${origin}/blobs/${second.statements[1]}`, {
       headers: authed(),
     })
     expect(fetched.status).toBe(200)

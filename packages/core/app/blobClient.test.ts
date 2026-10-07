@@ -141,7 +141,7 @@ describe('uploadBlob', () => {
 
     expect(descriptor).toEqual({
       blob: { hash: HASH, size: 12, mimeType: 'audio/wav', ext: '.wav' },
-      attestations: [],
+      statements: [],
     })
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe(
@@ -176,7 +176,7 @@ describe('uploadBlob', () => {
     })
   })
 
-  it('returns the attestation hashes the host stored, dropping anything else', async () => {
+  it('returns the statement hashes the host stored, dropping anything else', async () => {
     const claimHash = 'c'.repeat(64)
     stubFetch(
       jsonResponse(201, {
@@ -184,17 +184,17 @@ describe('uploadBlob', () => {
         size: 8,
         mimeType: 'audio/wav',
         ext: '.wav',
-        attestations: [claimHash, 'not-a-hash', 7],
+        statements: [claimHash, 'not-a-hash', 7],
       }),
     )
 
-    const { attestations } = await uploadBlob(ENDPOINT, new Blob(['x']), {
+    const { statements } = await uploadBlob(ENDPOINT, new Blob(['x']), {
       mimeType: 'audio/wav',
       docUrl: DOC,
       claim: 'encoded-claim',
     })
 
-    expect(attestations).toEqual([claimHash])
+    expect(statements).toEqual([claimHash])
   })
 
   it('throws a typed error carrying the status', async () => {
@@ -581,7 +581,7 @@ describe('replicateBlob', () => {
     ).resolves.toBeUndefined()
   })
 
-  describe('with attestations', () => {
+  describe('with statements', () => {
     const CLAIM_HASH = 'c'.repeat(64)
     const RECEIPT_HASH = 'b'.repeat(64)
     const CLAIM = JSON.stringify({
@@ -633,7 +633,7 @@ describe('replicateBlob', () => {
         mimeType: 'audio/wav',
         docUrl: DOC,
         expectedHash: HASH,
-        attestations: {
+        statements: {
           // Listed receipt first, to show the order is decided by type.
           hashes: [RECEIPT_HASH, CLAIM_HASH],
           sources: [LOCAL],

@@ -1,7 +1,7 @@
 import type { AppContextValue } from './context/AppContext'
 import type { IpcService, PutBlobResponse } from './IpcService'
 import {
-  readAttestations,
+  readStatements,
   uploadBlob,
   type BlobEndpoint,
   type StoredBlob,
@@ -65,7 +65,7 @@ export function removePendingUpload(storage: Storage, docUrl: string) {
 
 /**
  * Sends a recording's audio to the host and returns the descriptor and
- * attestation hashes to write into its doc. On web the OPFS file is handed to `fetch` as-is, so it
+ * statement hashes to write into its doc. On web the OPFS file is handed to `fetch` as-is, so it
  * streams off disk and neither side holds the whole recording in memory. On
  * electron the file is already on the host's own disk, so it is ingested over
  * IPC and nothing crosses the network.
@@ -124,9 +124,9 @@ export async function ingestHostFile(
   }
   // The host's verdict on the claim stays out of the doc. The stored
   // statements carry it.
-  const { hash, size, mimeType, ext, attestations } = response.data
+  const { hash, size, mimeType, ext, statements } = response.data
   return {
     blob: { hash, size, mimeType, ext },
-    attestations: readAttestations(attestations),
+    statements: readStatements(statements),
   }
 }

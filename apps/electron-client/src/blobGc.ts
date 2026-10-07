@@ -12,7 +12,7 @@ import type { BlobStore, StoredObject } from './blobStore'
  * writing an object and its ref record, a peer that deleted a recording while
  * offline, or an upload abandoned outside `tmp/`. This walks every library
  * document the host holds and unlinks objects none of them reference. A
- * recording references its audio and its attestations.
+ * recording references its audio and its statements.
  * Kept out of `blobStore.ts` so the store stays free of Automerge and Electron
  * imports and can be tested in a plain node process.
  */
@@ -213,9 +213,9 @@ export async function collectOrphanedBlobs({
       live.add(blob.hash)
     }
     // Signed statements about the recording, stored next to its audio.
-    const attestations = doc?.attestations
-    if (Array.isArray(attestations)) {
-      for (const hash of attestations) {
+    const statements = doc?.statements
+    if (Array.isArray(statements)) {
+      for (const hash of statements) {
         if (typeof hash === 'string') {
           live.add(hash)
         }
@@ -250,7 +250,7 @@ export async function collectOrphanedBlobs({
       skippedYoung += 1
       continue
     }
-    // Any peer can edit a recording's attestations list. Dropping a hash from
+    // Any peer can edit a recording's statements list. Dropping a hash from
     // it must not delete the statement, so a statement stays while the
     // recording that stored it is still in a library.
     if (await isOwnedStatement(store, object.hash, recordingUrls)) {

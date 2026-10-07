@@ -245,12 +245,12 @@ describe('saving a recording', () => {
     expect(localStorage.getItem('tapes.pendingBlobUploads')).toBe('[]')
     // No claim was verified, so there is nothing to reference.
     expect(documentWrites.find((write) => write.blob)).not.toHaveProperty(
-      'attestations',
+      'statements',
     )
   })
 
   it('references the statements the host stored next to the audio', async () => {
-    const attestations = ['c'.repeat(64), 'd'.repeat(64)]
+    const statements = ['c'.repeat(64), 'd'.repeat(64)]
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -260,7 +260,7 @@ describe('saving a recording', () => {
             size: 5,
             mimeType: 'audio/webm',
             ext: '.webm',
-            attestations,
+            statements,
           }),
           { status: 201 },
         ),
@@ -273,8 +273,8 @@ describe('saving a recording', () => {
     await waitFor(() =>
       expect(documentWrites.some((write) => write.blob)).toBe(true),
     )
-    expect(documentWrites.find((write) => write.blob)?.attestations).toEqual(
-      attestations,
+    expect(documentWrites.find((write) => write.blob)?.statements).toEqual(
+      statements,
     )
   })
 

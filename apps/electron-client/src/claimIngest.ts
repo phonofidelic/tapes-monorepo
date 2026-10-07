@@ -46,9 +46,9 @@ type ClaimIngestResult = {
   claim: ClaimVerification
   /**
    * Store hashes of the signed claim and receipt, for the recording's
-   * `attestations` list. Empty unless the claim verified.
+   * `statements` list. Empty unless the claim verified.
    */
-  attestations: string[]
+  statements: string[]
 }
 
 // The host is a single process, so an in-memory queue per claim is enough to
@@ -77,7 +77,7 @@ export async function verifyClaimOnIngest(
   // arrived rather than when signing finished.
   const receivedAt = new Date()
   if (encodedClaim === undefined) {
-    return { claim: { status: 'unsigned' }, attestations: [] }
+    return { claim: { status: 'unsigned' }, statements: [] }
   }
 
   const signed = decodeSignedStatement(encodedClaim)
@@ -92,7 +92,7 @@ export async function verifyClaimOnIngest(
     // Not stored. A statement that does not verify is evidence of nothing.
     return {
       claim: { status: 'unverified', problem: check.problem },
-      attestations: [],
+      statements: [],
     }
   }
 
@@ -109,7 +109,7 @@ export async function verifyClaimOnIngest(
     if (!receipt) {
       return {
         claim: { status: 'verified' },
-        attestations: await storeStatements(
+        statements: await storeStatements(
           [check.claim],
           options.store,
           options.docUrl,
@@ -119,20 +119,20 @@ export async function verifyClaimOnIngest(
 
     // Storing a reused receipt again dedupes it and adds this document as an
     // owner, so it is kept as long as any recording that lists it.
-    const attestations = await storeStatements(
+    const statements = await storeStatements(
       [check.claim, receipt.signed],
       options.store,
       options.docUrl,
     )
     if (receipt.isNew) {
-      await indexReceipt(options.store, claimHash, receipt.signed, attestations)
+      await indexReceipt(options.store, claimHash, receipt.signed, statements)
     }
     return {
       claim: {
         status: 'verified',
         receipt: encodeSignedStatement(receipt.signed),
       },
-      attestations,
+      statements,
     }
   })
 }
@@ -224,7 +224,7 @@ async function storeStatements(
       )
       hashes.push(meta.hash)
     } catch (error) {
-      // The audio is already stored. Losing an attestation is better than
+      // The audio is already stored. Losing a statement is better than
       // failing the upload over it.
       console.warn('Could not store a signed statement:', error)
     }

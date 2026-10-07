@@ -179,7 +179,7 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
 
   const bytes = wavBytes(command.seconds, command.frequency)
   const claim = command.withClaim ? await signClaim(bytes) : undefined
-  const { blob: descriptor, attestations } = command.withBytes
+  const { blob: descriptor, statements } = command.withBytes
     ? await upload(recording.url, bytes, claim)
     : // A descriptor the host holds no bytes for. The document says where the
       // audio is addressed and `/blobs` answers 404, which is what a recording
@@ -191,12 +191,12 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
           mimeType: 'audio/wav',
           ext: '.wav',
         },
-        attestations: [],
+        statements: [],
       }
   recording.change((doc) => {
     doc.blob = descriptor
-    if (attestations.length > 0) {
-      doc.attestations = attestations
+    if (statements.length > 0) {
+      doc.statements = statements
     }
   })
 
@@ -208,7 +208,7 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
   // The guest is about to be told this recording exists, so it has to be on
   // the host before the browser opens, not merely sent.
   await waitForStoredDoc(recording.url)
-  return { url: recording.url, descriptor, attestations }
+  return { url: recording.url, descriptor, statements }
 }
 
 /**
@@ -239,7 +239,7 @@ async function upload(
   // but only the buffer is a `BodyInit` as far as the DOM types are concerned.
   bytes: ArrayBuffer,
   claim?: string,
-): Promise<{ blob: BlobDescriptor; attestations: string[] }> {
+): Promise<{ blob: BlobDescriptor; statements: string[] }> {
   const response = await fetch(
     `http://127.0.0.1:${port}/blobs?doc=${encodeURIComponent(docUrl)}`,
     {
@@ -255,8 +255,8 @@ async function upload(
   if (!response.ok) {
     throw new Error(`Seeding a blob failed: ${response.status}`)
   }
-  const { attestations = [], ...blob } =
-    (await response.json()) as BlobDescriptor & { attestations?: string[] }
+  const { statements = [], ...blob } =
+    (await response.json()) as BlobDescriptor & { statements?: string[] }
   return {
     blob: {
       hash: blob.hash,
@@ -264,7 +264,7 @@ async function upload(
       mimeType: blob.mimeType,
       ext: blob.ext,
     },
-    attestations,
+    statements,
   }
 }
 

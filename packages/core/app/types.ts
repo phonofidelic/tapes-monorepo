@@ -35,7 +35,7 @@ export type RecordingData = {
    * claim only if its blob hash matches `blob.hash`, and a receipt only if it
    * names such a claim.
    */
-  attestations?: string[]
+  statements?: string[]
   /**
    * @deprecated Raw recorded bytes, embedded so the recording could sync
    * peer-to-peer. Read-only: nothing writes this any more. Automerge history

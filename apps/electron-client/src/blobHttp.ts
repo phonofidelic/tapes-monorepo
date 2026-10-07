@@ -153,7 +153,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
         maxBytes: maxBlobBytes,
       })
       const claimHeader = request.headers[RECORDING_CLAIM_HEADER.toLowerCase()]
-      const { claim, attestations } = await verifyClaimOnIngest(
+      const { claim, statements } = await verifyClaimOnIngest(
         Array.isArray(claimHeader) ? claimHeader.join(',') : claimHeader,
         meta,
         { loadSigningKey, store, docUrl },
@@ -165,7 +165,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
         ext: meta.ext,
         deduped,
         claim,
-        attestations,
+        statements,
       })
     } catch (error) {
       if (error instanceof BlobTooLargeError) {

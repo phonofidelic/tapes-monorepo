@@ -39,7 +39,7 @@ export class PutBlobChannel implements IpcChannel {
       const { meta } = await store.ingestFile(data.filepath, {
         docUrl: data.docUrl,
       })
-      const { claim, attestations } = await verifyClaimOnIngest(
+      const { claim, statements } = await verifyClaimOnIngest(
         data.claim,
         meta,
         { loadSigningKey: this.loadSigningKey, store, docUrl: data.docUrl },
@@ -52,7 +52,7 @@ export class PutBlobChannel implements IpcChannel {
           mimeType: meta.mimeType,
           ext: meta.ext,
           claim,
-          attestations,
+          statements,
         },
       }
     } catch (error) {
