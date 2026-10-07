@@ -148,14 +148,31 @@ test.describe('host and guest', () => {
 
     // The upload is a POST to `/blobs`, so the host gaining an object is the
     // honest end of it. A row in the guest's own library proves nothing.
+    const added = async () =>
+      (await hostObjects()).filter(
+        (object) => !before.some((existing) => existing.hash === object.hash),
+      )
     await expect
-      .poll(async () => (await hostObjects()).length, { timeout: 30_000 })
-      .toBe(before.length + 1)
+      .poll(
+        async () =>
+          (await added()).filter((object) =>
+            object.mimeType?.startsWith('audio/'),
+          ).length,
+        { timeout: 30_000 },
+      )
+      .toBe(1)
 
-    const uploaded = (await hostObjects()).find(
-      (object) => !before.some((existing) => existing.hash === object.hash),
+    const [uploaded] = (await added()).filter((object) =>
+      object.mimeType?.startsWith('audio/'),
     )
-    expect(uploaded?.size).toBeGreaterThan(0)
+    expect(uploaded.size).toBeGreaterThan(0)
+    // The guest signed a claim at stop, and the host stored it next to the
+    // audio. This host has no signing key, so there is no receipt.
+    expect(
+      (await added()).filter(
+        (object) => object.mimeType === 'application/json',
+      ),
+    ).toHaveLength(1)
 
     // And the metadata reached the second device over the sync socket.
     await expect(other.getByText('Guest take one')).toBeVisible({

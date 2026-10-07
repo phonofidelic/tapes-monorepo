@@ -417,7 +417,7 @@ export const AudioPlayerProvider = ({
         // recording renames its file, which a filepath-keyed source would
         // then fail to find.
         try {
-          const ingested = await ingestHostFile(appContext.ipc, {
+          const { blob: ingested } = await ingestHostFile(appContext.ipc, {
             filepath: currentSource,
             docUrl: currentUrl,
           })

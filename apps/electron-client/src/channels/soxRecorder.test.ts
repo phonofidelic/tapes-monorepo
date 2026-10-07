@@ -98,7 +98,11 @@ describe('stopping', () => {
     const stopped = recorder.stop()
     sox.emit('close')
 
-    await expect(stopped).resolves.toMatch(/^\/tapes\/recordings\/.+\.wav$/)
+    const take = await stopped
+    expect(take.filepath).toMatch(/^\/tapes\/recordings\/.+\.wav$/)
+    expect(Date.parse(take.startedAt)).toBeLessThanOrEqual(
+      Date.parse(take.endedAt),
+    )
     // SIGINT, so sox patches the wav header on its way out.
     expect(sox.signals).toEqual(['SIGINT'])
   })
@@ -114,7 +118,9 @@ describe('stopping', () => {
     expect(sox.signals).toEqual(['SIGINT', 'SIGKILL'])
 
     sox.emit('close')
-    await expect(stopped).resolves.toContain('/tapes/recordings/')
+    await expect(stopped).resolves.toMatchObject({
+      filepath: expect.stringContaining('/tapes/recordings/'),
+    })
   })
 
   it('rejects when nothing is recording', async () => {

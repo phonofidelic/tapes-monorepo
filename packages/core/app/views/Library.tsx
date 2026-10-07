@@ -226,7 +226,11 @@ function LibraryListItem({
                           return
                         }
                         if (recording.blob) {
-                          await pin(automergeUrl, recording.blob)
+                          await pin(
+                            automergeUrl,
+                            recording.blob,
+                            recording.attestations,
+                          )
                         }
                       }}
                     >
@@ -259,6 +263,7 @@ function LibraryListItem({
                                 data: {
                                   filepath: recording.filepath,
                                   hash: recording.blob?.hash,
+                                  attestations: recording.attestations ?? [],
                                   docUrl: recording.url,
                                 },
                               },
@@ -284,11 +289,21 @@ function LibraryListItem({
                           // host. A guest deliberately cannot delete the host
                           // user's own audio file. The host unlinks the bytes
                           // once no document references them.
-                          await deleteBlobEverywhere(
-                            blobEndpoints.filter((endpoint) => !endpoint.local),
-                            recording.blob.hash,
-                            recording.url,
+                          const remoteEndpoints = blobEndpoints.filter(
+                            (endpoint) => !endpoint.local,
                           )
+                          // Attestations are stored next to the audio and
+                          // released with it.
+                          for (const hash of [
+                            recording.blob.hash,
+                            ...(recording.attestations ?? []),
+                          ]) {
+                            await deleteBlobEverywhere(
+                              remoteEndpoints,
+                              hash,
+                              recording.url,
+                            )
+                          }
                           await unpin(automergeUrl)
                         }
                         onDelete(automergeUrl)

@@ -17,6 +17,7 @@ import {
   getSyncServerRootCertPem,
   getSyncServerRootFingerprint,
 } from './certManager'
+import { loadHostSigningKey } from './hostSigningKey'
 import { SyncServerInfo } from '@tapes-monorepo/core'
 
 /**
@@ -68,6 +69,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     eventStorePath: eventStoragePath(),
     pairingToken: config.pairingToken,
     rootCertFingerprint,
+    loadSigningKey: loadHostSigningKey,
   })
 }
 

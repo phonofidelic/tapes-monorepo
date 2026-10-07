@@ -28,6 +28,15 @@ export type RecordingData = {
    */
   blob?: BlobDescriptor
   /**
+   * Blob store hashes of signed statements about the audio: the recorder's
+   * claim and the host's receipt. The signatures live in the stored objects,
+   * not here. Any peer can edit this list, so it proves nothing on its own.
+   * A peer can add a hash of a genuine statement about other audio. Count a
+   * claim only if its blob hash matches `blob.hash`, and a receipt only if it
+   * names such a claim.
+   */
+  attestations?: string[]
+  /**
    * @deprecated Raw recorded bytes, embedded so the recording could sync
    * peer-to-peer. Read-only: nothing writes this any more. Automerge history
    * is append-only, so docs created before the move to out-of-band audio keep
