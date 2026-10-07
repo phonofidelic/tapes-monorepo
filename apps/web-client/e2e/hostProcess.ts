@@ -14,6 +14,13 @@ import type {
   RecordingData,
   RecordingRepoState,
 } from '@tapes-monorepo/core'
+import {
+  RECORDING_CLAIM_HEADER,
+  createRecordingClaim,
+  encodeSignedStatement,
+  generateSigningKeyPair,
+  sha256Hex,
+} from '@tapes-monorepo/provenance'
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
 /**
@@ -25,10 +32,14 @@ import { HOST_PORT, PAIRING_TOKEN } from './ports'
  * It is a child process rather than an import into the Playwright worker
  * because Playwright's CJS transform cannot load Automerge's wasm entry, and
  * because one test needs a host that can be killed while the guest watches.
+ * The sync server is a module singleton, so a second host is a second process.
  */
 
+/** Passed by host.ts as the only argument, so two hosts can run side by side. */
+const port = Number(process.argv[2] ?? HOST_PORT)
+
 type Command =
-  | { id: number; type: 'start'; webClientPath?: string }
+  | { id: number; type: 'start'; webClientPath?: string; signs: boolean }
   | {
       id: number
       type: 'seed'
@@ -36,6 +47,7 @@ type Command =
       seconds: number
       frequency: number
       withBytes: boolean
+      withClaim: boolean
     }
   | { id: number; type: 'objects' }
   | { id: number; type: 'recordings' }
@@ -58,6 +70,11 @@ let paths: Paths | undefined
  * here rather than passed through `listen` so a restart serves it again.
  */
 let webClientPath: string | undefined
+/**
+ * The host's receipt signing key, made once so a restart signs with the same
+ * key. Undefined for a host that signs no receipts.
+ */
+let signingKey: Promise<CryptoKeyPair> | undefined
 let libraryUrl: AutomergeUrl | undefined
 let peer: { repo: Repo; disconnect: () => void } | undefined
 
@@ -72,7 +89,7 @@ async function connectAsPeer(): Promise<Repo> {
     return peer.repo
   }
   const adapter = new BrowserWebSocketClientAdapter(
-    `ws://127.0.0.1:${HOST_PORT}/sync?t=${PAIRING_TOKEN}`,
+    `ws://127.0.0.1:${port}/sync?t=${PAIRING_TOKEN}`,
   )
   const repo = new Repo({ network: [adapter] })
   await repo.networkSubsystem.whenReady()
@@ -84,8 +101,8 @@ async function listen(where: Paths) {
   const info = await startSyncServer({
     storagePath: where.storageRoot,
     host: '127.0.0.1',
-    port: HOST_PORT,
-    peerId: 'e2e-host',
+    port,
+    peerId: `e2e-host-${port}`,
     blobStorePath: where.blobRoot,
     // Without this the server claims `/events` and answers 503, and a guest's
     // queue never clears. The desktop app always passes it.
@@ -95,14 +112,15 @@ async function listen(where: Paths) {
     // puts the app on the same origin as `/blobs`, which is the condition the
     // blob-auth service worker registers under.
     webClientPath,
+    loadSigningKey: signingKey ? () => signingKey! : undefined,
   })
-  if (info.port !== HOST_PORT) {
+  if (info.port !== port) {
     // `startSyncServer` falls back to an OS-assigned port on EADDRINUSE, which
     // is not where the guest's dev server proxies. Fail loudly rather than run
     // the suite against a host nothing can reach.
     await stopSyncServer()
     throw new Error(
-      `Port ${HOST_PORT} was taken (the host landed on ${info.port}). ` +
+      `Port ${port} was taken (the host landed on ${info.port}). ` +
         'Something else is bound to it — a stale e2e run, most likely.',
     )
   }
@@ -111,6 +129,7 @@ async function listen(where: Paths) {
 
 async function start(command: Extract<Command, { type: 'start' }>) {
   webClientPath = command.webClientPath
+  signingKey = command.signs ? generateSigningKeyPair() : undefined
   const root = await mkdtemp(path.join(os.tmpdir(), 'tapes-e2e-host-'))
   paths = {
     root,
@@ -159,19 +178,26 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
   })
 
   const bytes = wavBytes(command.seconds, command.frequency)
-  const descriptor = command.withBytes
-    ? await upload(recording.url, bytes)
+  const claim = command.withClaim ? await signClaim(bytes) : undefined
+  const { blob: descriptor, attestations } = command.withBytes
+    ? await upload(recording.url, bytes, claim)
     : // A descriptor the host holds no bytes for. The document says where the
       // audio is addressed and `/blobs` answers 404, which is what a recording
       // whose upload never landed looks like from a guest.
       {
-        hash: 'f'.repeat(64),
-        size: bytes.byteLength,
-        mimeType: 'audio/wav',
-        ext: '.wav',
+        blob: {
+          hash: 'f'.repeat(64),
+          size: bytes.byteLength,
+          mimeType: 'audio/wav',
+          ext: '.wav',
+        },
+        attestations: [],
       }
   recording.change((doc) => {
     doc.blob = descriptor
+    if (attestations.length > 0) {
+      doc.attestations = attestations
+    }
   })
 
   const library = await repo.find<RecordingRepoState>(libraryUrl!)
@@ -182,7 +208,28 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
   // The guest is about to be told this recording exists, so it has to be on
   // the host before the browser opens, not merely sent.
   await waitForStoredDoc(recording.url)
-  return { url: recording.url, descriptor }
+  return { url: recording.url, descriptor, attestations }
+}
+
+/**
+ * The claim a recording device signs at stop, over these bytes. The key is
+ * made fresh for each claim, since nothing here checks who the device is.
+ */
+async function signClaim(bytes: ArrayBuffer): Promise<string> {
+  const now = new Date().toISOString()
+  const claim = await createRecordingClaim(
+    {
+      blob: {
+        hash: await sha256Hex(new Uint8Array(bytes)),
+        size: bytes.byteLength,
+        mimeType: 'audio/wav',
+      },
+      startedAt: now,
+      endedAt: now,
+    },
+    await generateSigningKeyPair(),
+  )
+  return encodeSignedStatement(claim)
 }
 
 /** The `/blobs` upload a guest performs, run from here. */
@@ -191,14 +238,16 @@ async function upload(
   // An ArrayBuffer rather than a Uint8Array: `fetch` accepts either at runtime,
   // but only the buffer is a `BodyInit` as far as the DOM types are concerned.
   bytes: ArrayBuffer,
-): Promise<BlobDescriptor> {
+  claim?: string,
+): Promise<{ blob: BlobDescriptor; attestations: string[] }> {
   const response = await fetch(
-    `http://127.0.0.1:${HOST_PORT}/blobs?doc=${encodeURIComponent(docUrl)}`,
+    `http://127.0.0.1:${port}/blobs?doc=${encodeURIComponent(docUrl)}`,
     {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${PAIRING_TOKEN}`,
         'Content-Type': 'audio/wav',
+        ...(claim ? { [RECORDING_CLAIM_HEADER]: claim } : {}),
       },
       body: bytes,
     },
@@ -206,7 +255,17 @@ async function upload(
   if (!response.ok) {
     throw new Error(`Seeding a blob failed: ${response.status}`)
   }
-  return (await response.json()) as BlobDescriptor
+  const { attestations = [], ...blob } =
+    (await response.json()) as BlobDescriptor & { attestations?: string[] }
+  return {
+    blob: {
+      hash: blob.hash,
+      size: blob.size,
+      mimeType: blob.mimeType,
+      ext: blob.ext,
+    },
+    attestations,
+  }
 }
 
 /**
