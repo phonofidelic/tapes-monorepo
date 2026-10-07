@@ -18,14 +18,14 @@ The package owns:
 - **Talking to the Electron host** through `IpcService`.
 
 It is built as a library with
-[`vite-plus`](https://www.npmjs.com/package/vite-plus). Consumers import it
+[Vite](https://vite.dev/guide/build#library-mode). Consumers import it
 through the package exports, `.` for the code and `./style.css` for the styles.
 
 ## Scripts
 
 ```sh
-yarn workspace @tapes-monorepo/core build       # vp build
-yarn workspace @tapes-monorepo/core dev         # vp build --watch
+yarn workspace @tapes-monorepo/core build       # vite build
+yarn workspace @tapes-monorepo/core dev         # vite build --watch
 yarn workspace @tapes-monorepo/core test        # vitest run
 ```
 

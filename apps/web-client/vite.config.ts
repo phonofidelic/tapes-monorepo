@@ -149,7 +149,7 @@ export default defineConfig(({ command }) => ({
         '../../packages/core/dist/core.css',
       ),
       // In dev, resolve the shared UI library to its TypeScript sources rather
-      // than the bundle `vp build --watch` emits. Rolldown minifies that
+      // than the bundle `vite build --watch` emits. Rolldown minifies that
       // bundle, so react-refresh cannot recognise its exports as components
       // and never installs an HMR boundary. Every edit in packages/ui then
       // became a full page reload. The sources get real Fast Refresh and skip
