@@ -120,7 +120,7 @@ export type PutBlobResponse =
         /** What the host made of the recording's claim. */
         claim: ClaimVerification
         /** Store hashes of the claim and receipt, when the claim verified. */
-        attestations: string[]
+        statements: string[]
       }
     }
 
@@ -176,7 +176,7 @@ export type IpcSendArgs =
         data: {
           filepath?: string
           hash?: string
-          attestations?: string[]
+          statements?: string[]
           docUrl?: string
         }
       },

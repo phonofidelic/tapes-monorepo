@@ -89,7 +89,7 @@ describe('PutBlobChannel', () => {
       )
     }
     const receipt = decodeSignedStatement(response.data.claim.receipt!)!
-    const [claimHash, receiptHash] = response.data.attestations
+    const [claimHash, receiptHash] = response.data.statements
     expect(claimHash).toBe(
       await statementAddress(decodeSignedStatement(claim)!),
     )

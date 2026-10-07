@@ -74,12 +74,12 @@ async function ingestStatement(contents: string, docUrl: string) {
   return meta.hash
 }
 
-/** Sets a recording's attestations list, as any peer can. */
-async function setAttestations(recordingUrl: AutomergeUrl, hashes: string[]) {
+/** Sets a recording's statements list, as any peer can. */
+async function setStatements(recordingUrl: AutomergeUrl, hashes: string[]) {
   const repo = openRepo()
   const handle = await repo.find<RecordingData>(recordingUrl)
   handle.change((doc) => {
-    doc.attestations = hashes
+    doc.statements = hashes
   })
   await repo.flush()
 }
@@ -339,13 +339,13 @@ describe('collectOrphanedBlobs', () => {
     expect(result.scanned).toBe(0)
   })
 
-  describe('attestations', () => {
+  describe('statements', () => {
     it('keeps a statement a recording lists', async () => {
       const { root } = await seedLibrary([{ contents: 'signed audio' }])
       const [recordingUrl] = await recordingUrlsOf(root)
       // Stored under another document, so only the list can keep it.
       const claim = await ingestStatement('{"claim":1}', 'automerge:elsewhere')
-      await setAttestations(recordingUrl, [claim])
+      await setStatements(recordingUrl, [claim])
 
       const result = await collectOrphanedBlobs({
         repo: openRepo(),
@@ -366,7 +366,7 @@ describe('collectOrphanedBlobs', () => {
       const { root } = await seedLibrary([{ contents: 'signed audio' }])
       const [recordingUrl] = await recordingUrlsOf(root)
       const claim = await ingestStatement('{"claim":1}', recordingUrl)
-      await setAttestations(recordingUrl, [])
+      await setStatements(recordingUrl, [])
 
       const result = await collectOrphanedBlobs({
         repo: openRepo(),
@@ -386,7 +386,7 @@ describe('collectOrphanedBlobs', () => {
       ])
       const [recordingUrl] = await recordingUrlsOf(root)
       const claim = await ingestStatement('{"claim":1}', recordingUrl)
-      await setAttestations(recordingUrl, [claim])
+      await setStatements(recordingUrl, [claim])
 
       const editing = openRepo()
       const library = await editing.find<RecordingRepoState>(root)

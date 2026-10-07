@@ -35,12 +35,12 @@ type PinContextValue = {
   pinState: (url: AutomergeUrl) => PinState
   /**
    * Fetches the audio and keeps it. A host that lacks it gets a copy, along
-   * with the signed statements listed in `attestations`.
+   * with the signed statements listed in `statements`.
    */
   pin: (
     url: AutomergeUrl,
     descriptor: BlobDescriptor,
-    attestations?: readonly string[],
+    statements?: readonly string[],
   ) => Promise<void>
   unpin: (url: AutomergeUrl) => Promise<void>
   pinnedHashes: ReadonlySet<string>
@@ -73,7 +73,7 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     async (
       url: AutomergeUrl,
       descriptor: BlobDescriptor,
-      attestations: readonly string[] = [],
+      statements: readonly string[] = [],
     ) => {
       if (endpoints.length === 0) {
         return
@@ -89,8 +89,8 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
             mimeType: descriptor.mimeType,
             docUrl: url,
             expectedHash: descriptor.hash,
-            attestations: {
-              hashes: attestations,
+            statements: {
+              hashes: statements,
               // A host without the audio cannot hold a verified claim on it.
               sources: endpoints.filter(
                 (endpoint) => !missingFrom.includes(endpoint),

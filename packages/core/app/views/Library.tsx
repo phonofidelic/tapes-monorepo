@@ -229,7 +229,7 @@ function LibraryListItem({
                           await pin(
                             automergeUrl,
                             recording.blob,
-                            recording.attestations,
+                            recording.statements,
                           )
                         }
                       }}
@@ -263,7 +263,7 @@ function LibraryListItem({
                                 data: {
                                   filepath: recording.filepath,
                                   hash: recording.blob?.hash,
-                                  attestations: recording.attestations ?? [],
+                                  statements: recording.statements ?? [],
                                   docUrl: recording.url,
                                 },
                               },
@@ -292,11 +292,11 @@ function LibraryListItem({
                           const remoteEndpoints = blobEndpoints.filter(
                             (endpoint) => !endpoint.local,
                           )
-                          // Attestations are stored next to the audio and
+                          // Statements are stored next to the audio and
                           // released with it.
                           for (const hash of [
                             recording.blob.hash,
-                            ...(recording.attestations ?? []),
+                            ...(recording.statements ?? []),
                           ]) {
                             await deleteBlobEverywhere(
                               remoteEndpoints,

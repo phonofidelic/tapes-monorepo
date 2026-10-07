@@ -86,7 +86,7 @@ export function Recorder() {
         return
       }
       try {
-        const { blob, attestations } = await uploadRecordingBlob({
+        const { blob, statements } = await uploadRecordingBlob({
           appContext,
           endpoint: blobEndpoint,
           docUrl,
@@ -97,8 +97,8 @@ export function Recorder() {
         const handle = await repo.find<RecordingData>(docUrl)
         handle.change((doc) => {
           doc.blob = blob
-          if (attestations.length > 0) {
-            doc.attestations = attestations
+          if (statements.length > 0) {
+            doc.statements = statements
           }
         })
         removePendingUpload(localStorage, docUrl)

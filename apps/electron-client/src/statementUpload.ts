@@ -6,7 +6,6 @@ import {
   checkRecordingClaim,
   statementBytes,
   verifyStatement,
-  type ClaimProblem,
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { BlobTooLargeError, type BlobStore } from './blobStore'
@@ -28,7 +27,12 @@ export const MAX_STATEMENT_BYTES = 64 * 1024
 
 /** Why an uploaded statement was not stored. */
 export type StatementProblem =
-  | ClaimProblem
+  /** Not a signed statement of the shape its type requires. */
+  | 'malformed'
+  | 'bad-signature'
+  /** The claim describes different bytes from the audio this host holds. */
+  | 'hash-mismatch'
+  | 'size-mismatch'
   /** The bytes are not the statement's canonical JSON. */
   | 'not-canonical'
   | 'unknown-type'

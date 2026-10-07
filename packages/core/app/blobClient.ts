@@ -275,13 +275,13 @@ export type StoredBlob = {
    * Hashes of the signed claim and receipt the host stored next to the audio.
    * Empty when the upload carried no claim or the claim did not verify.
    */
-  attestations: string[]
+  statements: string[]
 }
 
 const HASH_PATTERN = /^[0-9a-f]{64}$/
 
-/** The hashes in a host's answer. A host that predates attestations sends none. */
-export function readAttestations(value: unknown): string[] {
+/** The hashes in a host's answer. A host that predates statements sends none. */
+export function readStatements(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter(
         (hash): hash is string =>
@@ -327,7 +327,7 @@ export async function uploadBlob(
   }
 
   const answer = (await response.json()) as BlobDescriptor & {
-    attestations?: unknown
+    statements?: unknown
   }
   return {
     blob: {
@@ -336,7 +336,7 @@ export async function uploadBlob(
       mimeType: answer.mimeType,
       ext: answer.ext,
     },
-    attestations: readAttestations(answer.attestations),
+    statements: readStatements(answer.statements),
   }
 }
 
@@ -578,8 +578,8 @@ export async function probeBlobEndpoints(
 }
 
 /** Signed statements to copy along with a recording's audio. */
-export type ReplicatedAttestations = {
-  /** The recording's `attestations` list. */
+export type ReplicatedStatements = {
+  /** The recording's `statements` list. */
   hashes: readonly string[]
   /** Hosts to fetch the statements from. */
   sources: readonly BlobEndpoint[]
@@ -604,14 +604,14 @@ export async function replicateBlob(
     mimeType: string
     docUrl: string
     expectedHash: string
-    attestations?: ReplicatedAttestations
+    statements?: ReplicatedStatements
   },
 ): Promise<void> {
   if (endpoints.length === 0) {
     return
   }
   // Fetched once while the audio uploads, then sent to every host.
-  const statements = fetchStatements(options.attestations)
+  const statements = fetchStatements(options.statements)
   await Promise.all(
     endpoints.map(async (endpoint) => {
       const copied = await copyBlob(endpoint, blob, {
@@ -672,15 +672,15 @@ async function copyBlob(
  * cannot be fetched is skipped. The others are still worth copying.
  */
 async function fetchStatements(
-  attestations: ReplicatedAttestations | undefined,
+  statements: ReplicatedStatements | undefined,
 ): Promise<{ hash: string; blob: Blob }[]> {
-  if (!attestations || attestations.hashes.length === 0) {
+  if (!statements || statements.hashes.length === 0) {
     return []
   }
   const fetched = await Promise.all(
-    attestations.hashes.map(async (hash) => {
+    statements.hashes.map(async (hash) => {
       try {
-        const { blob } = await fetchBlobFromAny(attestations.sources, hash)
+        const { blob } = await fetchBlobFromAny(statements.sources, hash)
         return { hash, blob, isReceipt: await isReceipt(blob) }
       } catch (error) {
         console.warn('Could not fetch a signed statement to replicate:', error)
