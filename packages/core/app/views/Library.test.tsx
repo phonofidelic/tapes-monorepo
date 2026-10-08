@@ -251,9 +251,9 @@ describe('offline pinning', () => {
     })
   })
 
-  // Pins are a fact about this device, not about the library. The mocked
-  // useDocument hands every caller the same change fn, so if a pin ever wrote
-  // to the doc it would show up here.
+  // Pins are a fact about this device, not about the root document. The
+  // mocked useDocument hands every caller the same change fn, so if a pin ever
+  // wrote to the doc it would show up here.
   it('never writes pin state into the synced document', async () => {
     recording = withBlob()
     vi.stubGlobal(

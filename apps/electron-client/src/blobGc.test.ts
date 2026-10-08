@@ -90,7 +90,7 @@ async function recordingUrlsOf(root: AutomergeUrl) {
 }
 
 /**
- * Seeds a library and returns its root url. Written through a repo that is
+ * Seeds a root document and returns its url. Written through a repo that is
  * then shut down, so the GC reads it back from disk the way the host would.
  */
 async function seedRootDocument(
@@ -150,7 +150,7 @@ describe('collectOrphanedBlobs', () => {
     expect(await store().has(hashes[0])).toBe(true)
   })
 
-  it('sweeps a blob whose recording left the library', async () => {
+  it('sweeps a blob whose recording left the root document', async () => {
     const { root, hashes } = await seedRootDocument([
       { contents: 'kept audio' },
       { contents: 'deleted audio' },
@@ -243,10 +243,10 @@ describe('collectOrphanedBlobs', () => {
     expect(await readFile(filepath, 'utf-8')).toBe('hardlinked orphan')
   })
 
-  it('keeps another library’s blobs when only one root is announced', async () => {
+  it('keeps another root document’s blobs when only one root is announced', async () => {
     const mine = await seedRootDocument([{ contents: 'my audio' }])
-    // A guest that arrived with its own library (`?am=`) and uploaded to this
-    // host. Its blobs are not reachable from the announced root at all.
+    // A guest that arrived with its own root document (`?am=`) and uploaded to
+    // this host. Its blobs are not reachable from the announced root at all.
     const guest = await seedRootDocument([{ contents: 'guest audio' }])
 
     const result = await collectOrphanedBlobs({
@@ -299,7 +299,7 @@ describe('collectOrphanedBlobs', () => {
     expect(await store().has(hashes[0])).toBe(true)
   })
 
-  it('refuses to sweep a store it found no library for', async () => {
+  it('refuses to sweep a store it found no root document for', async () => {
     const orphan = await ingest('no library at all', 'automerge:gone')
 
     const result = await collectOrphanedBlobs({
@@ -309,11 +309,11 @@ describe('collectOrphanedBlobs', () => {
       now: afterGrace(),
     })
 
-    expect(result.abortedReason).toMatch(/No library documents found/)
+    expect(result.abortedReason).toMatch(/No root documents found/)
     expect(await store().has(orphan)).toBe(true)
   })
 
-  it('tolerates a legacy library whose recordings predate blob descriptors', async () => {
+  it('tolerates a legacy root document whose recordings predate blob descriptors', async () => {
     const repo = openRepo()
     const root = repo.create<RootDocument>({ recordings: [] })
     const legacy = repo.create<Recording>({
@@ -386,7 +386,7 @@ describe('collectOrphanedBlobs', () => {
       expect(await store().has(claim)).toBe(true)
     })
 
-    it('sweeps statements once their recording leaves the library', async () => {
+    it('sweeps statements once their recording leaves the root document', async () => {
       const { root, hashes } = await seedRootDocument([
         { contents: 'deleted audio' },
       ])

@@ -8,7 +8,8 @@ import type { PlaySession } from './context/AudioPlayerContext'
  * A play is measured on the device that played it and counted on the host.
  * The two are often not connected, so a finished session is queued in device
  * storage and flushed when a host is reachable. The queue is kept per device,
- * never in the Automerge doc: an unsent queue is not a fact about the library.
+ * never in the root document: an unsent queue is not a fact about the
+ * recordings.
  */
 
 /** Shaped to the host's `PlaybackEvent`, which is what `/events` validates. */
@@ -140,10 +141,11 @@ export function writeQueue(
 /**
  * Which host counts this play. There is no ownership record yet, so the
  * interim rule is the remote edge when the device has one, else its own local
- * host. A device holds one library, and a device with a remote edge either
- * got that library from that host or pushes it there. The recording url is
- * unused by that rule but taken anyway: ownership is per recording, and when
- * the ownership lookup from TAP-105 lands only this function changes.
+ * host. A device holds one root document, and a device with a remote edge
+ * either got that root document from that host or pushes it there. The
+ * recording url is unused by that rule but taken anyway: ownership is per
+ * recording, and when the ownership lookup from TAP-105 lands only this
+ * function changes.
  */
 export function resolveEventTarget(
   recordingUrl: AutomergeUrl,

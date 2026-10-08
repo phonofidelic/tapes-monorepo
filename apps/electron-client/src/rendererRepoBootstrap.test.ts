@@ -18,9 +18,10 @@ import { bootstrapRendererRepo, type SyncServerUrls } from './rendererRepo'
 /**
  * Exercises the renderer's bootstrap against the real embedded sync server, so
  * the paths that would otherwise only run on a user's machine — in particular
- * the handoff of a pre-TAP-69 library the server has never seen — run in CI.
- * `createStorage` stands in for IndexedDB (unavailable under node) with the same
- * NodeFS adapter the server uses; the bootstrap only cares that it persists.
+ * the handoff of a pre-TAP-69 root document the server has never seen — run in
+ * CI. `createStorage` stands in for IndexedDB (unavailable under node) with the
+ * same NodeFS adapter the server uses; the bootstrap only cares that it
+ * persists.
  */
 
 let serverStoragePath: string | undefined
@@ -105,7 +106,7 @@ async function bootstrap(
   return result
 }
 
-/** Writes a library into a storage adapter, as a previous session would have. */
+/** Writes a root document to a storage adapter, as an earlier session would. */
 async function seedRootDocument(storage: StorageAdapterInterface) {
   const repo = new Repo({ storage })
   const handle = repo.create<RootDocument>({ recordings: [] })
@@ -144,7 +145,7 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
     throw new Error('renderer storage should not be needed')
   }
 
-  it('finds a library the server holds, without any renderer storage', async () => {
+  it('finds a root document the server holds, without any renderer storage', async () => {
     const url = await seedRootDocument(
       new NodeFSStorageAdapter(await serverStorage()),
     )
@@ -164,7 +165,7 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
     expect(result.handle.url).toBe(url)
   })
 
-  it('creates a library when none is stored, and the server persists it', async () => {
+  it('creates a root document when none is stored, and the server persists it', async () => {
     const info = await startServer()
 
     const result = await bootstrap(
@@ -182,9 +183,9 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
     await waitForServerToStore(result.handle.url)
   })
 
-  // The pre-TAP-69 migration: the library exists only in the renderer's own
-  // store, and the server has never seen it.
-  it('falls back to renderer storage and hands the library to the server', async () => {
+  // The pre-TAP-69 migration: the root document exists only in the renderer's
+  // own store, and the server has never seen it.
+  it('falls back to renderer storage and hands the root document to the server', async () => {
     const storage = await rendererStorage()
     const url = await seedRootDocument(storage)
     const info = await startServer()
@@ -197,7 +198,8 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
     expect(result.repo.storageSubsystem).toBeDefined()
     expect(result.handle.url).toBe(url)
 
-    // The handoff itself: the server received the library and wrote it to disk.
+    // The handoff itself: the server received the root document and wrote it
+    // to disk.
     await waitForServerToStore(url)
 
     // And so the next launch needs no renderer storage at all. Restarting the

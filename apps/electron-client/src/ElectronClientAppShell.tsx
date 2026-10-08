@@ -55,7 +55,7 @@ export function ElectronClientAppShell({
   // The embedded server's url only arrives over IPC, and the repo must be built
   // with its adapters already in place: `Repo.find` waits for the network to be
   // ready and then requests the doc, so a repo built before the url resolves
-  // would have no peer to ask and report the library as unavailable.
+  // would have no peer to ask and report the root document as unavailable.
   //
   // This runs again on every sync-settings write, because the Settings UI that
   // makes those writes lives inside `App`, below this component, and the server
@@ -180,7 +180,7 @@ export function ElectronClientAppShell({
           // would have no way to act on. Clearing the key lets the next write
           // to these settings try again.
           console.error(
-            'The configured sync server does not have this library; staying on the current one',
+            'The configured sync server does not have this root document; staying on the current one',
           )
           appliedKeyRef.current = null
           return
@@ -207,19 +207,23 @@ export function ElectronClientAppShell({
       setError(null)
       setRepo(result.repo)
 
-      // Tell the host which library this is. It has no other way to know: the
-      // url lives in this renderer's localStorage, and every other doc url the
-      // host sees over IPC names a single recording. Without it the blob GC
-      // cannot tell a referenced object from an orphan. Best-effort, and
-      // `send` can throw synchronously when there is no ipcRenderer at all.
+      // Tell the host which root document this is. It has no other way to
+      // know: the url lives in this renderer's localStorage, and every other
+      // doc url the host sees over IPC names a single recording. Without it
+      // the blob GC cannot tell a referenced object from an orphan.
+      // Best-effort, and `send` can throw synchronously when there is no
+      // ipcRenderer at all.
       try {
         void appContextValue.ipc
           .send('root-document:announce', { data: { url: result.handle.url } })
           .catch((error) =>
-            console.info('Could not announce the library to the host', error),
+            console.info(
+              'Could not announce the root document to the host',
+              error,
+            ),
           )
       } catch (error) {
-        console.info('Could not announce the library to the host', error)
+        console.info('Could not announce the root document to the host', error)
       }
 
       // Close the superseded sockets only once the new repo is in place, so

@@ -38,7 +38,7 @@ function send<T>(command: Record<string, unknown>): Promise<T> {
 }
 
 /**
- * Joins the app's library as a websocket peer.
+ * Joins the app's root document as a websocket peer.
  *
  * Node runs the child's TypeScript itself, in `--experimental-transform-types`
  * mode rather than the default strip-only one, because these sources reach
@@ -100,7 +100,7 @@ export async function startPeer(options: { syncUrl: string }): Promise<void> {
   await send<null>({ type: 'connect', url: options.syncUrl })
 }
 
-/** Every recording on the library, as the document holds it. */
+/** Every recording on the root document, as it holds them. */
 export function peerRecordings(
   rootDocumentUrl: AutomergeUrl,
 ): Promise<PeerRecording[]> {

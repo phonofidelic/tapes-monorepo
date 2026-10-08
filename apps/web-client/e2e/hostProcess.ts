@@ -158,8 +158,8 @@ async function start(command: Extract<Command, { type: 'start' }>) {
 /**
  * Puts a recording on the host the way the desktop app does: bytes into the
  * blob store over `/blobs`, a `Recording` doc pointing at them, and that
- * doc's url pushed onto the library. To a guest this is a tape it never
- * recorded.
+ * doc's url pushed onto the root document. To a guest this is a tape it
+ * never recorded.
  */
 async function seed(command: Extract<Command, { type: 'seed' }>) {
   const repo = await connectAsPeer()
@@ -269,9 +269,9 @@ async function upload(
 }
 
 /**
- * The library's recordings, by name and url. A guest's own recording gets its
- * url on this device, so a test that made one on the browser has no other way
- * to name it when asking the host for its count.
+ * The root document's recordings, by name and url. A guest's own recording
+ * gets its url on this device, so a test that made one on the browser has no
+ * other way to name it when asking the host for its count.
  */
 async function recordings(): Promise<{ url: string; name: string }[]> {
   const repo = await connectAsPeer()

@@ -16,10 +16,10 @@ export type SyncServerConfig = {
   // There is no per-device revocation.
   pairingToken: string
   /**
-   * Library roots this host has been told about, so the blob GC can mark
+   * Root documents this host has been told about, so the blob GC can mark
    * against them. Persisted because the root url otherwise lives only in the
-   * renderer's localStorage, and a sweep that forgot a library would treat all
-   * of its audio as unreferenced.
+   * renderer's localStorage, and a sweep that forgot a root document would
+   * treat all of its audio as unreferenced.
    */
   knownRoots?: string[]
 }
@@ -128,9 +128,9 @@ export function readSyncServerConfig(): SyncServerConfig {
 }
 
 /**
- * Records a library root, returning every root known afterwards. Roots
- * accumulate rather than replace: this host may serve several libraries at
- * once, and the blob store is shared across all of them.
+ * Records a root document url, returning every root known afterwards. Roots
+ * accumulate rather than replace: this host may serve several root documents
+ * at once, and the blob store is shared across all of them.
  */
 export function rememberRootDocument(url: string): string[] {
   const config = readSyncServerConfig()

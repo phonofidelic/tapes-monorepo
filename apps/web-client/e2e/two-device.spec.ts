@@ -60,7 +60,7 @@ test.beforeAll(async () => {
     seconds: 600,
     frequency: 220,
   })
-  // On the library, addressed, and the host has never held its bytes.
+  // On the root document, addressed, and the host has never held its bytes.
   orphanTape = await seedRecording({
     name: 'Host tape orphan',
     seconds: 1,
@@ -72,7 +72,7 @@ test.afterAll(async () => {
   await disposeHost()
 })
 
-/** The pairing url a host's QR code encodes: which library, and the token. */
+/** The pairing url a host's QR code encodes: the root document and token. */
 const pair = async (page: Page) => {
   await page.goto(
     `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
