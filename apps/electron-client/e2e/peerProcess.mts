@@ -21,11 +21,11 @@ import type { Recording, RootDocument } from '@tapes-monorepo/core'
 
 type Command =
   | { id: number; type: 'connect'; url: string }
-  | { id: number; type: 'recordings'; libraryUrl: AutomergeUrl }
+  | { id: number; type: 'recordings'; rootDocumentUrl: AutomergeUrl }
   | {
       id: number
       type: 'awaitRecording'
-      libraryUrl: AutomergeUrl
+      rootDocumentUrl: AutomergeUrl
       name: string
       /** Wait for its blob descriptor too, not merely for the document. */
       withDescriptor: boolean
@@ -45,9 +45,9 @@ async function connect(url: string) {
 }
 
 /** Every recording on the library, as the document holds it. */
-async function recordings(libraryUrl: AutomergeUrl) {
-  const library = await repo!.find<RootDocument>(libraryUrl)
-  const urls = library.doc().recordings ?? []
+async function recordings(rootDocumentUrl: AutomergeUrl) {
+  const rootDocument = await repo!.find<RootDocument>(rootDocumentUrl)
+  const urls = rootDocument.doc().recordings ?? []
   return Promise.all(
     urls.map(async (url) => {
       const handle = await repo!.find<Recording>(url)
@@ -77,7 +77,7 @@ async function awaitRecording(
 ) {
   const deadline = Date.now() + command.timeoutMs
   for (;;) {
-    const found = (await recordings(command.libraryUrl)).find(
+    const found = (await recordings(command.rootDocumentUrl)).find(
       (recording) => recording.name === command.name,
     )
     if (found && (!command.withDescriptor || found.blob)) {
@@ -99,7 +99,7 @@ async function run(command: Command): Promise<unknown> {
     case 'connect':
       return connect(command.url)
     case 'recordings':
-      return recordings(command.libraryUrl)
+      return recordings(command.rootDocumentUrl)
     case 'awaitRecording':
       return awaitRecording(command)
     case 'dispose':

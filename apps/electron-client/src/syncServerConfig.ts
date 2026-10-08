@@ -132,7 +132,7 @@ export function readSyncServerConfig(): SyncServerConfig {
  * accumulate rather than replace: this host may serve several libraries at
  * once, and the blob store is shared across all of them.
  */
-export function rememberLibraryRoot(url: string): string[] {
+export function rememberRootDocument(url: string): string[] {
   const config = readSyncServerConfig()
   const knownRoots = config.knownRoots ?? []
   if (knownRoots.includes(url)) {

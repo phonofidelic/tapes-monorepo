@@ -87,7 +87,7 @@ test.afterAll(async () => {
 /** The pairing url this host's QR code encodes: which library, and the token. */
 const pairGuest = async (page: Page) => {
   await page.goto(
-    `/?am=${encodeURIComponent(tapes.libraryUrl)}&pt=${tapes.pairingToken}`,
+    `/?am=${encodeURIComponent(tapes.rootDocumentUrl)}&pt=${tapes.pairingToken}`,
   )
   await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
 }
@@ -117,7 +117,7 @@ test.describe('the electron renderer', () => {
     // The guest uploads over `/blobs` to this same host, so the bytes land in
     // the store the renderer reads from — the reverse leg of the first test.
     const recording = await awaitRecording({
-      libraryUrl: tapes.libraryUrl,
+      rootDocumentUrl: tapes.rootDocumentUrl,
       name,
     })
     const stored = (await blobObjects(tapes.userDataPath)).find(
@@ -173,7 +173,7 @@ test.describe('the electron renderer', () => {
     // This is the assertion PR #295's bug would have failed: the recording
     // appeared in the library either way, and only `blob` was missing.
     const recording = await awaitRecording({
-      libraryUrl: tapes.libraryUrl,
+      rootDocumentUrl: tapes.rootDocumentUrl,
       name,
     })
     expect(recording.blob).toBeDefined()
@@ -199,7 +199,7 @@ test.describe('the electron renderer', () => {
     await recordFor(renderer)
     await saveRecording(renderer, name)
     await awaitRecording({
-      libraryUrl: tapes.libraryUrl,
+      rootDocumentUrl: tapes.rootDocumentUrl,
       name,
     })
 

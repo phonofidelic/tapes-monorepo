@@ -25,7 +25,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'blob:put-file': true,
   'blob:has': true,
   'blob:cache-put': true,
-  'library:announce': true,
+  'root-document:announce': true,
   'events:get-aggregates': true,
 }
 

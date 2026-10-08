@@ -75,7 +75,7 @@ let webClientPath: string | undefined
  * key. Undefined for a host that signs no receipts.
  */
 let signingKey: Promise<CryptoKeyPair> | undefined
-let libraryUrl: AutomergeUrl | undefined
+let rootDocumentUrl: AutomergeUrl | undefined
 let peer: { repo: Repo; disconnect: () => void } | undefined
 
 /**
@@ -148,11 +148,11 @@ async function start(command: Extract<Command, { type: 'start' }>) {
   // format a test should be forging, and syncing one in is exactly what a real
   // second device does.
   const repo = await connectAsPeer()
-  const library = repo.create<RootDocument>({ recordings: [] })
-  libraryUrl = library.url
-  await waitForStoredDoc(library.url)
+  const rootDocument = repo.create<RootDocument>({ recordings: [] })
+  rootDocumentUrl = rootDocument.url
+  await waitForStoredDoc(rootDocument.url)
 
-  return { libraryUrl, blobRoot: paths.blobRoot, port: info.port }
+  return { rootDocumentUrl, blobRoot: paths.blobRoot, port: info.port }
 }
 
 /**
@@ -200,8 +200,8 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
     }
   })
 
-  const library = await repo.find<RootDocument>(libraryUrl!)
-  library.change((doc) => {
+  const rootDocument = await repo.find<RootDocument>(rootDocumentUrl!)
+  rootDocument.change((doc) => {
     doc.recordings.push(recording.url)
   })
 
@@ -275,9 +275,9 @@ async function upload(
  */
 async function recordings(): Promise<{ url: string; name: string }[]> {
   const repo = await connectAsPeer()
-  const library = await repo.find<RootDocument>(libraryUrl!)
+  const rootDocument = await repo.find<RootDocument>(rootDocumentUrl!)
   const found: { url: string; name: string }[] = []
-  for (const url of library.doc().recordings) {
+  for (const url of rootDocument.doc().recordings) {
     const recording = await repo.find<Recording>(url)
     found.push({ url, name: recording.doc().name })
   }
