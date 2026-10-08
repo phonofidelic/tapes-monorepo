@@ -14,7 +14,7 @@ import { PinProvider } from '@/context/PinContext'
 import { PortalContainer, PortalsProvider } from '@/context/PortalsContext'
 import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
-import type { Recording, RecordingRepoState } from '@/types'
+import type { Recording, RootDocument } from '@/types'
 import { AggregatesProvider } from '@/context/AggregatesContext'
 import { Library } from './Library'
 
@@ -113,10 +113,7 @@ const changeDocument = vi.fn()
 vi.mock('@automerge/automerge-repo-react-hooks', () => ({
   useDocument: (url?: AutomergeUrl) => {
     if (url === REPO_URL) {
-      return [
-        { recordings: [RECORDING_URL] } as RecordingRepoState,
-        changeDocument,
-      ]
+      return [{ recordings: [RECORDING_URL] } as RootDocument, changeDocument]
     }
     return [recording, changeDocument]
   },

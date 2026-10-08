@@ -1,7 +1,7 @@
 import path from 'path'
 import { readdir } from 'fs/promises'
 import type { Repo, AutomergeUrl } from '@automerge/automerge-repo/slim'
-import type { Recording, RecordingRepoState } from '@tapes-monorepo/core'
+import type { Recording, RootDocument } from '@tapes-monorepo/core'
 import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import type { BlobStore, StoredObject } from './blobStore'
 
@@ -102,7 +102,7 @@ async function storedDocumentUrls(
  * with its own library through the `?am=` query and upload blobs against it.
  * Sweeping against one library's reachable set would delete another's audio.
  */
-function isRootDoc(doc: Doc | undefined): doc is Doc & RecordingRepoState {
+function isRootDoc(doc: Doc | undefined): doc is Doc & RootDocument {
   return Array.isArray(doc?.recordings)
 }
 

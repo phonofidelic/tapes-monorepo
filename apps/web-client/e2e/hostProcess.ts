@@ -12,7 +12,7 @@ import { createBlobStore } from '../../electron-client/src/blobStore'
 import type {
   BlobDescriptor,
   Recording,
-  RecordingRepoState,
+  RootDocument,
 } from '@tapes-monorepo/core'
 import {
   RECORDING_CLAIM_HEADER,
@@ -148,7 +148,7 @@ async function start(command: Extract<Command, { type: 'start' }>) {
   // format a test should be forging, and syncing one in is exactly what a real
   // second device does.
   const repo = await connectAsPeer()
-  const library = repo.create<RecordingRepoState>({ recordings: [] })
+  const library = repo.create<RootDocument>({ recordings: [] })
   libraryUrl = library.url
   await waitForStoredDoc(library.url)
 
@@ -200,7 +200,7 @@ async function seed(command: Extract<Command, { type: 'seed' }>) {
     }
   })
 
-  const library = await repo.find<RecordingRepoState>(libraryUrl!)
+  const library = await repo.find<RootDocument>(libraryUrl!)
   library.change((doc) => {
     doc.recordings.push(recording.url)
   })
@@ -275,7 +275,7 @@ async function upload(
  */
 async function recordings(): Promise<{ url: string; name: string }[]> {
   const repo = await connectAsPeer()
-  const library = await repo.find<RecordingRepoState>(libraryUrl!)
+  const library = await repo.find<RootDocument>(libraryUrl!)
   const found: { url: string; name: string }[] = []
   for (const url of library.doc().recordings) {
     const recording = await repo.find<Recording>(url)

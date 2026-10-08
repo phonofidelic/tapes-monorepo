@@ -18,7 +18,7 @@ import {
   MdFileDownloadOff,
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
-import { Recording, RecordingRepoState } from '@/types'
+import { Recording, RootDocument } from '@/types'
 import { useAppContext } from '@/context/AppContext'
 import { EditRecordingResponse, IpcResponse } from '@/IpcService'
 import { useAudioPlayer } from '@/context/AudioPlayerContext'
@@ -33,10 +33,9 @@ import { usePortals } from '@/context/PortalsContext'
 
 export function Library() {
   const { automergeUrl } = useRequiredAutomergeUrl()
-  const [docState, changeDocState] = useDocument<RecordingRepoState>(
-    automergeUrl,
-    { suspense: true },
-  )
+  const [docState, changeDocState] = useDocument<RootDocument>(automergeUrl, {
+    suspense: true,
+  })
   const { container: editorPortal } = usePortals('editorPortal')
 
   const [editingUrl, setEditingUrl] = useState<AutomergeUrl | null>(null)

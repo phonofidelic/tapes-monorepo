@@ -6,7 +6,7 @@ import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
 import { type AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
-import { Recording, RecordingRepoState } from '@/types'
+import { Recording, RootDocument } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
@@ -36,7 +36,7 @@ export function Recorder() {
   const { automergeUrl } = useRequiredAutomergeUrl()
   const repo = useRepo()
   const blobEndpoint = useUploadEndpoint()
-  const [, changeDocState] = useDocument<RecordingRepoState>(automergeUrl, {
+  const [, changeDocState] = useDocument<RootDocument>(automergeUrl, {
     suspense: true,
   })
 
