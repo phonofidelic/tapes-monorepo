@@ -44,10 +44,10 @@ export type SeedOptions = {
   seconds: number
   frequency?: number
   /**
-   * Set false to put the document on the library without uploading its bytes,
-   * like a recording whose upload never landed. The host answers 404 for it
-   * while staying reachable, which a guest must tell apart from the host being
-   * away.
+   * Set false to add the document to the root document without uploading its
+   * bytes, like a recording whose upload never landed. The host answers 404
+   * for it while staying reachable, which a guest must tell apart from the
+   * host being away.
    */
   withBytes?: boolean
   /**
@@ -93,7 +93,7 @@ export class Host {
   }
 
   /**
-   * Starts the host and creates the library document guests pair with.
+   * Starts the host and creates the root document guests pair with.
    *
    * Node runs the child directly: it strips the types itself, and a resolver
    * hook covers the extensionless relative imports the app's sources are
@@ -169,8 +169,8 @@ export class Host {
 
   /**
    * Puts a recording on the host: bytes in its blob store, a document pointing
-   * at them, and that document on the library. To a guest this is a tape it
-   * never recorded.
+   * at them, and that document on the root document. To a guest this is a
+   * tape it never recorded.
    */
   seed(options: SeedOptions): Promise<SeededRecording> {
     return this.send<SeededRecording>({
@@ -187,7 +187,7 @@ export class Host {
     return this.send<HostObject[]>({ type: 'objects' })
   }
 
-  /** The library's recordings, by name and url, as the host has them. */
+  /** The root document's recordings, by name and url, as the host has them. */
   recordings(): Promise<{ url: string; name: string }[]> {
     return this.send<{ url: string; name: string }[]>({ type: 'recordings' })
   }

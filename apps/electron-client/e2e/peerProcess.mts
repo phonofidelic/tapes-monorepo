@@ -4,7 +4,7 @@ import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network
 import type { Recording, RootDocument } from '@tapes-monorepo/core'
 
 /**
- * A third device on the app-under-test's library, as its own process.
+ * A third device on the app-under-test's root document, as its own process.
  *
  * The suite's assertions are about what the *document* says — that a recording
  * the renderer made gained a blob descriptor, and that its hash is the one the
@@ -44,7 +44,7 @@ async function connect(url: string) {
   return null
 }
 
-/** Every recording on the library, as the document holds it. */
+/** Every recording on the root document, as it holds them. */
 async function recordings(libraryUrl: AutomergeUrl) {
   const library = await repo!.find<RootDocument>(libraryUrl)
   const urls = library.doc().recordings ?? []
@@ -68,7 +68,7 @@ async function recordings(libraryUrl: AutomergeUrl) {
  * descriptor attached.
  *
  * Polled rather than driven off `change` events: the recording arrives as a new
- * url pushed onto the library and then as a document of its own, and the
+ * url pushed onto the root document and then as a document of its own, and the
  * descriptor lands as a *second* change to that document some time after — a
  * subscription would have to be rebuilt at each of those steps anyway.
  */

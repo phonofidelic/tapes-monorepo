@@ -358,7 +358,7 @@ describe('sameBlobEndpoints', () => {
 describe('rendererRepoKey', () => {
   const url = 'automerge:2PfnZbJTdgLuUuBvzuGZQiHW7cX8' as AutomergeUrl
 
-  it('is stable for the same library and servers', () => {
+  it('is stable for the same root document and servers', () => {
     expect(rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' })).toBe(
       rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' }),
     )
@@ -375,7 +375,7 @@ describe('rendererRepoKey', () => {
 
   // Importing another device's library has to rebuild the repo around the new
   // document, not just re-point the existing one.
-  it('changes when the library url changes', () => {
+  it('changes when the root document url changes', () => {
     expect(rendererRepoKey(url, { localUrl: 'ws://127.0.0.1:9001' })).not.toBe(
       rendererRepoKey(null, { localUrl: 'ws://127.0.0.1:9001' }),
     )

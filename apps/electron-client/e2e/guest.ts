@@ -147,7 +147,7 @@ export const openLibrary = async (page: Page) => {
  * A reload rather than a click. Once a tape has been opened the transport is
  * docked over the bottom of every view, right on top of the record button, and
  * its Stop button does not dismiss it. Nothing is lost by reloading because the
- * library lives on the embedded server, not in the window.
+ * root document lives on the embedded server, not in the window.
  */
 export const openRecorder = async (page: Page) => {
   await page.reload()

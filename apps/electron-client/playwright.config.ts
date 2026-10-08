@@ -14,8 +14,8 @@ export default defineConfig({
   testDir: './e2e',
   // Packages the app before anything runs; see the file for why not a hook.
   globalSetup: './e2e/globalSetup.ts',
-  // One app, one audio device, one library: these tests share a launched app
-  // and would contend for the default input if they overlapped.
+  // One app, one audio device, one root document: these tests share a
+  // launched app and would contend for the default input if they overlapped.
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

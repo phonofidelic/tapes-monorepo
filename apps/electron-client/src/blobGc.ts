@@ -10,7 +10,7 @@ import type { BlobStore, StoredObject } from './blobStore'
  *
  * Refcounts miss objects whose owner never announced itself: a crash between
  * writing an object and its ref record, a peer that deleted a recording while
- * offline, or an upload abandoned outside `tmp/`. This walks every library
+ * offline, or an upload abandoned outside `tmp/`. This walks every root
  * document the host holds and unlinks objects none of them reference. A
  * recording references its audio and its statements.
  * Kept out of `blobStore.ts` so the store stays free of Automerge and Electron
@@ -30,7 +30,7 @@ const DEFAULT_FIND_TIMEOUT_MS = 5_000
 export type BlobGcResult = {
   /** Objects present in the store when the sweep ran. */
   scanned: number
-  /** Hashes reachable from a live library. */
+  /** Hashes reachable from a live root document. */
   live: number
   swept: string[]
   /** Unreferenced, but inside the grace period. */
@@ -96,11 +96,12 @@ async function storedDocumentUrls(
 }
 
 /**
- * A document is a library root when it carries a `recordings` array.
+ * A document is a root document when it carries a `recordings` array.
  *
  * Every root on disk counts, not only this device's own. A guest can arrive
- * with its own library through the `?am=` query and upload blobs against it.
- * Sweeping against one library's reachable set would delete another's audio.
+ * with its own root document through the `?am=` query and upload blobs
+ * against it. Sweeping against one root document's reachable set would delete
+ * another's audio.
  */
 function isRootDoc(doc: Doc | undefined): doc is Doc & RootDocument {
   return Array.isArray(doc?.recordings)
@@ -124,7 +125,7 @@ async function isOwnedStatement(
  * Walks the live document graph and unlinks objects it cannot reach.
  *
  * A document that will not resolve abandons the whole sweep. A partial mark
- * set looks the same as a smaller library, and would read as "nothing
+ * set looks the same as a smaller root document, and would read as "nothing
  * references these bytes". Objects younger than `graceMs` are left alone; the
  * reason is at the grace check below.
  */
@@ -171,11 +172,14 @@ export async function collectOrphanedBlobs({
     try {
       doc = await findDoc(repo, url, findTimeoutMs)
     } catch (error) {
-      // A seeded root we cannot read is fatal: it is a library whose contents
-      // we would otherwise treat as unreferenced. A document merely found on
-      // disk may be any unrelated chunk, so it is not worth aborting over.
+      // A seeded root we cannot read is fatal: it is a root document whose
+      // contents we would otherwise treat as unreferenced. A document merely
+      // found on disk may be any unrelated chunk, so it is not worth aborting
+      // over.
       if (seedRoots.includes(url)) {
-        return empty(`Could not resolve announced library ${url}: ${error}`)
+        return empty(
+          `Could not resolve announced root document ${url}: ${error}`,
+        )
       }
       continue
     }
@@ -184,8 +188,8 @@ export async function collectOrphanedBlobs({
     }
     roots.push(url)
     for (const recording of doc.recordings) {
-      // Legacy libraries predate the current shape; tolerate junk entries
-      // rather than failing the walk, as `Recorder.tsx` already does.
+      // Legacy root documents predate the current shape; tolerate junk
+      // entries rather than failing the walk, as `Recorder.tsx` already does.
       if (typeof recording === 'string') {
         recordingUrls.add(recording)
       }
@@ -193,9 +197,9 @@ export async function collectOrphanedBlobs({
   }
 
   if (roots.length === 0 && objects.length > 0) {
-    // Objects but no library at all almost certainly means the graph did not
-    // load, not that every recording was deleted. Nothing to mark against.
-    return empty('No library documents found; refusing to sweep')
+    // Objects but no root document at all almost certainly means the graph did
+    // not load, not that every recording was deleted. Nothing to mark against.
+    return empty('No root documents found; refusing to sweep')
   }
 
   const live = new Set<string>()
@@ -252,7 +256,7 @@ export async function collectOrphanedBlobs({
     }
     // Any peer can edit a recording's statements list. Dropping a hash from
     // it must not delete the statement, so a statement stays while the
-    // recording that stored it is still in a library.
+    // recording that stored it is still in a root document.
     if (await isOwnedStatement(store, object.hash, recordingUrls)) {
       continue
     }

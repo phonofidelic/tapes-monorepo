@@ -11,13 +11,13 @@ import {
 } from '@tapes-monorepo/core'
 
 /**
- * The renderer telling the host which library it just loaded.
+ * The renderer telling the host which root document it just loaded.
  *
  * The host otherwise has no notion of a root document. The url lives in the
  * renderer's localStorage, and everything else main receives over IPC names a
  * recording. Without this the blob GC has nothing to mark against. It also
  * triggers the GC, since the host has no repo-ready hook: the sync server
- * starts fire-and-forget on app ready, long before any library exists.
+ * starts fire-and-forget on app ready, long before any root document exists.
  */
 export class AnnounceLibraryChannel implements IpcChannel {
   name: ValidIpcChanel = 'library:announce'

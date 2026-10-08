@@ -18,8 +18,8 @@ import { useBlobEndpoints } from './BlobContext'
  * pre-fetches immediately and is exempt from cache eviction.
  *
  * Pins are per device. Which recordings this phone keeps is not a fact about
- * the library, so they must not go in the Automerge doc, where they would
- * sync to every peer.
+ * the root document, so they must not go in it, where they would sync to
+ * every peer.
  */
 
 // Not in the `settings` blob either. That is a flat map of strings that three

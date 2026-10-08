@@ -84,7 +84,7 @@ test.afterAll(async () => {
   await tapes?.close()
 })
 
-/** The pairing url this host's QR code encodes: which library, and the token. */
+/** The pairing url this host's QR code encodes: the root document and token. */
 const pairGuest = async (page: Page) => {
   await page.goto(
     `/?am=${encodeURIComponent(tapes.libraryUrl)}&pt=${tapes.pairingToken}`,

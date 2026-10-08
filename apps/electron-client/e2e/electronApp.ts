@@ -15,7 +15,8 @@ import { SYNC_PORT } from './ports'
  * Packaged, not `electron .`, because only the packaged build resolves the
  * bundled sox binary and staged web-client through the resources path.
  * Everything the app writes goes to a fresh user-data directory, so a run
- * never touches the developer's own library and the suite can inspect it.
+ * never touches the developer's own root document, and the suite can inspect
+ * it.
  */
 
 // `__dirname` rather than `import.meta.url`: this workspace is not
@@ -38,7 +39,7 @@ export type LaunchedApp = {
   storageLocation: string
   /** The token this install minted, as its guests are handed it by QR. */
   pairingToken: string
-  /** The library document a guest pairs with. */
+  /** The root document a guest pairs with. */
   libraryUrl: AutomergeUrl
   close: () => Promise<void>
 }
@@ -249,7 +250,7 @@ async function readPairingToken(userDataPath: string): Promise<string> {
 }
 
 /**
- * Waits for the navigation, which the app shows once it has a library.
+ * Waits for the navigation, which the app shows once it has a root document.
  *
  * On a timeout it prints what the window shows instead and saves a screenshot
  * to `test-results/`, because Playwright's own artifacts cover only the guest.
@@ -280,7 +281,7 @@ async function waitForNavigation(page: Page): Promise<void> {
 
 /**
  * Launches the app, points it at a recording directory, and waits until it has
- * a library.
+ * a root document.
  *
  * The storage location is seeded into the renderer's settings rather than
  * chosen through the directory dialog, which is native and beyond Playwright.
@@ -330,18 +331,18 @@ export async function launchTapes(): Promise<LaunchedApp> {
   const pairingToken = await readPairingToken(userDataPath)
 
   // The bootstrap resolves the embedded server over IPC and only then builds
-  // the repo, so the app renders "Loading..." until it has a library.
+  // the repo, so the app renders "Loading..." until it has a root document.
   await waitForNavigation(page)
 
   const libraryUrl = (await page.evaluate(() =>
     localStorage.getItem('automergeUrl'),
   )) as AutomergeUrl | null
   if (!libraryUrl) {
-    throw new Error('The app never stored a library url')
+    throw new Error('The app never stored a root document url')
   }
 
-  // Wait before the reload below. A first launch creates the library in
-  // IndexedDB and syncs it to the embedded server over the socket. A reload
+  // Wait before the reload below. A first launch creates the root document
+  // in IndexedDB and syncs it to the embedded server over the socket. A reload
   // inside that window makes the bootstrap look the document up on a server
   // that has never heard of it, and the app shows "Your library could not be
   // loaded from this device."

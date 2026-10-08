@@ -173,7 +173,7 @@ export function getBlobStore(): BlobStore | undefined {
 }
 
 /**
- * The running host's repo, for the blob GC's walk over the library graph.
+ * The running host's repo, for the blob GC's walk from the root documents.
  * Nothing else on the host reads document contents, so this stays narrow
  * rather than becoming a general seam for interpreting docs in main.
  */
@@ -559,8 +559,8 @@ export async function startSyncServer(
 
   // `noServer` rather than `{ server }`: the upgrade has to be answered by
   // hand so the pairing token can be checked before a peer ever reaches the
-  // repo. Without it, anyone who can route to this port joins the library and
-  // can read or rewrite every recording in it.
+  // repo. Without it, anyone who can route to this port reaches the root
+  // document and can read or rewrite every recording in it.
   const wss = new WebSocketServer({ noServer: true })
 
   server.on('upgrade', (request, socket, head) => {

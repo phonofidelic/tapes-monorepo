@@ -154,8 +154,8 @@ Notes on running it:
   the node inspector fuse that Playwright needs and must never be shipped.
   Later runs reuse it. Delete `out-e2e/` to rebuild.
 - **The app under test is isolated.** It runs against a throwaway user data
-  directory, so it never touches your own library, and binds port `9102`
-  rather than the usual `9001`.
+  directory, so it never touches your own recordings or root document. It
+  binds port `9102` rather than the usual `9001`.
 - **It does not run on pull requests.** A nightly macOS job in
   [`e2e-electron.yml`](../../.github/workflows/e2e-electron.yml) runs it. It
   can also be triggered by hand from the Actions tab.

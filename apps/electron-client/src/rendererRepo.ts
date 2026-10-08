@@ -156,7 +156,7 @@ export function buildRendererNetwork({
     .map((url) => new BrowserWebSocketClientAdapter(url))
 }
 
-/** How long to wait for a peer to answer with the stored library. */
+/** How long to wait for a peer to answer with the stored root document. */
 export const DEFAULT_FIND_TIMEOUT_MS = 10_000
 
 export type RendererRepoBootstrap =
@@ -164,20 +164,21 @@ export type RendererRepoBootstrap =
       status: 'ready'
       repo: Repo
       handle: DocHandle<unknown>
-      /** Set only when a new library was created, for the caller to persist. */
+      /** Set only when a new root document was created, to be persisted. */
       createdUrl?: AutomergeUrl
     }
-  /** A library url is stored, but no repo we can reach holds that document. */
+  /** A root document url is stored, but no repo we can reach holds it. */
   | { status: 'unavailable' }
 
 /**
- * Builds the repo the renderer runs on, and loads or creates the library in it.
+ * Builds the repo the renderer runs on, and loads or creates the root document
+ * in it.
  *
  * The embedded sync server owns persistence, so the repo normally carries no
- * storage adapter of its own. That keeps the desktop library off the renderer's
- * origin quota. Two cases still need the browser-side store the caller supplies
- * through `createStorage`: no embedded server, and a library from before the
- * server owned persistence that it has never seen.
+ * storage adapter of its own. That keeps the desktop's documents off the
+ * renderer's origin quota. Two cases still need the browser-side store the
+ * caller supplies through `createStorage`: no embedded server, and a root
+ * document from before the server owned persistence that it has never seen.
  */
 export async function bootstrapRendererRepo({
   storedUrl,
@@ -192,9 +193,9 @@ export async function bootstrapRendererRepo({
   createNetwork?: (urls: SyncServerUrls) => NetworkAdapterInterface[]
   findTimeoutMs?: number
 }): Promise<RendererRepoBootstrap> {
-  // Finds the stored library in `candidate`, or creates a fresh one when there
-  // is nothing stored yet. Reports failure so the caller can try a different
-  // repo rather than inventing a new document.
+  // Finds the stored root document in `candidate`, or creates a fresh one when
+  // there is nothing stored yet. Reports failure so the caller can try a
+  // different repo rather than inventing a new document.
   const load = async (candidate: Repo): Promise<RendererRepoBootstrap> => {
     if (!storedUrl) {
       const handle = candidate.create<RootDocument>({ recordings: [] })
@@ -215,7 +216,7 @@ export async function bootstrapRendererRepo({
       })
       return { status: 'ready', repo: candidate, handle }
     } catch (error) {
-      console.info('Library not found in this repo', error)
+      console.info('Root document not found in this repo', error)
       return { status: 'unavailable' }
     }
   }
@@ -234,11 +235,12 @@ export async function bootstrapRendererRepo({
     return result
   }
 
-  // The server does not have the library. That is an install from before the
-  // server owned persistence, whose only copy is in the renderer's own storage.
-  // Run this session on the legacy store-backed repo, which announces the
-  // library to the server so the next launch finds it on disk. Once this has
-  // shipped for a release, the fallback and the IndexedDB dependency can go.
+  // The server does not have the root document. That is an install from
+  // before the server owned persistence, whose only copy is in the renderer's
+  // own storage. Run this session on the legacy store-backed repo, which
+  // announces the root document to the server so the next launch finds it on
+  // disk. Once this has shipped for a release, the fallback and the IndexedDB
+  // dependency can go.
   await repo.shutdown()
   return load(
     new Repo({ storage: createStorage(), network: createNetwork(urls) }),
@@ -294,7 +296,8 @@ export function sameBlobEndpoints(
 }
 
 /**
- * Identifies the repo a given library url and set of servers would produce.
+ * Identifies the repo a given root document url and set of servers would
+ * produce.
  * Re-resolving after an unrelated settings write usually lands on the same key,
  * and rebuilding then would drop every open websocket to hand back an identical
  * repo.

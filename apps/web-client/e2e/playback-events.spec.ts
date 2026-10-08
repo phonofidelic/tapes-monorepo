@@ -273,8 +273,8 @@ test.describe('playback events', () => {
 /**
  * Waits for a recording to reach the host and returns its url.
  *
- * A guest's own recording syncs over the socket, so it is on the library a
- * moment after the name is committed rather than at once.
+ * A guest's own recording syncs over the socket, so it is on the root document
+ * a moment after the name is committed rather than at once.
  */
 async function namedRecording(name: string): Promise<string> {
   let found: string | undefined
