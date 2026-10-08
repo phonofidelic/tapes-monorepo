@@ -6,7 +6,7 @@ import { AppContextProvider } from '@/context/AppContext'
 import { BlobProvider } from '@/context/BlobContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import type { BlobEndpoint } from '@/blobClient'
-import type { RecordingData } from '@/types'
+import type { Recording } from '@/types'
 import { Recorder } from './Recorder'
 
 const REPO_URL = 'automerge:repo' as AutomergeUrl
@@ -19,13 +19,13 @@ const ENDPOINT: BlobEndpoint = {
 const RECORDED_FILE = 'take-one.webm'
 
 /** Every change applied to the recording doc, in order. */
-let documentWrites: Partial<RecordingData>[] = []
+let documentWrites: Partial<Recording>[] = []
 const changeRepoState = vi.fn()
 
 const handle = {
   url: RECORDING_URL,
-  change: (mutate: (doc: Partial<RecordingData>) => void) => {
-    const draft: Partial<RecordingData> = {}
+  change: (mutate: (doc: Partial<Recording>) => void) => {
+    const draft: Partial<Recording> = {}
     mutate(draft)
     documentWrites.push(draft)
   },

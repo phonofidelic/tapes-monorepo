@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
-import type { RecordingData, RecordingRepoState } from '@tapes-monorepo/core'
+import type { Recording, RecordingRepoState } from '@tapes-monorepo/core'
 
 /**
  * A third device on the app-under-test's library, as its own process.
@@ -50,7 +50,7 @@ async function recordings(libraryUrl: AutomergeUrl) {
   const urls = library.doc().recordings ?? []
   return Promise.all(
     urls.map(async (url) => {
-      const handle = await repo!.find<RecordingData>(url)
+      const handle = await repo!.find<Recording>(url)
       const doc = handle.doc()
       return {
         url,

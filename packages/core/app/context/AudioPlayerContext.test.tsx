@@ -19,7 +19,7 @@ import {
 } from './AudioPlayerContext'
 import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
-import type { RecordingData } from '@/types'
+import type { Recording } from '@/types'
 import { blobForObjectUrl } from '../../vitest.setup'
 
 const RECORDING_URL = 'automerge:gQx8Jzznc3tEcPkc2p6rHzJids2' as AutomergeUrl
@@ -29,9 +29,9 @@ const ENDPOINT: BlobEndpoint = {
   token: 'pair-token',
 }
 
-let recording: RecordingData
+let recording: Recording
 /** Per-url documents, for tests that load more than one recording. */
-let recordings: Record<string, RecordingData> = {}
+let recordings: Record<string, Recording> = {}
 
 vi.mock('@automerge/automerge-repo-react-hooks', () => ({
   useDocument: (url?: AutomergeUrl) => [
@@ -40,7 +40,7 @@ vi.mock('@automerge/automerge-repo-react-hooks', () => ({
   ],
 }))
 
-const base: RecordingData = {
+const base: Recording = {
   url: RECORDING_URL,
   filename: 'take-one',
   filepath: 'take-one.wav',
@@ -471,7 +471,7 @@ const notHeld = () =>
   new Response(JSON.stringify({ error: 'Unknown blob' }), { status: 404 })
 
 /** A long recording, which is the case streaming exists for. */
-const longRecording = (): RecordingData => ({
+const longRecording = (): Recording => ({
   ...base,
   filepath: '',
   blob: { hash: HASH, size: 5000000, mimeType: 'audio/wav', ext: '.wav' },
@@ -590,7 +590,7 @@ describe('streaming from the host', () => {
 
 describe('switching between recordings', () => {
   const SECOND_URL = 'automerge:221YRU7jTAFpMoKT7tzB4yK7fZ8s' as AutomergeUrl
-  const second: RecordingData = {
+  const second: Recording = {
     ...base,
     url: SECOND_URL,
     filename: 'take-two',

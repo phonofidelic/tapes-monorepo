@@ -7,7 +7,7 @@ import { useDocument } from '@automerge/automerge-repo-react-hooks'
 import { clsx } from 'clsx'
 import { MdStop, MdPlayArrow, MdPause } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
-import { RecordingData } from '@/types'
+import { Recording } from '@/types'
 import { FormattedTime, formatTime } from './FormattedTime'
 
 /**
@@ -40,7 +40,7 @@ export function AudioPlayer() {
     playbackState,
     playbackFailure,
   } = useAudioPlayer()
-  const [recording] = useDocument<RecordingData>(currentUrl)
+  const [recording] = useDocument<Recording>(currentUrl)
   // Where the pointer is during a drag. The transport follows this rather than
   // the element, so the bar and the elapsed readout keep up with the hand even
   // though the audio only moves on release.

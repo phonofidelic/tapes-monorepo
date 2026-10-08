@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { AutomergeUrl, isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument } from '@automerge/automerge-repo-react-hooks'
-import { RecordingData } from '@/types'
+import { Recording } from '@/types'
 import {
   BlobFetchError,
   BlobRequestError,
@@ -195,7 +195,7 @@ export const AudioPlayerProvider = ({
   // The recording doc for whatever is loaded in the player. When it carries
   // embedded `audio` bytes (synced from another device) we play those directly,
   // so a guest can play a recording it never made.
-  const [recordingDoc, changeRecordingDoc] = useDocument<RecordingData>(
+  const [recordingDoc, changeRecordingDoc] = useDocument<Recording>(
     isValidAutomergeUrl(currentUrl) ? currentUrl : undefined,
   )
   const [currentTime, setCurrentTime] = useState(0)
