@@ -214,7 +214,7 @@ export function ElectronClientAppShell({
       // `send` can throw synchronously when there is no ipcRenderer at all.
       try {
         void appContextValue.ipc
-          .send('library:announce', { data: { url: result.handle.url } })
+          .send('root-document:announce', { data: { url: result.handle.url } })
           .catch((error) =>
             console.info('Could not announce the library to the host', error),
           )

@@ -1,7 +1,7 @@
 import { asError } from '@/asError'
 import { collectOrphanedBlobs } from '@/blobGc'
 import { getBlobStore, getSyncRepo } from '@/syncServer'
-import { rememberLibraryRoot, syncStoragePath } from '@/syncServerConfig'
+import { rememberRootDocument, syncStoragePath } from '@/syncServerConfig'
 import type { AutomergeUrl } from '@automerge/automerge-repo/slim'
 import {
   IpcChannel,
@@ -19,8 +19,8 @@ import {
  * triggers the GC, since the host has no repo-ready hook: the sync server
  * starts fire-and-forget on app ready, long before any library exists.
  */
-export class AnnounceLibraryChannel implements IpcChannel {
-  name: ValidIpcChanel = 'library:announce'
+export class AnnounceRootDocumentChannel implements IpcChannel {
+  name: ValidIpcChanel = 'root-document:announce'
 
   /**
    * The renderer re-announces whenever it rebuilds its repo, such as on a host
@@ -31,12 +31,12 @@ export class AnnounceLibraryChannel implements IpcChannel {
 
   async handle(request: IpcRequest): Promise<IpcResponse> {
     const { data } = request
-    if (!isValidAnnounceLibraryRequestData(data)) {
+    if (!isValidAnnounceRootDocumentRequestData(data)) {
       throw new Error(`Invalid data provided for ${this.name} request`)
     }
 
     try {
-      rememberLibraryRoot(data.url)
+      rememberRootDocument(data.url)
     } catch (error) {
       console.error(error)
       return { success: false, error: asError(error) }
@@ -88,7 +88,7 @@ export class AnnounceLibraryChannel implements IpcChannel {
   }
 }
 
-const isValidAnnounceLibraryRequestData = (
+const isValidAnnounceRootDocumentRequestData = (
   data: unknown,
 ): data is { url: string } =>
   typeof data === 'object' &&

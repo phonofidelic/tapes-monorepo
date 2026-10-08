@@ -30,7 +30,7 @@ import {
  * what it pinned" is a real assertion rather than an artifact of ordering.
  */
 
-let libraryUrl: string
+let rootDocumentUrl: string
 let tapeOne: SeededRecording
 let longTape: SeededRecording
 let orphanTape: SeededRecording
@@ -46,7 +46,7 @@ const PLAYBACK_FAILURE =
 const failureLine = (page: Page) => page.getByText(PLAYBACK_FAILURE)
 
 test.beforeAll(async () => {
-  ;({ libraryUrl } = await startHost())
+  ;({ rootDocumentUrl } = await startHost())
   tapeOne = await seedRecording({ name: 'Host tape one', seconds: 2 })
   await seedRecording({
     name: 'Host tape two',
@@ -74,7 +74,9 @@ test.afterAll(async () => {
 
 /** The pairing url a host's QR code encodes: which library, and the token. */
 const pair = async (page: Page) => {
-  await page.goto(`/?am=${encodeURIComponent(libraryUrl)}&pt=${PAIRING_TOKEN}`)
+  await page.goto(
+    `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
+  )
   await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
   await page.getByRole('button', { name: 'Library' }).click()
 }
@@ -134,7 +136,7 @@ test.describe('host and guest', () => {
 
     const other = await context.browser()!.newPage()
     await other.goto(
-      `/?am=${encodeURIComponent(libraryUrl)}&pt=${PAIRING_TOKEN}`,
+      `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
     )
     await expect(other.getByRole('button', { name: 'Library' })).toBeVisible()
     await other.getByRole('button', { name: 'Library' }).click()

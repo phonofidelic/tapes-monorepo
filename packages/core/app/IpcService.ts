@@ -43,7 +43,7 @@ export type ValidIpcChanel =
   | 'blob:put-file'
   | 'blob:has'
   | 'blob:cache-put'
-  | 'library:announce'
+  | 'root-document:announce'
   | 'events:get-aggregates'
 
 /**
@@ -204,7 +204,7 @@ export type IpcSendArgs =
       },
     ]
   | ['blob:has', IpcRequest & { data: { hash: string } }]
-  | ['library:announce', IpcRequest & { data: { url: string } }]
+  | ['root-document:announce', IpcRequest & { data: { url: string } }]
   | ['events:get-aggregates']
   | [
       'blob:cache-put',

@@ -39,7 +39,7 @@ export type LaunchedApp = {
   /** The token this install minted, as its guests are handed it by QR. */
   pairingToken: string
   /** The library document a guest pairs with. */
-  libraryUrl: AutomergeUrl
+  rootDocumentUrl: AutomergeUrl
   close: () => Promise<void>
 }
 
@@ -333,10 +333,10 @@ export async function launchTapes(): Promise<LaunchedApp> {
   // the repo, so the app renders "Loading..." until it has a library.
   await waitForNavigation(page)
 
-  const libraryUrl = (await page.evaluate(() =>
+  const rootDocumentUrl = (await page.evaluate(() =>
     localStorage.getItem('automergeUrl'),
   )) as AutomergeUrl | null
-  if (!libraryUrl) {
+  if (!rootDocumentUrl) {
     throw new Error('The app never stored a library url')
   }
 
@@ -345,7 +345,7 @@ export async function launchTapes(): Promise<LaunchedApp> {
   // inside that window makes the bootstrap look the document up on a server
   // that has never heard of it, and the app shows "Your library could not be
   // loaded from this device."
-  await waitForStoredDoc(userDataPath, libraryUrl)
+  await waitForStoredDoc(userDataPath, rootDocumentUrl)
 
   await page.evaluate((location) => {
     const settings = JSON.parse(localStorage.getItem('settings') ?? '{}')
@@ -372,7 +372,7 @@ export async function launchTapes(): Promise<LaunchedApp> {
     userDataPath,
     storageLocation,
     pairingToken,
-    libraryUrl,
+    rootDocumentUrl,
     close: async () => {
       await app.close()
       await rm(root, { recursive: true, force: true })

@@ -40,7 +40,7 @@ import {
  * outlive a browser context.
  */
 
-let libraryUrl: string
+let rootDocumentUrl: string
 
 // These tests play audio in real time and then wait out a reconnect backoff,
 // which the file-wide 90 second budget cannot cover.
@@ -49,7 +49,7 @@ test.beforeEach(() => {
 })
 
 test.beforeAll(async () => {
-  ;({ libraryUrl } = await startHost())
+  ;({ rootDocumentUrl } = await startHost())
 })
 
 test.afterAll(async () => {
@@ -63,7 +63,9 @@ const seedTape = (name: string): Promise<SeededRecording> =>
   seedRecording({ name, seconds: TAPE_SECONDS, frequency: 330 })
 
 const pair = async (page: Page) => {
-  await page.goto(`/?am=${encodeURIComponent(libraryUrl)}&pt=${PAIRING_TOKEN}`)
+  await page.goto(
+    `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
+  )
   await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
   await page.getByRole('button', { name: 'Library' }).click()
 }
