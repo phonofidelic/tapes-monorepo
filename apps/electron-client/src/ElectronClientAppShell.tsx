@@ -215,7 +215,7 @@ export function ElectronClientAppShell({
       // ipcRenderer at all.
       try {
         void appContextValue.ipc
-          .send('library:announce', { data: { url: result.handle.url } })
+          .send('root-document:announce', { data: { url: result.handle.url } })
           .catch((error) =>
             console.info(
               'Could not announce the root document to the host',

@@ -29,7 +29,7 @@ import {
  * and the app would have to fetch whole files to avoid that.
  */
 
-let libraryUrl: string
+let rootDocumentUrl: string
 let tape: SeededRecording
 let longTape: SeededRecording
 
@@ -40,7 +40,7 @@ const PLAYBACK_FAILURE =
 const failureLine = (page: Page) => page.getByText(PLAYBACK_FAILURE)
 
 test.beforeAll(async () => {
-  ;({ libraryUrl } = await startHost({ webClientPath: HOST_BUNDLE_DIR }))
+  ;({ rootDocumentUrl } = await startHost({ webClientPath: HOST_BUNDLE_DIR }))
   tape = await seedRecording({ name: 'Streamed tape', seconds: 3 })
   // Big enough that Chromium asks for it in pieces. A file it can swallow in
   // one response puts no `Range` on the wire and finishes loading before the
@@ -66,7 +66,9 @@ test.afterAll(async () => {
  * buffering fallback and every assertion here would be about the wrong path.
  */
 const pairAndWaitForWorker = async (page: Page) => {
-  await page.goto(`/?am=${encodeURIComponent(libraryUrl)}&pt=${PAIRING_TOKEN}`)
+  await page.goto(
+    `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
+  )
   await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
   await expect
     .poll(

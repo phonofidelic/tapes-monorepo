@@ -102,9 +102,9 @@ export async function startPeer(options: { syncUrl: string }): Promise<void> {
 
 /** Every recording on the root document, as it holds them. */
 export function peerRecordings(
-  libraryUrl: AutomergeUrl,
+  rootDocumentUrl: AutomergeUrl,
 ): Promise<PeerRecording[]> {
-  return send<PeerRecording[]>({ type: 'recordings', libraryUrl })
+  return send<PeerRecording[]>({ type: 'recordings', rootDocumentUrl })
 }
 
 /**
@@ -112,14 +112,14 @@ export function peerRecordings(
  * attached — the exact change PR #295's bug prevented from ever happening.
  */
 export function awaitRecording(options: {
-  libraryUrl: AutomergeUrl
+  rootDocumentUrl: AutomergeUrl
   name: string
   withDescriptor?: boolean
   timeoutMs?: number
 }): Promise<PeerRecording> {
   return send<PeerRecording>({
     type: 'awaitRecording',
-    libraryUrl: options.libraryUrl,
+    rootDocumentUrl: options.rootDocumentUrl,
     name: options.name,
     withDescriptor: options.withDescriptor ?? true,
     timeoutMs: options.timeoutMs ?? 30_000,

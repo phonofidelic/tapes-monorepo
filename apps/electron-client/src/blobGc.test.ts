@@ -93,7 +93,7 @@ async function recordingUrlsOf(root: AutomergeUrl) {
  * Seeds a root document and returns its url. Written through a repo that is
  * then shut down, so the GC reads it back from disk the way the host would.
  */
-async function seedLibrary(
+async function seedRootDocument(
   recordings: { contents: string; hash?: string }[],
 ): Promise<{ root: AutomergeUrl; hashes: string[] }> {
   const repo = openRepo()
@@ -132,7 +132,9 @@ async function seedLibrary(
 
 describe('collectOrphanedBlobs', () => {
   it('keeps a blob its recording still references', async () => {
-    const { root, hashes } = await seedLibrary([{ contents: 'kept audio' }])
+    const { root, hashes } = await seedRootDocument([
+      { contents: 'kept audio' },
+    ])
 
     const result = await collectOrphanedBlobs({
       repo: openRepo(),
@@ -149,7 +151,7 @@ describe('collectOrphanedBlobs', () => {
   })
 
   it('sweeps a blob whose recording left the root document', async () => {
-    const { root, hashes } = await seedLibrary([
+    const { root, hashes } = await seedRootDocument([
       { contents: 'kept audio' },
       { contents: 'deleted audio' },
     ])
@@ -178,7 +180,9 @@ describe('collectOrphanedBlobs', () => {
   })
 
   it('sweeps bytes written before a crash took out the ref record', async () => {
-    const { root, hashes } = await seedLibrary([{ contents: 'kept audio' }])
+    const { root, hashes } = await seedRootDocument([
+      { contents: 'kept audio' },
+    ])
     // No ref file, no meta, no document: exactly what a kill between the
     // object write and `addRef` leaves behind.
     const orphan = await ingest('crash orphan', 'automerge:never-recorded')
@@ -197,7 +201,7 @@ describe('collectOrphanedBlobs', () => {
   })
 
   it('leaves an unreferenced object alone inside the grace period', async () => {
-    const { root } = await seedLibrary([{ contents: 'kept audio' }])
+    const { root } = await seedRootDocument([{ contents: 'kept audio' }])
     // An upload that arrived before its document did. `blobUpload.ts` queues
     // these with a docUrl and no hash, so the mark phase cannot see them.
     const inFlight = await ingest('just uploaded', 'automerge:not-synced-yet')
@@ -216,7 +220,7 @@ describe('collectOrphanedBlobs', () => {
   })
 
   it('reclaims nothing when the user still holds the file', async () => {
-    const { root } = await seedLibrary([{ contents: 'kept audio' }])
+    const { root } = await seedRootDocument([{ contents: 'kept audio' }])
     const filepath = path.join(workspace, 'orphan.wav')
     await writeFile(filepath, 'hardlinked orphan')
     const { meta } = await store().ingestFile(filepath, {
@@ -240,10 +244,10 @@ describe('collectOrphanedBlobs', () => {
   })
 
   it('keeps another root document’s blobs when only one root is announced', async () => {
-    const mine = await seedLibrary([{ contents: 'my audio' }])
+    const mine = await seedRootDocument([{ contents: 'my audio' }])
     // A guest that arrived with its own root document (`?am=`) and uploaded to
     // this host. Its blobs are not reachable from the announced root at all.
-    const guest = await seedLibrary([{ contents: 'guest audio' }])
+    const guest = await seedRootDocument([{ contents: 'guest audio' }])
 
     const result = await collectOrphanedBlobs({
       repo: openRepo(),
@@ -259,7 +263,9 @@ describe('collectOrphanedBlobs', () => {
   })
 
   it('sweeps nothing when a recording will not resolve', async () => {
-    const { root, hashes } = await seedLibrary([{ contents: 'kept audio' }])
+    const { root, hashes } = await seedRootDocument([
+      { contents: 'kept audio' },
+    ])
     // A well-formed recording url that no peer can supply — created in a repo
     // whose storage this host never sees, so `find` times out rather than
     // failing to parse. Treating that as "references nothing" would delete
@@ -341,7 +347,7 @@ describe('collectOrphanedBlobs', () => {
 
   describe('statements', () => {
     it('keeps a statement a recording lists', async () => {
-      const { root } = await seedLibrary([{ contents: 'signed audio' }])
+      const { root } = await seedRootDocument([{ contents: 'signed audio' }])
       const [recordingUrl] = await recordingUrlsOf(root)
       // Stored under another document, so only the list can keep it.
       const claim = await ingestStatement('{"claim":1}', 'automerge:elsewhere')
@@ -363,7 +369,7 @@ describe('collectOrphanedBlobs', () => {
     // A peer can only drop a hash from the list. That must not delete the
     // statement while the recording that stored it is still there.
     it('keeps a statement a peer dropped from a live recording', async () => {
-      const { root } = await seedLibrary([{ contents: 'signed audio' }])
+      const { root } = await seedRootDocument([{ contents: 'signed audio' }])
       const [recordingUrl] = await recordingUrlsOf(root)
       const claim = await ingestStatement('{"claim":1}', recordingUrl)
       await setStatements(recordingUrl, [])
@@ -381,7 +387,7 @@ describe('collectOrphanedBlobs', () => {
     })
 
     it('sweeps statements once their recording leaves the root document', async () => {
-      const { root, hashes } = await seedLibrary([
+      const { root, hashes } = await seedRootDocument([
         { contents: 'deleted audio' },
       ])
       const [recordingUrl] = await recordingUrlsOf(root)
@@ -389,8 +395,8 @@ describe('collectOrphanedBlobs', () => {
       await setStatements(recordingUrl, [claim])
 
       const editing = openRepo()
-      const library = await editing.find<RootDocument>(root)
-      library.change((doc) => {
+      const rootDocument = await editing.find<RootDocument>(root)
+      rootDocument.change((doc) => {
         doc.recordings.splice(0, 1)
       })
       await editing.flush()

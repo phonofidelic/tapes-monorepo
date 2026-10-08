@@ -107,7 +107,7 @@ async function bootstrap(
 }
 
 /** Writes a root document to a storage adapter, as an earlier session would. */
-async function seedLibrary(storage: StorageAdapterInterface) {
+async function seedRootDocument(storage: StorageAdapterInterface) {
   const repo = new Repo({ storage })
   const handle = repo.create<RootDocument>({ recordings: [] })
   handle.change((doc) => {
@@ -146,7 +146,7 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
   }
 
   it('finds a root document the server holds, without any renderer storage', async () => {
-    const url = await seedLibrary(
+    const url = await seedRootDocument(
       new NodeFSStorageAdapter(await serverStorage()),
     )
     const info = await startServer()
@@ -187,7 +187,7 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
   // own store, and the server has never seen it.
   it('falls back to renderer storage and hands the root document to the server', async () => {
     const storage = await rendererStorage()
-    const url = await seedLibrary(storage)
+    const url = await seedRootDocument(storage)
     const info = await startServer()
 
     const result = await bootstrap(url, { localUrl: info.url }, () => storage)
@@ -233,7 +233,7 @@ describe('bootstrapRendererRepo against the embedded sync server', () => {
 
   it('uses renderer storage when no embedded server is running', async () => {
     const storage = await rendererStorage()
-    const url = await seedLibrary(storage)
+    const url = await seedRootDocument(storage)
 
     const result = await bootstrap(url, {}, () => storage)
 

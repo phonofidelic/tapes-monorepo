@@ -27,14 +27,14 @@ import { SECOND_HOST_PORT } from './ports'
 
 const sourceHost = new Host(SECOND_HOST_PORT)
 
-let libraryUrl: string
+let rootDocumentUrl: string
 let tape: SeededRecording
 
 test.beforeAll(async () => {
   // The empty host. It needs no signing key: it stores the receipt the source
   // host signed, it does not make one.
   await startHost()
-  ;({ libraryUrl } = await sourceHost.start({ signs: true }))
+  ;({ rootDocumentUrl } = await sourceHost.start({ signs: true }))
   tape = await sourceHost.seed({
     name: 'Signed tape',
     seconds: 2,
@@ -61,7 +61,9 @@ const pair = async (page: Page) => {
       JSON.stringify({ ...settings, remoteSyncServerUrl: url }),
     )
   }, remote)
-  await page.goto(`/?am=${encodeURIComponent(libraryUrl)}&pt=${PAIRING_TOKEN}`)
+  await page.goto(
+    `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
+  )
   await page.getByRole('button', { name: 'Library' }).click()
 }
 
