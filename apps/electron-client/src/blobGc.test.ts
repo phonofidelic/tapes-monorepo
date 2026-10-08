@@ -5,7 +5,7 @@ import { tmpdir } from 'os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
-import type { Recording, RecordingRepoState } from '@tapes-monorepo/core'
+import type { Recording, RootDocument } from '@tapes-monorepo/core'
 import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import { collectOrphanedBlobs, DEFAULT_GRACE_MS } from './blobGc'
 import { createBlobStore } from './blobStore'
@@ -85,7 +85,7 @@ async function setStatements(recordingUrl: AutomergeUrl, hashes: string[]) {
 }
 
 async function recordingUrlsOf(root: AutomergeUrl) {
-  const handle = await openRepo().find<RecordingRepoState>(root)
+  const handle = await openRepo().find<RootDocument>(root)
   return [...handle.doc().recordings]
 }
 
@@ -97,7 +97,7 @@ async function seedLibrary(
   recordings: { contents: string; hash?: string }[],
 ): Promise<{ root: AutomergeUrl; hashes: string[] }> {
   const repo = openRepo()
-  const root = repo.create<RecordingRepoState>({ recordings: [] })
+  const root = repo.create<RootDocument>({ recordings: [] })
   const hashes: string[] = []
 
   for (const [index, recording] of recordings.entries()) {
@@ -157,7 +157,7 @@ describe('collectOrphanedBlobs', () => {
     // A peer deletes the second recording: the url leaves `recordings`, but
     // nothing ever tells this host to release the ref.
     const editing = openRepo()
-    const handle = await editing.find<RecordingRepoState>(root)
+    const handle = await editing.find<RootDocument>(root)
     handle.change((doc) => {
       doc.recordings.splice(1, 1)
     })
@@ -273,7 +273,7 @@ describe('collectOrphanedBlobs', () => {
     await rm(elsewhere, { recursive: true, force: true })
 
     const editing = openRepo()
-    const handle = await editing.find<RecordingRepoState>(root)
+    const handle = await editing.find<RootDocument>(root)
     handle.change((doc) => {
       doc.recordings.push(absent)
     })
@@ -309,7 +309,7 @@ describe('collectOrphanedBlobs', () => {
 
   it('tolerates a legacy library whose recordings predate blob descriptors', async () => {
     const repo = openRepo()
-    const root = repo.create<RecordingRepoState>({ recordings: [] })
+    const root = repo.create<RootDocument>({ recordings: [] })
     const legacy = repo.create<Recording>({
       url: '' as AutomergeUrl,
       filename: 'old.wav',
@@ -389,7 +389,7 @@ describe('collectOrphanedBlobs', () => {
       await setStatements(recordingUrl, [claim])
 
       const editing = openRepo()
-      const library = await editing.find<RecordingRepoState>(root)
+      const library = await editing.find<RootDocument>(root)
       library.change((doc) => {
         doc.recordings.splice(0, 1)
       })

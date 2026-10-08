@@ -8,7 +8,7 @@ import {
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import type {
   BlobEndpoint,
-  RecordingRepoState,
+  RootDocument,
   SyncServerInfo,
 } from '@tapes-monorepo/core'
 import { isSyncServerUrl, withDeviceLabel } from '@tapes-monorepo/core'
@@ -197,7 +197,7 @@ export async function bootstrapRendererRepo({
   // repo rather than inventing a new document.
   const load = async (candidate: Repo): Promise<RendererRepoBootstrap> => {
     if (!storedUrl) {
-      const handle = candidate.create<RecordingRepoState>({ recordings: [] })
+      const handle = candidate.create<RootDocument>({ recordings: [] })
       return {
         status: 'ready',
         repo: candidate,

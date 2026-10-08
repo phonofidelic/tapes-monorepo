@@ -8,7 +8,7 @@ import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-networ
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 import {
-  RecordingRepoState,
+  RootDocument,
   ErrorBoundary,
   Providers,
   ScreenLoader,
@@ -161,7 +161,7 @@ async function initializeRepo({
       signal: AbortSignal.timeout(30 * 1000),
     })
   } else {
-    handle = repo.create<RecordingRepoState>({
+    handle = repo.create<RootDocument>({
       recordings: [],
     })
   }

@@ -47,7 +47,11 @@ export type Recording = {
   mimeType?: string
 }
 
-export type RecordingRepoState = {
+/**
+ * The Automerge document a device opens first, named by the pairing link's
+ * `am` parameter. Every recording is reached through it.
+ */
+export type RootDocument = {
   recordings: AutomergeUrl[]
 }
 

@@ -11,7 +11,7 @@ import {
 } from '@automerge/automerge-repo'
 import { WebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
-import type { RecordingRepoState } from '@tapes-monorepo/core'
+import type { RootDocument } from '@tapes-monorepo/core'
 import { startSyncServer, stopSyncServer } from './syncServer'
 import { bootstrapRendererRepo, type SyncServerUrls } from './rendererRepo'
 
@@ -108,7 +108,7 @@ async function bootstrap(
 /** Writes a library into a storage adapter, as a previous session would have. */
 async function seedLibrary(storage: StorageAdapterInterface) {
   const repo = new Repo({ storage })
-  const handle = repo.create<RecordingRepoState>({ recordings: [] })
+  const handle = repo.create<RootDocument>({ recordings: [] })
   handle.change((doc) => {
     doc.recordings.push('automerge:seeded-recording' as AutomergeUrl)
   })
