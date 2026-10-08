@@ -6,7 +6,7 @@ import { PiRecordFill } from 'react-icons/pi'
 import { Button } from '@tapes-monorepo/ui'
 import { type AutomergeUrl } from '@automerge/automerge-repo'
 import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
-import { RecordingData, RecordingRepoState } from '@/types'
+import { Recording, RecordingRepoState } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
@@ -94,7 +94,7 @@ export function Recorder() {
           mimeType: recordingMimeType(audioFormat),
           claim: recordingClaim,
         })
-        const handle = await repo.find<RecordingData>(docUrl)
+        const handle = await repo.find<Recording>(docUrl)
         handle.change((doc) => {
           doc.blob = blob
           if (statements.length > 0) {
@@ -158,7 +158,7 @@ export function Recorder() {
       // anywhere: it is created synchronously so the recording appears in the
       // library at once, however long the upload takes. There is no size limit
       // any more, because the bytes never enter the document.
-      const handle = repo.create<RecordingData>()
+      const handle = repo.create<Recording>()
       const url = handle.url
       handle.change((doc) => {
         doc.url = url

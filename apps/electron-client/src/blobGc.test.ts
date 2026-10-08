@@ -5,7 +5,7 @@ import { tmpdir } from 'os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { NodeFSStorageAdapter } from '@automerge/automerge-repo-storage-nodefs'
-import type { RecordingData, RecordingRepoState } from '@tapes-monorepo/core'
+import type { Recording, RecordingRepoState } from '@tapes-monorepo/core'
 import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import { collectOrphanedBlobs, DEFAULT_GRACE_MS } from './blobGc'
 import { createBlobStore } from './blobStore'
@@ -77,7 +77,7 @@ async function ingestStatement(contents: string, docUrl: string) {
 /** Sets a recording's statements list, as any peer can. */
 async function setStatements(recordingUrl: AutomergeUrl, hashes: string[]) {
   const repo = openRepo()
-  const handle = await repo.find<RecordingData>(recordingUrl)
+  const handle = await repo.find<Recording>(recordingUrl)
   handle.change((doc) => {
     doc.statements = hashes
   })
@@ -101,7 +101,7 @@ async function seedLibrary(
   const hashes: string[] = []
 
   for (const [index, recording] of recordings.entries()) {
-    const doc = repo.create<RecordingData>({
+    const doc = repo.create<Recording>({
       url: '' as AutomergeUrl,
       filename: `recording-${index}.mp4`,
       filepath: path.join(workspace, `recording-${index}.mp4`),
@@ -268,7 +268,7 @@ describe('collectOrphanedBlobs', () => {
     const absentRepo = new Repo({
       storage: new NodeFSStorageAdapter(elsewhere),
     })
-    const absent = absentRepo.create<RecordingData>({} as RecordingData).url
+    const absent = absentRepo.create<Recording>({} as Recording).url
     await absentRepo.shutdown()
     await rm(elsewhere, { recursive: true, force: true })
 
@@ -310,7 +310,7 @@ describe('collectOrphanedBlobs', () => {
   it('tolerates a legacy library whose recordings predate blob descriptors', async () => {
     const repo = openRepo()
     const root = repo.create<RecordingRepoState>({ recordings: [] })
-    const legacy = repo.create<RecordingData>({
+    const legacy = repo.create<Recording>({
       url: '' as AutomergeUrl,
       filename: 'old.wav',
       filepath: path.join(workspace, 'old.wav'),

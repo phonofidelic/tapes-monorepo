@@ -1,7 +1,7 @@
 import path from 'path'
 import { readdir } from 'fs/promises'
 import type { Repo, AutomergeUrl } from '@automerge/automerge-repo/slim'
-import type { RecordingData, RecordingRepoState } from '@tapes-monorepo/core'
+import type { Recording, RecordingRepoState } from '@tapes-monorepo/core'
 import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import type { BlobStore, StoredObject } from './blobStore'
 
@@ -208,7 +208,7 @@ export async function collectOrphanedBlobs({
     }
     // A recording with no descriptor is normal: local-only, or its upload is
     // still queued. Legacy documents carry their bytes inline and no hash.
-    const blob = doc?.blob as RecordingData['blob'] | undefined
+    const blob = doc?.blob as Recording['blob'] | undefined
     if (blob && typeof blob.hash === 'string') {
       live.add(blob.hash)
     }

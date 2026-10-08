@@ -14,7 +14,7 @@ import { PinProvider } from '@/context/PinContext'
 import { PortalContainer, PortalsProvider } from '@/context/PortalsContext'
 import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
-import type { RecordingData, RecordingRepoState } from '@/types'
+import type { Recording, RecordingRepoState } from '@/types'
 import { AggregatesProvider } from '@/context/AggregatesContext'
 import { Library } from './Library'
 
@@ -40,7 +40,7 @@ const REMOTE_ENDPOINT: BlobEndpoint = {
   token: 'pair-token',
 }
 
-const baseRecording: RecordingData = {
+const baseRecording: Recording = {
   url: RECORDING_URL,
   filename: 'take-one.wav',
   filepath: '/recordings/take-one.wav',
@@ -50,9 +50,9 @@ const baseRecording: RecordingData = {
 }
 
 // Reassigned per test so the mocked useDocument can serve different shapes.
-let recording: RecordingData = baseRecording
+let recording: Recording = baseRecording
 
-const withBlob = (): RecordingData => ({
+const withBlob = (): Recording => ({
   ...baseRecording,
   blob: { hash: HASH, size: 1024, mimeType: 'audio/wav', ext: '.wav' },
 })

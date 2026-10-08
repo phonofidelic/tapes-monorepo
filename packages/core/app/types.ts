@@ -12,7 +12,7 @@ export type BlobDescriptor = {
   ext: string
 }
 
-export type RecordingData = {
+export type Recording = {
   url: AutomergeUrl
   filename: string
   filepath: string

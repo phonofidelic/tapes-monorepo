@@ -11,7 +11,7 @@ import {
 import { createBlobStore } from '../../electron-client/src/blobStore'
 import type {
   BlobDescriptor,
-  RecordingData,
+  Recording,
   RecordingRepoState,
 } from '@tapes-monorepo/core'
 import {
@@ -157,14 +157,14 @@ async function start(command: Extract<Command, { type: 'start' }>) {
 
 /**
  * Puts a recording on the host the way the desktop app does: bytes into the
- * blob store over `/blobs`, a `RecordingData` doc pointing at them, and that
+ * blob store over `/blobs`, a `Recording` doc pointing at them, and that
  * doc's url pushed onto the library. To a guest this is a tape it never
  * recorded.
  */
 async function seed(command: Extract<Command, { type: 'seed' }>) {
   const repo = await connectAsPeer()
 
-  const recording = repo.create<RecordingData>({
+  const recording = repo.create<Recording>({
     // Filled in below: a document cannot know its own url until it exists.
     url: '' as AutomergeUrl,
     filename: `${command.name}.wav`,
@@ -278,7 +278,7 @@ async function recordings(): Promise<{ url: string; name: string }[]> {
   const library = await repo.find<RecordingRepoState>(libraryUrl!)
   const found: { url: string; name: string }[] = []
   for (const url of library.doc().recordings) {
-    const recording = await repo.find<RecordingData>(url)
+    const recording = await repo.find<Recording>(url)
     found.push({ url, name: recording.doc().name })
   }
   return found

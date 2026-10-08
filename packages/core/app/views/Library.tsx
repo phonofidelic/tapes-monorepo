@@ -18,7 +18,7 @@ import {
   MdFileDownloadOff,
 } from 'react-icons/md'
 import { Button } from '@tapes-monorepo/ui'
-import { RecordingData, RecordingRepoState } from '@/types'
+import { Recording, RecordingRepoState } from '@/types'
 import { useAppContext } from '@/context/AppContext'
 import { EditRecordingResponse, IpcResponse } from '@/IpcService'
 import { useAudioPlayer } from '@/context/AudioPlayerContext'
@@ -105,7 +105,7 @@ function LibraryListItem({
   onOpenEditor: () => void
 }) {
   const appContext = useAppContext()
-  const [recording] = useDocument<RecordingData>(automergeUrl, {
+  const [recording] = useDocument<Recording>(automergeUrl, {
     suspense: true,
   })
   const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
@@ -353,7 +353,7 @@ function Editor({
   onClose: () => void
 }) {
   const appContext = useAppContext()
-  const [recording, changeRecording] = useDocument<RecordingData>(
+  const [recording, changeRecording] = useDocument<Recording>(
     automergeUrl ?? undefined,
   )
   const [hasErrors, setHasErrors] = useState(false)
