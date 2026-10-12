@@ -9362,7 +9362,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^8.0.0"
     "@vitejs/plugin-react": "npm:^6.0.3"
     clsx: "npm:^2.1.1"
-    electron: "npm:43.7.7"
+    electron: "npm:43.7.9"
     electron-devtools-installer: "npm:^4.0.0"
     electron-squirrel-startup: "npm:^1.0.1"
     esbuild-register: "npm:^3.6.0"
@@ -9512,9 +9512,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:43.7.7":
-  version: 43.7.7
-  resolution: "electron@npm:43.7.7"
+"electron@npm:43.7.9":
+  version: 43.7.9
+  resolution: "electron@npm:43.7.9"
   dependencies:
     "@electron-internal/extract-zip": "npm:^1.0.1"
     "@electron/get": "npm:^5.0.0"
@@ -9522,7 +9522,7 @@ __metadata:
   bin:
     electron: cli.js
     install-electron: install.js
-  checksum: 10c0/e4bbddf73ddabcdb8a2a7f38a5620bc61c31d78a0166ceb362fdbbd1723abff0006e54f96e248835698e325e5319e243650b0db64a77207a1a127535a4fececd
+  checksum: 10c0/bb28b4f9753e8221da20ee353047e972003116070aadae15d6e9a17c9778332c04cf7586c4cec1135b8f507c93094bcb080c85912f0abde17b1767921904407d
   languageName: node
   linkType: hard
 
