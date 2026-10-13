@@ -117,7 +117,10 @@ describe('App desktop layout', () => {
       expect(list).toHaveClass('max-w-3xl')
       expect(list).toHaveClass('mx-auto')
       expect(list).toHaveClass('md:mx-0')
-      expect(list).toHaveClass('md:flex-col')
+      // Only the fine-pointer sidebar stacks. The touch nav stays a row in
+      // the dock, even on tablets wider than the breakpoint.
+      expect(list).toHaveClass('md:not-pointer-coarse:flex-col')
+      expect(list).not.toHaveClass('md:flex-col')
     }
   })
 })
