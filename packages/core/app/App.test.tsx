@@ -72,37 +72,52 @@ describe('App views', () => {
   })
 })
 
-// `main` carries the column itself rather than an inner wrapper because the
-// Recorder view positions its visualizer and name editor `absolute` against it.
+// Above `md` the fine-pointer nav becomes a sidebar to the left of main.
+// Below it, the nav sits above main as a bar of tabs.
 describe('App desktop layout', () => {
-  it('holds main to a centred max-width column above the breakpoint', () => {
+  it('puts the nav beside main above the breakpoint', () => {
+    const { container } = renderApp()
+
+    const main = container.querySelector('main')!
+    const row = main.parentElement!
+    expect(row).toHaveClass('max-md:flex-col')
+    expect(row).toHaveClass('md:flex-row')
+
+    // The fine-pointer nav is the first child of the same row, before main.
+    const topNav = row.querySelector('nav')!
+    expect(row.firstElementChild).toContainElement(topNav)
+    expect(
+      topNav.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('lets main fill its row and scroll itself', () => {
     const { container } = renderApp()
 
     const main = container.querySelector('main')
-    expect(main).not.toBeNull()
-    // Gated on `sm`, so the mobile layout stays full-bleed.
-    expect(main).toHaveClass('sm:max-w-3xl')
-    expect(main).toHaveClass('sm:mx-auto')
-    // Main is the scrolling child of the flex column, not pinned to the viewport.
-    expect(main).toHaveClass('flex-1')
+    expect(main).toHaveClass('w-full')
+    expect(main).toHaveClass('h-full')
     expect(main).toHaveClass('overflow-y-auto')
+    // The Recorder view positions its visualizer `absolute` against main.
+    expect(main).toHaveClass('relative')
     expect(main).not.toHaveClass('fixed')
+    expect(main).not.toHaveClass('max-w-3xl')
   })
 
-  it('keeps the nav bar full-bleed while centring its tabs', () => {
+  it('centres the tabs below the breakpoint and stacks them above it', () => {
     const { container } = renderApp()
 
-    // One nav for fine pointers at the top, one for touch in the dock. Both
-    // keep their background spanning the window...
+    // One nav for fine pointers beside main, one for touch in the dock.
     const navs = container.querySelectorAll('nav')
     expect(navs).toHaveLength(2)
     for (const nav of navs) {
       expect(nav).not.toHaveClass('max-w-3xl')
 
-      // ...while the tabs inside follow main's column.
       const list = nav.querySelector('ul')
       expect(list).toHaveClass('max-w-3xl')
       expect(list).toHaveClass('mx-auto')
+      expect(list).toHaveClass('md:mx-0')
+      expect(list).toHaveClass('md:flex-col')
     }
   })
 })
