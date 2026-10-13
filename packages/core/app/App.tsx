@@ -29,7 +29,7 @@ export function App() {
 
   return (
     <div className="relative flex h-full w-full touch-none flex-col overflow-hidden">
-      <div className="relative flex h-full w-full shrink touch-none overflow-y-auto max-md:flex-col md:flex-row">
+      <div className="relative mr-4 flex h-full w-full shrink touch-none overflow-y-auto max-md:flex-col md:flex-row">
         <div
           className={clsx('max-md:bg-surface sticky top-0 z-40 md:bg-none', {
             'border-b-subtle border-b': isScrolled,
@@ -41,7 +41,7 @@ export function App() {
         </div>
         <main
           ref={mainRef}
-          className="relative top-0 bottom-0 box-content flex h-full w-full touch-pan-y flex-col overflow-y-auto pr-4"
+          className="relative top-0 bottom-0 box-content flex h-full w-full touch-pan-y flex-col overflow-y-auto"
         >
           <ErrorBoundary
             fallback={
@@ -82,8 +82,8 @@ export function App() {
 function Navigation() {
   const { currentView, setCurrentView } = useView()
   return (
-    <nav className="w-full touch-none">
-      <ul className="mx-auto flex w-full max-w-3xl justify-between gap-1 p-1 md:mx-0 md:flex-col">
+    <nav className="flex w-full touch-none justify-center">
+      <ul className="mx-auto flex w-full max-w-3xl justify-between gap-1 p-1 md:mx-0 md:not-pointer-coarse:flex-col">
         {navigationConfig.map(({ label, view }) => (
           <li key={view} className="w-full">
             <Button
