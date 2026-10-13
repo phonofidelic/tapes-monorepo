@@ -28,46 +28,50 @@ export function App() {
   const { currentView } = useView()
 
   return (
-    <div className="relative flex h-full touch-none flex-col overflow-hidden">
-      <div
-        className={clsx('bg-surface sticky top-0 z-50', {
-          'border-b-subtle border-b': isScrolled,
-        })}
-      >
-        <div className="pointer-coarse:hidden">
-          <Navigation />
-        </div>
-      </div>
-      <main
-        ref={mainRef}
-        className="relative box-content flex w-full flex-1 touch-pan-y flex-col overflow-y-auto sm:mx-auto sm:max-w-3xl"
-      >
-        <ErrorBoundary
-          fallback={
-            <GenericErrorFallbackScreen
-              onTryRecover={() => window.location.reload()}
-            />
-          }
+    <div className="relative flex h-full w-full touch-none flex-col overflow-hidden">
+      <div className="relative flex h-full w-full shrink touch-none overflow-y-auto max-md:flex-col md:flex-row">
+        <div
+          className={clsx('max-md:bg-surface sticky top-0 z-40 md:bg-none', {
+            'border-b-subtle border-b': isScrolled,
+          })}
         >
-          <Suspense
-            fallback={<ScreenLoader message={`Loading ${currentView}...`} />}
+          <div className="pointer-coarse:hidden">
+            <Navigation />
+          </div>
+        </div>
+        <main
+          ref={mainRef}
+          className="relative top-0 bottom-0 box-content flex h-full w-full touch-pan-y flex-col overflow-y-auto pr-4"
+        >
+          <ErrorBoundary
+            fallback={
+              <GenericErrorFallbackScreen
+                onTryRecover={() => window.location.reload()}
+              />
+            }
           >
-            {viewComponentMap[currentView]}
-          </Suspense>
-        </ErrorBoundary>
-      </main>
+            <Suspense
+              fallback={<ScreenLoader message={`Loading ${currentView}...`} />}
+            >
+              {viewComponentMap[currentView]}
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
       <div
         className={clsx(
-          'border-t-subtle relative bottom-0 z-40 w-full border-t',
+          'border-t-subtle bottom-0 z-40 h-full w-full flex-1 border-t',
           {
-            'border-t-subtle border-t drop-shadow-[0px_-4px_3px_rgba(24,24,27,0.03)]':
+            'border-t-subtle border-t drop-shadow-[0px_-4px_3px_rgba(24,24,27,0.03)] dark:drop-shadow-none':
               currentView !== 'recorder',
           },
         )}
       >
-        <PortalContainer containerRefKey="editorPortal" />
-        <PortalContainer containerRefKey="audioPlayerPortal" />
-        <div className="sticky z-50 not-pointer-coarse:hidden">
+        <div className="relative">
+          <PortalContainer containerRefKey="editorPortal" />
+          <PortalContainer containerRefKey="audioPlayerPortal" />
+        </div>
+        <div className="bg-surface sticky bottom-0 z-50 w-full not-pointer-coarse:hidden">
           <Navigation />
         </div>
       </div>
@@ -78,8 +82,8 @@ export function App() {
 function Navigation() {
   const { currentView, setCurrentView } = useView()
   return (
-    <nav className="bg-surface top-0 z-50 w-full touch-none">
-      <ul className="mx-auto flex w-full max-w-3xl justify-between gap-1 p-1">
+    <nav className="w-full touch-none">
+      <ul className="mx-auto flex w-full max-w-3xl justify-between gap-1 p-1 md:mx-0 md:flex-col">
         {navigationConfig.map(({ label, view }) => (
           <li key={view} className="w-full">
             <Button

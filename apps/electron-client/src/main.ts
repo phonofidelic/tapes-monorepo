@@ -89,9 +89,8 @@ export class MainWindow {
     this.window = new BrowserWindow({
       title: 'Tapes',
       show: false,
-      width: 408,
+      width: 768,
       height: 552,
-      maxWidth: 639,
       minWidth: 408,
       minHeight: 552,
       titleBarStyle: 'hiddenInset',

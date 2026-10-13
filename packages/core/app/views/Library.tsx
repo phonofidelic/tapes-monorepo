@@ -74,10 +74,10 @@ export function Library() {
         createPortal(
           <div
             className={clsx(
-              'bg-surface bottom-0 w-full touch-none drop-shadow-[0px_-4px_4px_rgba(0,0,0,0.03)] transition-transform',
+              'bg-surface bottom-0 z-50 mt-px -mb-px h-fit w-full touch-none transition-transform',
               {
                 'translate-y-full': !editingUrl,
-                'border-subtle -translate-y-px border-t p-5': editingUrl,
+                'border-subtle -translate-y-px p-5': editingUrl,
               },
             )}
           >
