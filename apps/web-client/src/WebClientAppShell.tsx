@@ -5,7 +5,6 @@ import {
   isValidAutomergeUrl,
 } from '@automerge/automerge-repo'
 import { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
-import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import { IndexedDBStorageAdapter } from '@automerge/automerge-repo-storage-indexeddb'
 import {
   RootDocument,
@@ -21,6 +20,8 @@ import {
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
+import { loadDeviceSigningKey } from './deviceSigningKey'
+import { ProvenSyncAdapter } from './provenSyncAdapter'
 import { storePairingToken } from './blobAuth'
 import ShellPrompts from './ShellPrompts'
 
@@ -146,7 +147,7 @@ async function initializeRepo({
     new BroadcastChannelNetworkAdapter(),
   ]
   if (syncServerUrl) {
-    network.push(new BrowserWebSocketClientAdapter(syncServerUrl))
+    network.push(new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey))
   }
 
   const repo = new Repo({

@@ -26,6 +26,7 @@
     "@noble/hashes": "^1.8.0",
     "@tapes-monorepo/core": "*",
     "@tapes-monorepo/provenance": "*",
+    "@tapes-monorepo/sync-protocol": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

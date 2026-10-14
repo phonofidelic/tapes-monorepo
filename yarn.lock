@@ -18304,6 +18304,7 @@ __metadata:
     "@tapes-monorepo/core": "npm:*"
     "@tapes-monorepo/eslint-config": "npm:*"
     "@tapes-monorepo/provenance": "npm:*"
+    "@tapes-monorepo/sync-protocol": "npm:*"
     "@tapes-monorepo/tailwind-config": "npm:*"
     "@tapes-monorepo/typescript-config": "npm:*"
     "@types/node": "npm:^24.10.1"
