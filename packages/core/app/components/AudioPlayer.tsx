@@ -124,7 +124,7 @@ export function AudioPlayer() {
     >
       <div
         className={clsx(
-          'absolute bottom-0 left-0 w-full border-t border-zinc-100 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-900',
+          'bg-surface absolute bottom-0 left-0 w-full transition-transform',
           {
             'translate-y-full': !currentUrl,
             'translate-y-0 drop-shadow-2xl': currentUrl,

@@ -191,11 +191,11 @@ export function Recorder() {
       <div className="flex h-full touch-none flex-col">
         <div
           ref={visualizerContainerRef}
-          className="absolute top-0 right-0 bottom-20 left-0"
+          className="absolute top-0 right-0 bottom-20 left-0 p-4 pt-0"
         >
           {audioInputDeviceId && isMonitoring && (
-            <>
-              <div className="absolute top-0 z-50 flex w-full justify-end gap-1 p-4 text-xs">
+            <div className="relative">
+              <div className="absolute top-0 right-0 z-50 flex w-full justify-end gap-1 p-4 text-xs">
                 <p className="p-1 text-zinc-400">Visualization:</p>
                 <Button
                   className={clsx(
@@ -224,12 +224,14 @@ export function Recorder() {
                   time-domain
                 </Button>
               </div>
-              <AudioVisualizer
-                audioInputDeviceId={audioInputDeviceId}
-                feature={feature}
-                containerRef={visualizerContainerRef}
-              />
-            </>
+              <div className="fixed top-0 right-0 bottom-21 left-0 pointer-coarse:bottom-36.5">
+                <AudioVisualizer
+                  audioInputDeviceId={audioInputDeviceId}
+                  feature={feature}
+                  containerRef={visualizerContainerRef}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>

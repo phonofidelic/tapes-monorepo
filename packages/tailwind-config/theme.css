@@ -32,6 +32,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --page: #fff;
   --surface: #fff;
   --subtle: #f4f4f5;
   --on-subtle: #27272a;
@@ -42,6 +43,7 @@
     --background: #18181b;
     --foreground: #ededed;
     --surface: #18181b;
+    --page: #000;
     --subtle: #27272a;
     --on-subtle: #f4f4f5;
     --scrim: rgba(27, 27, 29, 0.75);
@@ -49,6 +51,7 @@
 }
 
 @theme inline {
+  --color-page: var(--page);
   --color-surface: var(--surface);
   --color-muted: #9f9fa9;
   --color-subtle: var(--subtle);
