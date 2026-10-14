@@ -413,7 +413,7 @@ describe('collectOrphanedBlobs', () => {
       expect(await store().has(claim)).toBe(false)
     })
 
-    // Session records belong to the library, not to any one recording.
+    // Session records belong to the root document, not to any one recording.
     it('keeps a statement its root document owns', async () => {
       const { root } = await seedRootDocument([{ contents: 'audio' }])
       const record = await ingestStatement('{"session":1}', root)
