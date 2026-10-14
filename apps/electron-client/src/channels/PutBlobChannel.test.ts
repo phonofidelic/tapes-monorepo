@@ -17,7 +17,11 @@ import { PutBlobChannel } from './PutBlobChannel'
 vi.mock('electron', () => ({ app: {}, safeStorage: {} }))
 
 let store: BlobStore | undefined
-vi.mock('@/syncServer', () => ({ getBlobStore: () => store }))
+const noteVerifiedClaim = vi.hoisted(() => vi.fn())
+vi.mock('@/syncServer', () => ({
+  getBlobStore: () => store,
+  noteVerifiedClaim,
+}))
 
 const AUDIO = 'recorded audio'
 const DOC = 'automerge:doc-a'
@@ -48,6 +52,7 @@ async function claimOver(bytes: string, keyPair: CryptoKeyPair) {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  noteVerifiedClaim.mockClear()
 })
 
 describe('PutBlobChannel', () => {
@@ -96,6 +101,11 @@ describe('PutBlobChannel', () => {
     expect(receiptHash).toBe(await statementAddress(receipt))
     expect(await store.refs(claimHash)).toEqual([DOC])
     expect(await store.refs(receiptHash)).toEqual([DOC])
+    // So an open session can list it.
+    expect(noteVerifiedClaim).toHaveBeenCalledWith(
+      decodeSignedStatement(claim)!.payload,
+      claimHash,
+    )
   })
 
   it('stores the file when its claim does not match', async () => {
@@ -119,6 +129,7 @@ describe('PutBlobChannel', () => {
         claim: { status: 'unverified', problem: 'hash-mismatch' },
       },
     })
+    expect(noteVerifiedClaim).not.toHaveBeenCalled()
   })
 
   it('reports a file with no claim as unsigned', async () => {

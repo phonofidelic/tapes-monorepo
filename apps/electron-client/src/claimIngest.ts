@@ -40,6 +40,11 @@ type ClaimIngestOptions = {
   /** Where verified statements are kept, owned by the recording's document. */
   store: BlobStore
   docUrl: string
+  /**
+   * Called once the claim is checked and stored, with its statement address.
+   * The host uses it to list the claim in its session record.
+   */
+  onVerifiedClaim?: (claim: RecordingClaim, claimAddress: string) => void
 }
 
 type ClaimIngestResult = {
@@ -97,44 +102,50 @@ export async function verifyClaimOnIngest(
   }
 
   const claimHash = await statementAddress(check.claim)
-  return withClaimLock(claimHash, async () => {
-    const receipt = await receiptFor(
-      check.claim,
-      claimHash,
-      receivedAt,
-      options,
-    )
-    // The claim stands on its own without a receipt, so a missing host key
-    // leaves it verified but uncountersigned.
-    if (!receipt) {
-      return {
-        claim: { status: 'verified' },
-        statements: await storeStatements(
-          [check.claim],
-          options.store,
-          options.docUrl,
-        ),
-      }
-    }
+  const result = await withClaimLock(claimHash, () =>
+    receiptAndStore(check.claim, claimHash, receivedAt, options),
+  )
+  // Only a stored claim can be listed in a session record.
+  if (result.statements.includes(claimHash)) {
+    options.onVerifiedClaim?.(check.claim.payload, claimHash)
+  }
+  return result
+}
 
-    // Storing a reused receipt again dedupes it and adds this document as an
-    // owner, so it is kept as long as any recording that lists it.
-    const statements = await storeStatements(
-      [check.claim, receipt.signed],
-      options.store,
-      options.docUrl,
-    )
-    if (receipt.isNew) {
-      await indexReceipt(options.store, claimHash, receipt.signed, statements)
-    }
+/** Signs or reuses the claim's receipt and stores both statements. */
+async function receiptAndStore(
+  claim: Signed<RecordingClaim>,
+  claimHash: string,
+  receivedAt: Date,
+  options: ClaimIngestOptions,
+): Promise<ClaimIngestResult> {
+  const receipt = await receiptFor(claim, claimHash, receivedAt, options)
+  // The claim stands on its own without a receipt, so a missing host key
+  // leaves it verified but uncountersigned.
+  if (!receipt) {
     return {
-      claim: {
-        status: 'verified',
-        receipt: encodeSignedStatement(receipt.signed),
-      },
-      statements,
+      claim: { status: 'verified' },
+      statements: await storeStatements([claim], options.store, options.docUrl),
     }
-  })
+  }
+
+  // Storing a reused receipt again dedupes it and adds this document as an
+  // owner, so it is kept as long as any recording that lists it.
+  const statements = await storeStatements(
+    [claim, receipt.signed],
+    options.store,
+    options.docUrl,
+  )
+  if (receipt.isNew) {
+    await indexReceipt(options.store, claimHash, receipt.signed, statements)
+  }
+  return {
+    claim: {
+      status: 'verified',
+      receipt: encodeSignedStatement(receipt.signed),
+    },
+    statements,
+  }
 }
 
 /** The receipt this host already signed for the claim, or a new one. */

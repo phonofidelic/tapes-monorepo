@@ -31,7 +31,17 @@ import {
   type SyncConnection,
   type SyncConnectionRegistry,
 } from './syncConnections'
+import {
+  createSyncChallengeRequestHandler,
+  createSyncChallengeStore,
+  readProvenDeviceKey,
+} from './syncChallenges'
+import { createSessionRecorder, type OpenSession } from './sessionRecorder'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
+import {
+  exportPublicKey,
+  type RecordingClaim,
+} from '@tapes-monorepo/provenance'
 import { type SyncServerInfo } from '@tapes-monorepo/core'
 
 export type { SyncConnection } from './syncConnections'
@@ -112,6 +122,7 @@ type RunningSyncServer = {
   blobStore?: BlobStore
   eventStore?: EventStore
   aggregateStore?: AggregateStore
+  loadSigningKey?: () => Promise<CryptoKeyPair>
 }
 
 let current: RunningSyncServer | null = null
@@ -148,6 +159,62 @@ function emitConnections(connections: SyncConnection[]) {
 /** Who is connected to the running host right now, oldest first. */
 export function getSyncConnections(): SyncConnection[] {
   return current?.connections.list() ?? []
+}
+
+/**
+ * The host's session, at module scope like the listeners above, so a session
+ * stays open across a restart of the server. Connections drop during the
+ * restart and rejoin as new spans.
+ */
+const sessions = createSessionRecorder({
+  loadSigningKey: () => {
+    const load = current?.loadSigningKey
+    if (!load) {
+      throw new Error('No host signing key while the sync server is stopped')
+    }
+    return load()
+  },
+  getStore: () => current?.blobStore,
+  getConnections: getSyncConnections,
+})
+connectionListeners.add((connections) =>
+  sessions.connectionsChanged(connections),
+)
+
+/**
+ * Opens a session. `docUrl` is the root document that owns its record. Throws
+ * while another session is open.
+ */
+export function openSession(details: {
+  sessionId: string
+  docUrl: string
+}): OpenSession {
+  return sessions.open(details)
+}
+
+export function getOpenSession(): OpenSession | undefined {
+  return sessions.current()
+}
+
+/**
+ * Closes the open session. Resolves with the stored record's hash after the
+ * grace period for late uploads, or undefined if it could not be signed.
+ */
+export function closeSession(): Promise<string | undefined> {
+  return sessions.close()
+}
+
+/** Signs every open and closing session now. Call before stopping to quit. */
+export function flushSessions(): Promise<void> {
+  return sessions.flush()
+}
+
+/** For ingest paths outside `/blobs`, such as the host's own recordings. */
+export function noteVerifiedClaim(
+  claim: RecordingClaim,
+  claimAddress: string,
+): void {
+  sessions.claimVerified(claim, claimAddress)
 }
 
 /**
@@ -405,6 +472,16 @@ function isLoopback(address?: string): boolean {
   )
 }
 
+/**
+ * Whether a sync request is this host's own window. A guest can send the
+ * claim too, so it only counts from loopback. That still admits another
+ * program on this machine, which is the honest answer anyway: the row means
+ * this machine, not this window.
+ */
+function isSelf(request: http.IncomingMessage, url: URL): boolean {
+  return hasHostClientMarker(url) && isLoopback(request.socket.remoteAddress)
+}
+
 function listen(server: http.Server, host: string, port: number) {
   return new Promise<number>((resolve, reject) => {
     const onError = (error: NodeJS.ErrnoException) => {
@@ -522,8 +599,11 @@ export async function startSyncServer(
         store: blobStore,
         token: pairingToken,
         loadSigningKey,
+        onVerifiedClaim: noteVerifiedClaim,
       })
     : unavailableBlobRequestHandler
+
+  const challenges = createSyncChallengeStore()
 
   const handleEventRequest = eventStore
     ? createEventRequestHandler({
@@ -539,6 +619,7 @@ export async function startSyncServer(
   const handler = createRequestHandler(webClientPath, [
     handleBlobRequest,
     handleEventRequest,
+    createSyncChallengeRequestHandler({ challenges, token: pairingToken }),
     createCaRequestHandler({ rootCertPem }),
   ])
   const server = tls
@@ -574,13 +655,48 @@ export async function startSyncServer(
     // name for every connection it accepts. The name is self-reported and
     // grants nothing on its own.
     const deviceLabel = readDeviceLabel(request, url)
-    wss.handleUpgrade(request, socket, head, (client) => {
-      console.info(
-        `Sync guest connected: ${deviceLabel ?? UNNAMED_DEVICE_LABEL}`,
-      )
-      wss.emit('connection', client, request)
+    void deviceKeyFor(request, url).then((deviceKey) => {
+      deviceKeys.set(request, deviceKey)
+      wss.handleUpgrade(request, socket, head, (client) => {
+        console.info(
+          `Sync guest connected: ${deviceLabel ?? UNNAMED_DEVICE_LABEL}`,
+        )
+        wss.emit('connection', client, request)
+      })
     })
   })
+
+  // The key each upgrade proved, for the `connection` handler below.
+  const deviceKeys = new WeakMap<http.IncomingMessage, string | undefined>()
+
+  // The host's own window does not sign a challenge. Its recordings are signed
+  // with the host key, so that is the key it is listed under.
+  let hostKey: Promise<string | undefined> | undefined
+  const loadHostKey = () =>
+    (hostKey ??= (async () =>
+      loadSigningKey
+        ? exportPublicKey((await loadSigningKey()).publicKey)
+        : undefined)().catch((error: unknown) => {
+      hostKey = undefined
+      console.warn('Could not load the host key for its own window:', error)
+      return undefined
+    }))
+
+  // Never rejects. A connection without a proven key is still served.
+  const deviceKeyFor = async (
+    request: http.IncomingMessage,
+    url: URL,
+  ): Promise<string | undefined> => {
+    if (isSelf(request, url)) {
+      return loadHostKey()
+    }
+    try {
+      return await readProvenDeviceKey(url, challenges)
+    } catch (error) {
+      console.warn('Could not check a sync proof:', error)
+      return undefined
+    }
+  }
 
   const connections = createSyncConnectionRegistry({
     onChange: emitConnections,
@@ -595,11 +711,8 @@ export async function startSyncServer(
     connections.add(socket, {
       label: readDeviceLabel(request, url),
       address: request.socket.remoteAddress,
-      // A guest can send the claim too, so it only counts from loopback. That
-      // still admits another program on this machine, which is the honest
-      // answer anyway: the row means this machine, not this window.
-      self:
-        hasHostClientMarker(url) && isLoopback(request.socket.remoteAddress),
+      self: isSelf(request, url),
+      deviceKey: deviceKeys.get(request),
     })
   })
 
@@ -662,6 +775,7 @@ export async function startSyncServer(
     blobStore,
     eventStore,
     aggregateStore,
+    loadSigningKey,
   }
 
   console.log(`Sync server listening on ${wsScheme}://${host}:${port}`)

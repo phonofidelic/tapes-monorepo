@@ -412,5 +412,22 @@ describe('collectOrphanedBlobs', () => {
       expect(result.swept.sort()).toEqual([claim, hashes[0]].sort())
       expect(await store().has(claim)).toBe(false)
     })
+
+    // Session records belong to the library, not to any one recording.
+    it('keeps a statement its root document owns', async () => {
+      const { root } = await seedRootDocument([{ contents: 'audio' }])
+      const record = await ingestStatement('{"session":1}', root)
+
+      const result = await collectOrphanedBlobs({
+        repo: openRepo(),
+        store: store(),
+        storagePath,
+        seedRoots: [root],
+        now: afterGrace(),
+      })
+
+      expect(result.swept).toEqual([])
+      expect(await store().has(record)).toBe(true)
+    })
   })
 })

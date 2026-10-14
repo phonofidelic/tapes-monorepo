@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { checkSessionRecord, createSessionRecord } from './sessionRecord'
-import { exportPublicKey, generateSigningKeyPair, signStatement } from './signing'
+import {
+  exportPublicKey,
+  generateSigningKeyPair,
+  signStatement,
+} from './signing'
 import { SESSION_RECORD_TYPE } from './types'
 
 const details = {

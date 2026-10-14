@@ -6,7 +6,7 @@ import installExtension, {
   REACT_DEVELOPER_TOOLS,
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
-import { getBlobStore, stopSyncServer } from './syncServer'
+import { flushSessions, getBlobStore, stopSyncServer } from './syncServer'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
 import { isSyncServerCert } from './certManager'
@@ -193,7 +193,9 @@ export class MainWindow {
     event.preventDefault()
     this.syncServerStopped = true
     this.stopConnectedDevicesPush?.()
-    stopSyncServer()
+    // Sign any session first. Its record is stored through the running server.
+    flushSessions()
+      .then(stopSyncServer)
       .catch((error) => {
         console.error('Failed to stop sync server:', error)
       })
