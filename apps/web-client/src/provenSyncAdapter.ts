@@ -26,33 +26,27 @@ const CHALLENGE_TIMEOUT_MS = 5_000
 export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
   // Rewritten before each connect, which the base class reads it on.
   declare url: string
-  #baseUrl: string
-  #loadKey: () => Promise<CryptoKeyPair>
-  #fetch: typeof fetch
-  #proving = false
-  #stopped = false
+  private proving = false
+  private stopped = false
 
   constructor(
-    url: string,
-    loadKey: () => Promise<CryptoKeyPair>,
-    fetchImpl: typeof fetch = (...args) => fetch(...args),
+    private readonly baseUrl: string,
+    private readonly loadKey: () => Promise<CryptoKeyPair>,
+    private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
   ) {
-    super(url)
-    this.#baseUrl = url
-    this.#loadKey = loadKey
-    this.#fetch = fetchImpl
+    super(baseUrl)
   }
 
   override connect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
     // The base class retries on a timer. A retry while a proof is still being
     // made would open a second socket.
-    if (this.#proving) {
+    if (this.proving) {
       return
     }
-    this.#proving = true
-    void this.#provenUrl().then((url) => {
-      this.#proving = false
-      if (this.#stopped) {
+    this.proving = true
+    void this.provenUrl().then((url) => {
+      this.proving = false
+      if (this.stopped) {
         return
       }
       this.url = url
@@ -61,21 +55,21 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
   }
 
   override disconnect(): void {
-    this.#stopped = true
+    this.stopped = true
     // Nothing to close if the first proof never finished.
     if (this.socket) {
       super.disconnect()
     }
   }
 
-  async #provenUrl(): Promise<string> {
+  private async provenUrl(): Promise<string> {
     // Only a host that handed out a pairing token issues challenges.
-    const token = new URL(this.#baseUrl).searchParams.get('t')
+    const token = new URL(this.baseUrl).searchParams.get('t')
     if (!token) {
-      return this.#baseUrl
+      return this.baseUrl
     }
     try {
-      const response = await this.#fetch(syncChallengeUrl(this.#baseUrl), {
+      const response = await this.fetchImpl(syncChallengeUrl(this.baseUrl), {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
         signal: AbortSignal.timeout(CHALLENGE_TIMEOUT_MS),
@@ -84,11 +78,11 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
         throw new Error(`Challenge request failed: ${response.status}`)
       }
       const { challenge } = (await response.json()) as SyncChallengeResponse
-      const proof = await createSyncProof(challenge, await this.#loadKey())
-      return withSyncProof(this.#baseUrl, encodeSignedStatement(proof))
+      const proof = await createSyncProof(challenge, await this.loadKey())
+      return withSyncProof(this.baseUrl, encodeSignedStatement(proof))
     } catch (error) {
       console.warn('Connecting without a device key proof:', error)
-      return this.#baseUrl
+      return this.baseUrl
     }
   }
 }
