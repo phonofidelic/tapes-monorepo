@@ -24,22 +24,37 @@ test.describe('app shell', () => {
     await expect(page.getByRole('button', { name: 'Library' })).toBeVisible()
   })
 
-  test('holds the content column to max-w-3xl on a wide viewport', async ({
+  // Playwright's default pointer is fine, so the visible nav is the one App
+  // renders beside main. The touch nav in the bottom dock is hidden.
+  test('puts the nav in a sidebar beside main on a wide viewport', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
     await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
 
-    // `main` is the column (the Recorder view positions against it), so its
-    // box is the 48rem max-width plus its own box-content padding.
-    const main = page.locator('main')
-    const box = await main.boundingBox()
-    expect(box).not.toBeNull()
-    expect(box!.width).toBeLessThanOrEqual(768 + 40 + 1)
-    // Centred: equal gutters either side.
-    expect(Math.abs(box!.x - (1440 - box!.width - box!.x))).toBeLessThanOrEqual(
-      1,
-    )
+    const nav = await page.getByRole('navigation').boundingBox()
+    const main = await page.locator('main').boundingBox()
+    expect(nav).not.toBeNull()
+    expect(main).not.toBeNull()
+
+    // Side by side: main starts where the nav ends, at the same height.
+    expect(Math.abs(main!.x - (nav!.x + nav!.width))).toBeLessThanOrEqual(1)
+    expect(Math.abs(main!.y - nav!.y)).toBeLessThanOrEqual(1)
+    // Main takes the rest of the row rather than a centred column.
+    expect(main!.x + main!.width).toBeGreaterThanOrEqual(1440 - 16 - 1)
+  })
+
+  test('puts the nav above main on a narrow viewport', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: 'Recorder' })).toBeVisible()
+
+    const nav = await page.getByRole('navigation').boundingBox()
+    const main = await page.locator('main').boundingBox()
+    expect(nav).not.toBeNull()
+    expect(main).not.toBeNull()
+
+    expect(main!.y).toBeGreaterThanOrEqual(nav!.y + nav!.height - 1)
+    expect(main!.width).toBeGreaterThanOrEqual(390 - 16 - 1)
   })
 })
