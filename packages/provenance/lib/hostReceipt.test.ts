@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { checkRecordingClaim, createHostReceipt } from './hostReceipt'
+import {
+  checkHostReceipt,
+  checkRecordingClaim,
+  createHostReceipt,
+} from './hostReceipt'
 import { createRecordingClaim } from './recordingClaim'
 import {
   exportPublicKey,
@@ -103,5 +107,48 @@ describe('createHostReceipt', () => {
       hostKey: await exportPublicKey(host.publicKey),
     })
     expect(await verifyStatement(receipt, host.publicKey)).toBe(true)
+  })
+})
+
+describe('checkHostReceipt', () => {
+  async function signedReceipt() {
+    return createHostReceipt(
+      await signedClaim(),
+      await generateSigningKeyPair(),
+      new Date('2026-10-06T09:00:00.000Z'),
+    )
+  }
+
+  it('accepts a receipt signed by the key it names', async () => {
+    const receipt = await signedReceipt()
+
+    expect(await checkHostReceipt(receipt)).toEqual({ ok: true, receipt })
+  })
+
+  it('rejects a receipt changed after signing', async () => {
+    const receipt = await signedReceipt()
+    const tampered = {
+      ...receipt,
+      payload: { ...receipt.payload, receivedAt: '2020-01-01T00:00:00.000Z' },
+    }
+
+    expect(await checkHostReceipt(tampered)).toEqual({
+      ok: false,
+      problem: 'bad-signature',
+    })
+  })
+
+  it('rejects a payload that is not a receipt', async () => {
+    const receipt = await signedReceipt()
+    const noKey = { ...receipt.payload, hostKey: undefined }
+
+    expect(await checkHostReceipt({ ...receipt, payload: noKey })).toEqual({
+      ok: false,
+      problem: 'malformed',
+    })
+    expect(await checkHostReceipt(await signedClaim())).toEqual({
+      ok: false,
+      problem: 'malformed',
+    })
   })
 })

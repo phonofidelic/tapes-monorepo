@@ -4,10 +4,13 @@ import {
   decodeSignedStatement,
   encodeSignedStatement,
   NO_SESSION_ID,
+  parseSignedStatement,
+  statementType,
 } from './recordingClaim'
 import {
   exportPublicKey,
   generateSigningKeyPair,
+  statementBytes,
   verifyStatement,
 } from './signing'
 import { toBase64Url } from './encoding'
@@ -70,5 +73,32 @@ describe('encodeSignedStatement', () => {
     expect(decodeSignedStatement(toBase64Url(new Uint8Array([0xff])))).toBe(
       undefined,
     )
+  })
+})
+
+describe('parseSignedStatement', () => {
+  it('reads a statement from its stored bytes', async () => {
+    const claim = await createRecordingClaim(
+      details,
+      await generateSigningKeyPair(),
+    )
+
+    expect(parseSignedStatement(statementBytes(claim))).toEqual(claim)
+  })
+
+  it('rejects bytes that are not a statement wrapper', () => {
+    const bytes = (value: string) => new TextEncoder().encode(value)
+
+    expect(parseSignedStatement(bytes('not json'))).toBeUndefined()
+    expect(parseSignedStatement(bytes('[]'))).toBeUndefined()
+    expect(parseSignedStatement(bytes('{"payload":{}}'))).toBeUndefined()
+    expect(parseSignedStatement(new Uint8Array([0xff]))).toBeUndefined()
+  })
+})
+
+describe('statementType', () => {
+  it('reads the payload type, if the payload is an object', () => {
+    expect(statementType({ payload: { type: 'x' }, signature: '' })).toBe('x')
+    expect(statementType({ payload: null, signature: '' })).toBeUndefined()
   })
 })

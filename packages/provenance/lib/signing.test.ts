@@ -3,6 +3,7 @@ import {
   exportPublicKey,
   generateSigningKeyPair,
   importPublicKey,
+  keyFingerprint,
   signStatement,
   statementAddress,
   statementBytes,
@@ -170,5 +171,19 @@ describe('statementBytes', () => {
     expect(await sha256Hex(statementBytes(signed))).toBe(
       await statementAddress(signed),
     )
+  })
+})
+
+describe('keyFingerprint', () => {
+  it('labels a key with the start of its sha-256', async () => {
+    const digest = await sha256Hex(fromBase64Url(RFC_PUBLIC_KEY)!)
+
+    expect(await keyFingerprint(RFC_PUBLIC_KEY)).toBe(
+      `${digest.slice(0, 4)}-${digest.slice(4, 8)}-${digest.slice(8, 12)}`,
+    )
+  })
+
+  it('rejects text that is not a public key', async () => {
+    expect(await keyFingerprint('abc')).toBeUndefined()
   })
 })

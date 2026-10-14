@@ -59,9 +59,18 @@ export function decodeSignedStatement(
   text: string,
 ): Signed<unknown> | undefined {
   const bytes = fromBase64Url(text)
-  if (!bytes) {
-    return undefined
-  }
+  return bytes && parseSignedStatement(bytes)
+}
+
+/**
+ * Parses a statement as stored: the raw bytes of its JSON, as `statementBytes`
+ * writes them. Like `decodeSignedStatement`, it checks only the wrapper. It
+ * does not require canonical form, so compare against `statementBytes` where
+ * that matters.
+ */
+export function parseSignedStatement(
+  bytes: Uint8Array,
+): Signed<unknown> | undefined {
   try {
     const value: unknown = JSON.parse(decoder.decode(bytes))
     const signed = value as Partial<Signed<unknown>> | null
@@ -78,4 +87,12 @@ export function decodeSignedStatement(
   } catch {
     return undefined
   }
+}
+
+/** The payload's `type`, or undefined when the payload is not an object. */
+export function statementType(signed: Signed<unknown>): unknown {
+  const payload = signed.payload as { type?: unknown } | null
+  return typeof payload === 'object' && payload !== null
+    ? payload.type
+    : undefined
 }
