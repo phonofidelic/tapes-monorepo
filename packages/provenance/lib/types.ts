@@ -44,4 +44,50 @@ export type HostReceipt = {
   hostKey: string
 }
 
-export type Statement = RecordingClaim | HostReceipt
+export const SESSION_RECORD_TYPE = 'tapes/session@1'
+
+/** One stretch of time a device was connected to the host. */
+export type SessionSpan = { joinedAt: string; leftAt: string }
+
+/** A device that proved it holds its key while connected to the session. */
+export type SessionDevice = {
+  /** The device's base64url Ed25519 public key. */
+  deviceKey: string
+  /** The name the device gave on its most recent connection. Unverified. */
+  label?: string
+  /** Oldest first, clipped to the session. A device can drop and rejoin. */
+  spans: SessionSpan[]
+}
+
+/** Signed by the host when a session closes. All times are the host's clock. */
+export type SessionRecord = {
+  type: typeof SESSION_RECORD_TYPE
+  sessionId: string
+  openedAt: string
+  closedAt: string
+  /** Sorted by device key, so the same session always signs the same bytes. */
+  devices: SessionDevice[]
+  /**
+   * Addresses of the Signed<RecordingClaim>s the host accepted for this
+   * session, sorted.
+   */
+  claims: string[]
+  /** The signer's base64url Ed25519 public key. */
+  hostKey: string
+}
+
+export const SYNC_PROOF_TYPE = 'tapes/sync-proof@1'
+
+/**
+ * Signed by a guest to show the host it holds its device key. It is sent on
+ * the sync socket's upgrade request and never stored.
+ */
+export type SyncProof = {
+  type: typeof SYNC_PROOF_TYPE
+  /** The one-time value the host issued for this connection. */
+  challenge: string
+  /** The signer's base64url Ed25519 public key. */
+  deviceKey: string
+}
+
+export type Statement = RecordingClaim | HostReceipt | SessionRecord
