@@ -1,7 +1,7 @@
 import { asError } from '@/asError'
 import { verifyClaimOnIngest } from '@/claimIngest'
 import { loadHostSigningKey } from '@/hostSigningKey'
-import { getBlobStore } from '@/syncServer'
+import { getBlobStore, noteVerifiedClaim } from '@/syncServer'
 import {
   IpcChannel,
   IpcRequest,
@@ -42,7 +42,12 @@ export class PutBlobChannel implements IpcChannel {
       const { claim, statements } = await verifyClaimOnIngest(
         data.claim,
         meta,
-        { loadSigningKey: this.loadSigningKey, store, docUrl: data.docUrl },
+        {
+          loadSigningKey: this.loadSigningKey,
+          store,
+          docUrl: data.docUrl,
+          onVerifiedClaim: noteVerifiedClaim,
+        },
       )
       return {
         success: true,

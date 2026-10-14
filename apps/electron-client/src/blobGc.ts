@@ -107,18 +107,22 @@ function isRootDoc(doc: Doc | undefined): doc is Doc & RootDocument {
   return Array.isArray(doc?.recordings)
 }
 
-/** Whether a stored signed statement is still owned by a live recording. */
+/**
+ * Whether a stored signed statement is still owned by a live document. That is
+ * a recording for its claim and receipt, or a root document for a session
+ * record.
+ */
 async function isOwnedStatement(
   store: BlobStore,
   hash: string,
-  recordingUrls: Set<AutomergeUrl>,
+  ownerUrls: Set<AutomergeUrl>,
 ): Promise<boolean> {
   const meta = await store.stat(hash)
   if (meta?.mimeType !== STATEMENT_MIME_TYPE) {
     return false
   }
   const refs = await store.refs(hash)
-  return refs.some((ref) => recordingUrls.has(ref as AutomergeUrl))
+  return refs.some((ref) => ownerUrls.has(ref as AutomergeUrl))
 }
 
 /**
@@ -231,6 +235,7 @@ export async function collectOrphanedBlobs({
   let skippedYoung = 0
   let reclaimedBytes = 0
   let stillHardlinked = 0
+  const ownerUrls = new Set([...recordingUrls, ...roots])
 
   const recordReclaimed = (object: StoredObject) => {
     // Dropping the store's link to an object the user still has in their
@@ -256,8 +261,9 @@ export async function collectOrphanedBlobs({
     }
     // Any peer can edit a recording's statements list. Dropping a hash from
     // it must not delete the statement, so a statement stays while the
-    // recording that stored it is still in a root document.
-    if (await isOwnedStatement(store, object.hash, recordingUrls)) {
+    // recording that stored it is still in a root document. Session records
+    // are owned by the root document itself.
+    if (await isOwnedStatement(store, object.hash, ownerUrls)) {
       continue
     }
     if (await store.remove(object.hash)) {

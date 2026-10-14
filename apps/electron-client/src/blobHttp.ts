@@ -4,6 +4,7 @@ import { pipeline } from 'stream/promises'
 import {
   RECORDING_CLAIM_HEADER,
   STATEMENT_MIME_TYPE,
+  type RecordingClaim,
 } from '@tapes-monorepo/provenance'
 import { BlobTooLargeError, isValidBlobHash, type BlobStore } from './blobStore'
 import { verifyClaimOnIngest } from './claimIngest'
@@ -51,6 +52,8 @@ export type BlobHandlerOptions = {
   maxStoreBytes?: number
   /** The host's key for signing receipts. Without it, none are issued. */
   loadSigningKey?: () => Promise<CryptoKeyPair>
+  /** Told about each verified claim, for the host's session record. */
+  onVerifiedClaim?: (claim: RecordingClaim, claimAddress: string) => void
 }
 
 type ParsedRange =
@@ -106,6 +109,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
     maxBlobBytes = DEFAULT_MAX_BLOB_BYTES,
     maxStoreBytes = DEFAULT_MAX_STORE_BYTES,
     loadSigningKey,
+    onVerifiedClaim,
   } = options
 
   async function handleUpload(
@@ -156,7 +160,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
       const { claim, statements } = await verifyClaimOnIngest(
         Array.isArray(claimHeader) ? claimHeader.join(',') : claimHeader,
         meta,
-        { loadSigningKey, store, docUrl },
+        { loadSigningKey, store, docUrl, onVerifiedClaim },
       )
       sendJson(response, deduped ? 200 : 201, {
         hash: meta.hash,

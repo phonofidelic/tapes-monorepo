@@ -3,9 +3,32 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { WebSocket } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'crypto'
 import {
+  RECORDING_CLAIM_HEADER,
+  checkSessionRecord,
+  createRecordingClaim,
+  createSyncProof,
+  encodeSignedStatement,
+  exportPublicKey,
+  generateSigningKeyPair,
+  statementAddress,
+  type SessionRecord,
+  type Signed,
+} from '@tapes-monorepo/provenance'
+import {
+  syncChallengeUrl,
+  withSyncProof,
+  type SyncChallengeResponse,
+} from '@tapes-monorepo/sync-protocol'
+import { readStoredStatement } from './statementUpload'
+import {
+  closeSession,
+  flushSessions,
+  getBlobStore,
   getSyncConnections,
   onSyncConnectionsChange,
+  openSession,
   startSyncServer,
   stopSyncServer,
   type SyncConnection,
@@ -14,6 +37,8 @@ import {
 let storagePath: string | undefined
 
 afterEach(async () => {
+  // The session lives at module scope, so a test must not leave one open.
+  await flushSessions()
   await stopSyncServer()
   if (storagePath) {
     await rm(storagePath, { recursive: true, force: true })
@@ -248,5 +273,144 @@ describe('connected devices', () => {
     expect(seen[0]).toHaveLength(1)
     socket.close()
     unsubscribe()
+  })
+})
+
+describe('session records', () => {
+  const TOKEN = 'secret'
+  const DOC = 'automerge:root'
+
+  async function startWithStore(hostKey: CryptoKeyPair) {
+    storagePath = await mkdtemp(path.join(tmpdir(), 'tapes-sync-'))
+    return startSyncServer({
+      storagePath,
+      blobStorePath: path.join(storagePath, 'blobs'),
+      host: '127.0.0.1',
+      port: 0,
+      peerId: 'test-host',
+      pairingToken: TOKEN,
+      loadSigningKey: async () => hostKey,
+    })
+  }
+
+  /** What a guest does before it opens the socket. */
+  async function provenUrl(syncUrl: string, keyPair: CryptoKeyPair) {
+    const response = await fetch(syncChallengeUrl(syncUrl), {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    })
+    const { challenge } = (await response.json()) as SyncChallengeResponse
+    const proof = await createSyncProof(challenge, keyPair)
+    return withSyncProof(syncUrl, encodeSignedStatement(proof))
+  }
+
+  async function upload(
+    baseUrl: string,
+    sessionId: string,
+    key: CryptoKeyPair,
+  ) {
+    const audio = 'session take'
+    const claim = await createRecordingClaim(
+      {
+        blob: {
+          hash: createHash('sha256').update(audio).digest('hex'),
+          size: audio.length,
+          mimeType: 'audio/wav',
+        },
+        startedAt: '2026-10-14T10:00:00.000Z',
+        endedAt: '2026-10-14T10:01:00.000Z',
+        sessionId,
+      },
+      key,
+    )
+    const response = await fetch(
+      `${baseUrl}/blobs?doc=${encodeURIComponent('automerge:take')}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          'Content-Type': 'audio/wav',
+          [RECORDING_CLAIM_HEADER]: encodeSignedStatement(claim),
+        },
+        body: audio,
+      },
+    )
+    expect(response.ok).toBe(true)
+    return statementAddress(claim)
+  }
+
+  it('lists a guest under the device key it proved', async () => {
+    const info = await startWithStore(await generateSigningKeyPair())
+    const guestKey = await generateSigningKeyPair()
+    const syncUrl = `${info.url}/sync?t=${TOKEN}&d=Phone`
+
+    const socket = await open(await provenUrl(syncUrl, guestKey))
+
+    expect(getSyncConnections()[0].deviceKey).toBe(
+      await exportPublicKey(guestKey.publicKey),
+    )
+    socket.close()
+  })
+
+  it('serves a guest without a proof, but under no key', async () => {
+    const info = await startWithStore(await generateSigningKeyPair())
+
+    const socket = await open(`${info.url}/sync?t=${TOKEN}&d=Phone`)
+
+    expect(getSyncConnections()[0].deviceKey).toBeUndefined()
+    socket.close()
+  })
+
+  it('lists the host window under the host key', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const info = await startWithStore(hostKey)
+
+    const socket = await open(`${info.url}/sync?t=${TOKEN}&h=1`)
+
+    expect(getSyncConnections()[0].deviceKey).toBe(
+      await exportPublicKey(hostKey.publicKey),
+    )
+    socket.close()
+  })
+
+  it('refuses a challenge without the pairing token', async () => {
+    const info = await startWithStore(await generateSigningKeyPair())
+
+    const response = await fetch(syncChallengeUrl(info.url))
+
+    expect(response.status).toBe(401)
+  })
+
+  it('signs the devices and claims of a session', async () => {
+    const hostKey = await generateSigningKeyPair()
+    const info = await startWithStore(hostKey)
+    const guestKey = await generateSigningKeyPair()
+    openSession({ sessionId: 'session-1', docUrl: DOC })
+    const socket = await open(
+      await provenUrl(`${info.url}/sync?t=${TOKEN}&d=Phone`, guestKey),
+    )
+    const baseUrl = info.url.replace('ws:', 'http:')
+    const accepted = await upload(baseUrl, 'session-1', guestKey)
+
+    const pending = closeSession()
+    await flushSessions()
+    const hash = await pending
+    socket.close()
+
+    const stored = await readStoredStatement(getBlobStore()!, hash!)
+    const check = await checkSessionRecord(stored!)
+    expect(check.ok).toBe(true)
+    const record = (stored as Signed<SessionRecord>).payload
+    expect(record).toMatchObject({
+      sessionId: 'session-1',
+      hostKey: await exportPublicKey(hostKey.publicKey),
+      claims: [accepted],
+      devices: [
+        {
+          deviceKey: await exportPublicKey(guestKey.publicKey),
+          label: 'Phone',
+        },
+      ],
+    })
+    expect(await getBlobStore()!.refs(hash!)).toEqual([DOC])
   })
 })

@@ -30,6 +30,12 @@ export type SyncConnection = {
   connectedAt: number
   /** This host's own window rather than a guest. */
   self: boolean
+  /**
+   * The device key the connection proved it holds on the upgrade. For the
+   * host's own window it is the host key. Undefined when unproven, and then
+   * the connection is left out of session records.
+   */
+  deviceKey?: string
 }
 
 /**

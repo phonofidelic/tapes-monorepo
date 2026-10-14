@@ -206,6 +206,12 @@ export default defineConfig(({ command }) => ({
         secure: false,
         changeOrigin: true,
       },
+      // The challenge a guest signs before it opens the sync socket.
+      '/challenge': {
+        target: `http://127.0.0.1:${syncServerPort}`,
+        secure: false,
+        changeOrigin: true,
+      },
     },
   },
   build: {
