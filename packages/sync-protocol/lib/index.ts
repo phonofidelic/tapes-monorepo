@@ -14,3 +14,4 @@
 
 export * from './deviceLabel'
 export * from './hostClient'
+export * from './syncProof'
