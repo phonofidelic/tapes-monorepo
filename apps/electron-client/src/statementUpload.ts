@@ -3,9 +3,11 @@ import {
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
   STATEMENT_MIME_TYPE,
+  checkHostReceipt,
   checkRecordingClaim,
+  parseSignedStatement,
   statementBytes,
-  verifyStatement,
+  statementType,
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { BlobTooLargeError, type BlobStore } from './blobStore'
@@ -44,8 +46,6 @@ export type StatementProblem =
 export type StatementCheck =
   { ok: true } | { ok: false; problem: StatementProblem }
 
-const decoder = new TextDecoder('utf-8', { fatal: true })
-
 /** Reads a whole request body, failing once it passes `maxBytes`. */
 export async function readStatementBody(
   source: Readable,
@@ -63,26 +63,6 @@ export async function readStatementBody(
   return Buffer.concat(chunks)
 }
 
-function parseSigned(bytes: Uint8Array): Signed<unknown> | null {
-  try {
-    const value = JSON.parse(decoder.decode(bytes)) as Partial<
-      Signed<unknown>
-    > | null
-    if (
-      typeof value !== 'object' ||
-      value === null ||
-      Array.isArray(value) ||
-      typeof value.signature !== 'string' ||
-      !('payload' in value)
-    ) {
-      return null
-    }
-    return value as Signed<unknown>
-  } catch {
-    return null
-  }
-}
-
 /** A statement from the store, or null if it is absent or not a statement. */
 export async function readStoredStatement(
   store: BlobStore,
@@ -96,24 +76,17 @@ export async function readStoredStatement(
     for await (const chunk of store.read(hash)) {
       chunks.push(chunk as Buffer)
     }
-    return parseSigned(Buffer.concat(chunks))
+    return parseSignedStatement(Buffer.concat(chunks)) ?? null
   } catch {
     return null
   }
-}
-
-function payloadType(signed: Signed<unknown>): unknown {
-  const payload = signed.payload as { type?: unknown } | null
-  return typeof payload === 'object' && payload !== null
-    ? payload.type
-    : undefined
 }
 
 export async function checkUploadedStatement(
   bytes: Uint8Array,
   store: BlobStore,
 ): Promise<StatementCheck> {
-  const signed = parseSigned(bytes)
+  const signed = parseSignedStatement(bytes)
   if (!signed) {
     return { ok: false, problem: 'malformed' }
   }
@@ -130,7 +103,7 @@ export async function checkUploadedStatement(
     return { ok: false, problem: 'not-canonical' }
   }
 
-  const type = payloadType(signed)
+  const type = statementType(signed)
   if (type === RECORDING_CLAIM_TYPE) {
     return checkClaim(signed, store)
   }
@@ -157,28 +130,22 @@ async function checkReceipt(
   signed: Signed<unknown>,
   store: BlobStore,
 ): Promise<StatementCheck> {
-  const payload = signed.payload as Record<string, unknown>
-  if (
-    typeof payload.claim !== 'string' ||
-    typeof payload.receivedAt !== 'string' ||
-    typeof payload.hostKey !== 'string'
-  ) {
-    return { ok: false, problem: 'malformed' }
+  // Which host signed it is for readers to judge. Here it only has to be
+  // intact.
+  const check = await checkHostReceipt(signed)
+  if (!check.ok) {
+    return { ok: false, problem: check.problem }
   }
   // Only verified statements are stored under this MIME type. Any bytes can be
   // stored as audio, so the type alone would not show the claim was checked.
-  const meta = await store.stat(payload.claim)
+  const address = check.receipt.payload.claim
+  const meta = await store.stat(address)
   const claim =
     meta?.mimeType === STATEMENT_MIME_TYPE
-      ? await readStoredStatement(store, payload.claim)
+      ? await readStoredStatement(store, address)
       : null
-  if (!claim || payloadType(claim) !== RECORDING_CLAIM_TYPE) {
+  if (!claim || statementType(claim) !== RECORDING_CLAIM_TYPE) {
     return { ok: false, problem: 'claim-missing' }
-  }
-  // Which host signed it is for readers to judge. Here it only has to be
-  // intact.
-  if (!(await verifyStatement(signed, payload.hostKey))) {
-    return { ok: false, problem: 'bad-signature' }
   }
   return { ok: true }
 }

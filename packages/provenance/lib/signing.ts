@@ -48,6 +48,23 @@ export async function importPublicKey(
   }
 }
 
+/**
+ * A short label for showing a public key to people, such as `3f2a-91c0-7be4`.
+ * It is the first 48 bits of the key's sha-256. That is enough to tell a few
+ * devices apart, but too short to prove which key it is.
+ *
+ * Returns undefined when the text is not a 32-byte base64url key.
+ */
+export async function keyFingerprint(
+  publicKey: string,
+): Promise<string | undefined> {
+  const raw = fromBase64Url(publicKey)
+  if (raw?.length !== 32) {
+    return undefined
+  }
+  return (await sha256Hex(raw)).slice(0, 12).match(/.{4}/g)!.join('-')
+}
+
 export async function signStatement<T extends { type: string }>(
   payload: T,
   privateKey: CryptoKey,

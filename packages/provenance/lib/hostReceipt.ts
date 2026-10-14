@@ -1,6 +1,7 @@
 /**
  * What the host does with a recording claim when the audio arrives: check it
- * against the bytes it received, then countersign it with a receipt.
+ * against the bytes it received, then countersign it with a receipt. Also the
+ * check anyone runs on a receipt before trusting it.
  *
  * The receipt's time comes from the host's clock. A device can set its own
  * clock to anything, so the receipt is the independent record of when.
@@ -87,6 +88,46 @@ export async function checkRecordingClaim(
     return { ok: false, problem: 'bad-signature' }
   }
   return { ok: true, claim: { payload, signature: signed.signature } }
+}
+
+/** Why a receipt did not verify. */
+export type ReceiptProblem = 'malformed' | 'bad-signature'
+
+export type ReceiptCheck =
+  | { ok: true; receipt: Signed<HostReceipt> }
+  | { ok: false; problem: ReceiptProblem }
+
+function isHostReceipt(payload: unknown): payload is HostReceipt {
+  const receipt = payload as Partial<HostReceipt> | null
+  return (
+    typeof receipt === 'object' &&
+    receipt !== null &&
+    receipt.type === HOST_RECEIPT_TYPE &&
+    typeof receipt.claim === 'string' &&
+    typeof receipt.receivedAt === 'string' &&
+    typeof receipt.hostKey === 'string'
+  )
+}
+
+/**
+ * Checks a receipt's shape and that it verifies against the host key it names.
+ * It does not look up the claim the receipt names. The caller must check that
+ * the claim exists and passed `checkRecordingClaim`.
+ *
+ * The host key is not pinned, so this proves some key countersigned the claim,
+ * not which host did.
+ */
+export async function checkHostReceipt(
+  signed: Signed<unknown>,
+): Promise<ReceiptCheck> {
+  const { payload } = signed
+  if (!isHostReceipt(payload)) {
+    return { ok: false, problem: 'malformed' }
+  }
+  if (!(await verifyStatement(signed, payload.hostKey))) {
+    return { ok: false, problem: 'bad-signature' }
+  }
+  return { ok: true, receipt: { payload, signature: signed.signature } }
 }
 
 /** Countersigns a claim the host has already checked. */
