@@ -5,7 +5,6 @@ import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
 import { EditRecordingChannel } from './channels/EditRecordingChannel'
 import { GetAggregatesChannel } from './channels/GetAggregatesChannel'
 import { GetConnectedDevicesChannel } from './channels/GetConnectedDevicesChannel'
-import { GetCurrentSessionChannel } from './channels/session/GetCurrentSessionChannel'
 import { GetDeviceKeyChannel } from './channels/GetDeviceKeyChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { HasBlobChannel } from './channels/HasBlobChannel'
@@ -16,9 +15,12 @@ import { SetDefaultAudioInputChannel } from './channels/SetDefaultAudioInputChan
 import { SetSyncServerLanChannel } from './channels/SetSyncServerLanChannel'
 import { SetSyncServerHttpsChannel } from './channels/SetSyncServerHttpsChannel'
 import { SoxRecorder } from './channels/soxRecorder'
-import { StartSessionChannel } from './channels/session/StartSessionChannel'
+import {
+  GetCurrentSessionChannel,
+  StartSessionChannel,
+  StopSessionChannel,
+} from './channels/session'
 import { StopRecordingChannel } from './channels/StopRecordingChannel'
-import { StopSessionChannel } from './channels/session/StopSessionChannel'
 import { MainWindow } from './main'
 
 // Recording spans two channels, which share the one running sox process.
