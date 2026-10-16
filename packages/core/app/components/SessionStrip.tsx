@@ -60,7 +60,7 @@ function Strip({
     <div
       role="status"
       className={clsx(
-        'bg-subtle relative z-50 flex h-10 w-full shrink-0 items-center gap-2 pl-4 text-xs leading-4 font-medium',
+        'bg-subtle relative z-50 flex h-10 w-full shrink-0 items-center gap-2 rounded pl-4 text-xs leading-4 font-medium',
         action ? 'pr-2' : 'pr-4',
       )}
     >

@@ -195,7 +195,7 @@ export function Recorder() {
 
   return (
     <>
-      <div className="flex h-full touch-none flex-col">
+      <div className="flex h-full touch-none flex-col p-1 pl-4">
         <SessionStrip />
         <div
           ref={visualizerContainerRef}
