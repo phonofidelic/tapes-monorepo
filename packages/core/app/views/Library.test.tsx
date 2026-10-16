@@ -19,6 +19,8 @@ import { AggregatesProvider } from '@/context/AggregatesContext'
 import {
   createHostReceipt,
   createRecordingClaim,
+  createSessionRecord,
+  exportPublicKey,
   generateSigningKeyPair,
   keyFingerprint,
   statementAddress,
@@ -659,6 +661,92 @@ describe('provenance on a row', () => {
 
     await screen.findByText(/^Signed on/)
     expect(details()).toHaveTextContent('Session session-42.')
+  })
+
+  it('shows the signed session record with its devices', async () => {
+    const claim = await claimFor(deviceKeys, { sessionId: 'session-42' })
+    const guestKey = await exportPublicKey(
+      (await generateSigningKeyPair()).publicKey,
+    )
+    const record = await createSessionRecord(
+      {
+        sessionId: 'session-42',
+        openedAt: new Date('2026-10-05T11:55:00.000Z'),
+        closedAt: new Date('2026-10-05T12:10:00.000Z'),
+        devices: [
+          {
+            deviceKey: claim.payload.deviceKey,
+            spans: [
+              {
+                joinedAt: '2026-10-05T11:56:00.000Z',
+                leftAt: '2026-10-05T12:10:00.000Z',
+              },
+            ],
+          },
+          {
+            deviceKey: guestKey,
+            label: 'Studio phone',
+            spans: [
+              {
+                joinedAt: '2026-10-05T11:58:00.000Z',
+                leftAt: '2026-10-05T12:01:00.000Z',
+              },
+            ],
+          },
+        ],
+        claims: [await statementAddress(claim)],
+      },
+      hostKeys,
+    )
+    localDeviceKey = claim.payload.deviceKey
+
+    await showRow([claim, record])
+
+    await screen.findByText(/^Signed on/)
+    expect(details()).toHaveTextContent(
+      /Session session-42, open from .* to .*, by the host's clock\./,
+    )
+    const guestFingerprint = await keyFingerprint(guestKey)
+    const devices = [...details()!.querySelectorAll('li')]
+    await waitFor(() =>
+      expect(devices.map((device) => device.textContent)).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /^Connected: this device, joined .* left .*\.$/,
+          ),
+          expect.stringMatching(
+            new RegExp(`^Connected: device ${guestFingerprint},`),
+          ),
+        ]),
+      ),
+    )
+    // The label is the device's own word for itself.
+    expect(details()).not.toHaveTextContent(/Studio phone/)
+    expect(details()).toHaveTextContent(
+      'Which host signed the session record is not checked yet.',
+    )
+  })
+
+  it('reports a session record for another session as a failed check', async () => {
+    const claim = await claimFor(deviceKeys, { sessionId: 'session-42' })
+    const record = await createSessionRecord(
+      {
+        sessionId: 'session-7',
+        openedAt: new Date('2026-10-05T11:55:00.000Z'),
+        closedAt: new Date('2026-10-05T12:10:00.000Z'),
+        devices: [],
+        claims: [await statementAddress(claim)],
+      },
+      hostKeys,
+    )
+
+    await showRow([claim, record])
+
+    expect(
+      await screen.findByText(
+        "The signature check failed. This recording's record may have been changed.",
+      ),
+    ).toBeInTheDocument()
   })
 
   it('hides the session while the recording has none', async () => {

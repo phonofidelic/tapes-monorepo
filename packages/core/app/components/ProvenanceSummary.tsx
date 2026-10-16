@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { keyFingerprint, NO_SESSION_ID } from '@tapes-monorepo/provenance'
+import {
+  keyFingerprint,
+  NO_SESSION_ID,
+  type VerifiedSession,
+} from '@tapes-monorepo/provenance'
 import { useAppContext } from '@/context/AppContext'
 import {
   useRecordingProvenance,
@@ -61,8 +65,10 @@ function useFingerprint(key: string | undefined): string | undefined {
   return held && held.key === key ? held.fingerprint : undefined
 }
 
-function useDeviceName(deviceKey: string | undefined): string {
-  const localKey = useLocalDeviceKey()
+function useDeviceName(
+  deviceKey: string | undefined,
+  localKey: string | undefined,
+): string {
   const fingerprint = useFingerprint(deviceKey)
   if (deviceKey && deviceKey === localKey) {
     return 'this device'
@@ -83,8 +89,10 @@ export function ProvenanceSummary({
 }
 
 function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
+  const localKey = useLocalDeviceKey()
   const deviceName = useDeviceName(
     'deviceKey' in provenance ? provenance.deviceKey : undefined,
+    localKey,
   )
 
   switch (provenance.state) {
@@ -119,7 +127,7 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
           summary={`Signed on ${deviceName}. The host did not confirm when it arrived.`}
         >
           <DeviceTimes {...provenance} />
-          <Session sessionId={provenance.sessionId} />
+          <Session {...provenance} localKey={localKey} />
         </Details>
       )
     case 'verified':
@@ -149,7 +157,7 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
           ) : (
             <p>Which host signed the receipt is not checked yet.</p>
           )}
-          <Session sessionId={provenance.sessionId} />
+          <Session {...provenance} localKey={localKey} />
         </Details>
       )
   }
@@ -170,11 +178,66 @@ function DeviceTimes({
   )
 }
 
-function Session({ sessionId }: { sessionId: string }) {
+function Session({
+  sessionId,
+  session,
+  localKey,
+}: {
+  sessionId: string
+  session?: VerifiedSession
+  localKey: string | undefined
+}) {
   if (sessionId === NO_SESSION_ID) {
     return null
   }
-  return <p>Session {sessionId}.</p>
+  if (!session) {
+    return <p>Session {sessionId}.</p>
+  }
+  return (
+    <>
+      <p>
+        Session {sessionId}, open from <Clock iso={session.openedAt} /> to{' '}
+        <Clock iso={session.closedAt} />, by the host&apos;s clock.
+      </p>
+      {session.devices.length === 0 ? (
+        <p>No device proved its key while connected.</p>
+      ) : (
+        <ul className="flex flex-col gap-1 pl-3">
+          {session.devices.map((device) => (
+            <SessionDevice
+              key={device.deviceKey}
+              {...device}
+              localKey={localKey}
+            />
+          ))}
+        </ul>
+      )}
+      <p>
+        Which host signed the session record is not checked yet. Devices are
+        shown by key, not by who owns them.
+      </p>
+    </>
+  )
+}
+
+function SessionDevice({
+  deviceKey,
+  spans,
+  localKey,
+}: VerifiedSession['devices'][number] & { localKey: string | undefined }) {
+  const name = useDeviceName(deviceKey, localKey)
+  return (
+    <li>
+      Connected: {name}
+      {spans.map((span) => (
+        <span key={`${span.joinedAt} ${span.leftAt}`}>
+          , joined <Clock iso={span.joinedAt} /> and left{' '}
+          <Clock iso={span.leftAt} />
+        </span>
+      ))}
+      .
+    </li>
+  )
 }
 
 function Line({ children }: { children: React.ReactNode }) {
