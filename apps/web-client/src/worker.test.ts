@@ -361,3 +361,32 @@ describe('recorder:claim', () => {
     })
   })
 })
+
+describe('provenance:device-key', () => {
+  it('answers with the public key this device signs with', async () => {
+    const keyPair = await generateSigningKeyPair()
+    vi.mocked(loadDeviceSigningKey).mockResolvedValue(keyPair)
+
+    send('provenance:device-key', { requestId: 'one' })
+    await vi.waitFor(() => expect(replyFor('one')).toBeDefined())
+
+    expect(replyFor('one')).toMatchObject({
+      success: true,
+      payload: { publicKey: await exportPublicKey(keyPair.publicKey) },
+    })
+  })
+
+  it('fails without a device key', async () => {
+    vi.mocked(loadDeviceSigningKey).mockRejectedValue(
+      new Error('no Ed25519 here'),
+    )
+
+    send('provenance:device-key', { requestId: 'one' })
+    await vi.waitFor(() => expect(replyFor('one')).toBeDefined())
+
+    expect(replyFor('one')).toMatchObject({
+      success: false,
+      error: 'no Ed25519 here',
+    })
+  })
+})

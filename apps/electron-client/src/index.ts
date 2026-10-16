@@ -5,6 +5,7 @@ import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
 import { EditRecordingChannel } from './channels/EditRecordingChannel'
 import { GetAggregatesChannel } from './channels/GetAggregatesChannel'
 import { GetConnectedDevicesChannel } from './channels/GetConnectedDevicesChannel'
+import { GetDeviceKeyChannel } from './channels/GetDeviceKeyChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { HasBlobChannel } from './channels/HasBlobChannel'
 import { PutBlobChannel } from './channels/PutBlobChannel'
@@ -37,4 +38,5 @@ new MainWindow().init([
   new CacheBlobChannel(),
   new AnnounceRootDocumentChannel(),
   new GetAggregatesChannel(),
+  new GetDeviceKeyChannel(),
 ])

@@ -20,6 +20,7 @@ import { bytesToHex } from '@noble/hashes/utils'
 import {
   createRecordingClaim,
   encodeSignedStatement,
+  exportPublicKey,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
 
@@ -59,6 +60,12 @@ type EventData =
         mimeType: string
         startedAt: string
         endedAt: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'provenance:device-key'
+      payload: {
         requestId: string
       }
     }
@@ -247,6 +254,20 @@ onmessage = async (event) => {
           })
         } catch (error) {
           respond('recorder:claim', requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'provenance:device-key': {
+        // The key this device signs its claims with, so the Library can say
+        // "this device" for them. Creates the key if there is none yet.
+        const { requestId } = payload
+        try {
+          const keyPair = await loadDeviceSigningKey()
+          respond('provenance:device-key', requestId, true, {
+            publicKey: await exportPublicKey(keyPair.publicKey),
+          })
+        } catch (error) {
+          respond('provenance:device-key', requestId, false, undefined, error)
         }
         break
       }

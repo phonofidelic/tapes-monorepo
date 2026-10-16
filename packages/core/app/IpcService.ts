@@ -45,6 +45,7 @@ export type ValidIpcChanel =
   | 'blob:cache-put'
   | 'root-document:announce'
   | 'events:get-aggregates'
+  | 'provenance:get-device-key'
 
 /**
  * Events the main process sends to the renderer.
@@ -122,6 +123,17 @@ export type PutBlobResponse =
         /** Store hashes of the claim and receipt, when the claim verified. */
         statements: string[]
       }
+    }
+
+/** The public key this device signs its recording claims with, base64url. */
+export type DeviceKeyResponse =
+  | {
+      success: false
+      error: Error
+    }
+  | {
+      success: true
+      data: { publicKey: string }
     }
 
 export type HasBlobResponse =
@@ -206,6 +218,7 @@ export type IpcSendArgs =
   | ['blob:has', IpcRequest & { data: { hash: string } }]
   | ['root-document:announce', IpcRequest & { data: { url: string } }]
   | ['events:get-aggregates']
+  | ['provenance:get-device-key']
   | [
       'blob:cache-put',
       IpcRequest & {
