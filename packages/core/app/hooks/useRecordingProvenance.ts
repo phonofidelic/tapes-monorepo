@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { RecordingProvenance } from '@tapes-monorepo/provenance'
 import { useBlobEndpoints } from '@/context/BlobContext'
+import { usePinnedStatementReader } from '@/context/PinContext'
 import {
   checkRecordingProvenance,
   type ProvenanceInput,
@@ -10,7 +11,8 @@ import {
  * What a recording's signed statements prove, for the Library to show.
  *
  * It checks again whenever the listed statements, the audio or the hosts
- * change. A result is shown only for the recording input it was computed for.
+ * change. Statements pinned on this device are read before asking any host.
+ * A result is shown only for the recording input it was computed for.
  */
 
 export type ProvenanceState = RecordingProvenance | { state: 'checking' }
@@ -24,6 +26,7 @@ export function useRecordingProvenance(
   recording: ProvenanceInput,
 ): ProvenanceState {
   const endpoints = useBlobEndpoints()
+  const readCached = usePinnedStatementReader()
   const { blob, statements } = recording
   // Automerge hands out new objects on every change, so compare by content.
   const key = JSON.stringify({
@@ -36,6 +39,7 @@ export function useRecordingProvenance(
     const controller = new AbortController()
     checkRecordingProvenance(endpoints, JSON.parse(key) as ProvenanceInput, {
       signal: controller.signal,
+      readCached,
     }).then(
       (provenance) => setHeld({ key, provenance }),
       (error: unknown) => {
@@ -45,7 +49,7 @@ export function useRecordingProvenance(
       },
     )
     return () => controller.abort()
-  }, [endpoints, key])
+  }, [endpoints, key, readCached])
 
   return held?.key === key ? held.provenance : CHECKING
 }
