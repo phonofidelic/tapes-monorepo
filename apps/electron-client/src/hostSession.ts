@@ -1,7 +1,16 @@
 import { randomUUID } from 'crypto'
 import type { AutomergeUrl, Repo } from '@automerge/automerge-repo/slim'
-import type { PublishedSession, RootDocument } from '@tapes-monorepo/core'
-import type { OpenSession, SessionRecorder } from './sessionRecorder'
+import type {
+  ClosedSession,
+  PublishedSession,
+  RootDocument,
+  SessionSettledEvent,
+} from '@tapes-monorepo/core'
+import {
+  DEFAULT_SESSION_GRACE_MS,
+  type OpenSession,
+  type SessionRecorder,
+} from './sessionRecorder'
 
 /**
  * Starts and stops the host's session and publishes it in the root document's
@@ -10,6 +19,9 @@ import type { OpenSession, SessionRecorder } from './sessionRecorder'
  *
  * Session state lives in memory, so a crash leaves the field set with no
  * session behind it. `clearStale` removes such a field.
+ *
+ * A stopped session signs its record after a grace period. Listeners added
+ * with `onSettled` hear when that record is signed or has failed.
  *
  * Do not import `electron` here, so this stays testable in a plain node
  * process.
@@ -23,12 +35,14 @@ export type HostSession = {
   start(docUrl: string): Promise<PublishedSession>
   /**
    * Closes the open session and clears the field. The record is signed later,
-   * after the recorder's grace period. Does nothing when no session is open.
+   * after the grace period. Resolves undefined when no session is open.
    */
-  stop(): Promise<void>
+  stop(): Promise<ClosedSession | undefined>
   current(): PublishedSession | undefined
   /** Clears `docUrl`'s field unless it names the open session. */
   clearStale(docUrl: string): Promise<void>
+  /** Calls `listener` as each stopped session's record settles. */
+  onSettled(listener: (event: SessionSettledEvent) => void): () => void
 }
 
 export function createHostSession({
@@ -36,15 +50,26 @@ export function createHostSession({
   getRepo,
   newSessionId = randomUUID,
   findTimeoutMs = DEFAULT_FIND_TIMEOUT_MS,
+  graceMs = DEFAULT_SESSION_GRACE_MS,
+  now = Date.now,
 }: {
   sessions: Pick<SessionRecorder, 'open' | 'close' | 'current'>
   /** The running host's repo. Undefined while the sync server is stopped. */
   getRepo: () => Repo | undefined
   newSessionId?: () => string
   findTimeoutMs?: number
+  graceMs?: number
+  now?: () => number
 }): HostSession {
   // The recorder knows the open session but not which doc published it.
   let publishedIn: { sessionId: string; docUrl: string } | undefined
+  const settledListeners = new Set<(event: SessionSettledEvent) => void>()
+
+  const settle = (event: SessionSettledEvent) => {
+    for (const listener of settledListeners) {
+      listener(event)
+    }
+  }
 
   const findRoot = async (docUrl: string) => {
     const repo = getRepo()
@@ -83,14 +108,28 @@ export function createHostSession({
     async stop() {
       const open = sessions.current()
       if (!open) {
-        return
+        return undefined
       }
       const target = publishedIn
       publishedIn = undefined
-      // `close` ends the session at once and resolves only after signing.
-      void sessions.close()
+      const closed = {
+        sessionId: open.sessionId,
+        signsAt: new Date(now() + graceMs).toISOString(),
+      }
+      // `close` ends the session at once and resolves only after signing. It
+      // resolves undefined when signing failed, and never rejects.
+      void sessions.close({ graceMs }).then((recordHash) => {
+        settle(
+          recordHash
+            ? {
+                sessionId: open.sessionId,
+                signedAt: new Date(now()).toISOString(),
+              }
+            : { sessionId: open.sessionId },
+        )
+      })
       if (!target || target.sessionId !== open.sessionId) {
-        return
+        return closed
       }
       try {
         const handle = await findRoot(target.docUrl)
@@ -106,6 +145,7 @@ export function createHostSession({
           error,
         )
       }
+      return closed
     },
 
     current() {
@@ -122,6 +162,13 @@ export function createHostSession({
       handle.change((doc) => {
         delete doc.session
       })
+    },
+
+    onSettled(listener) {
+      settledListeners.add(listener)
+      return () => {
+        settledListeners.delete(listener)
+      }
     },
   }
 }

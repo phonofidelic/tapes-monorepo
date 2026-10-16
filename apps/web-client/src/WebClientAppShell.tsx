@@ -17,6 +17,8 @@ import {
   readAutomergeUrl,
   writeAutomergeUrl,
   GenericErrorFallbackScreen,
+  createHostConnection,
+  type HostConnection,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
@@ -136,7 +138,11 @@ type InitializeRepoParams = {
   syncServerUrl: string | undefined
 }
 
-type InitializeRepoResult = { repo: Repo }
+type InitializeRepoResult = {
+  repo: Repo
+  /** Absent with no sync server, which core reads as having no host. */
+  hostConnection?: HostConnection
+}
 
 // Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
 // BroadcastChannel always, and a websocket to whichever sync server resolved.
@@ -146,8 +152,11 @@ async function initializeRepo({
   const network: NetworkAdapterInterface[] = [
     new BroadcastChannelNetworkAdapter(),
   ]
+  let hostConnection: HostConnection | undefined
   if (syncServerUrl) {
-    network.push(new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey))
+    const adapter = new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey)
+    hostConnection = createHostConnection(adapter)
+    network.push(adapter)
   }
 
   const repo = new Repo({
@@ -168,7 +177,7 @@ async function initializeRepo({
   }
 
   writeAutomergeUrl(handle.url)
-  return { repo }
+  return { repo, hostConnection }
 }
 
 const cache = new Map<string, Promise<InitializeRepoResult>>()
@@ -188,7 +197,7 @@ function WithWebClientContextProviders({
 }: {
   children: React.ReactNode
 }) {
-  const { repo } = use(
+  const { repo, hostConnection } = use(
     initializeRepoCached({
       syncServerUrl,
     }),
@@ -201,6 +210,7 @@ function WithWebClientContextProviders({
         repoContext: repo,
         blobEndpoints,
         eventTarget,
+        hostConnection,
       }}
     >
       {children}

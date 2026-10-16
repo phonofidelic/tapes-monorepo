@@ -40,6 +40,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
 // fires.
 const EVENT_ALLOWLIST: Record<ValidIpcEvent, true> = {
   'sync:connected-devices': true,
+  'session:settled': true,
 }
 
 const validChannels = Object.keys(CHANNEL_ALLOWLIST) as ValidIpcChanel[]

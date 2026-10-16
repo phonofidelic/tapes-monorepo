@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import {
+  hostSession,
   startSyncServer,
   stopSyncServer,
 } from '../../electron-client/src/syncServer'
@@ -53,6 +54,8 @@ type Command =
   | { id: number; type: 'recordings' }
   | { id: number; type: 'stop' }
   | { id: number; type: 'restart' }
+  | { id: number; type: 'session-start' }
+  | { id: number; type: 'session-stop' }
   | { id: number; type: 'dispose' }
 
 type Paths = {
@@ -390,6 +393,11 @@ async function run(command: Command): Promise<unknown> {
       return stopSyncServer()
     case 'restart':
       return listen(paths!)
+    // What the desktop app's start and stop channels call.
+    case 'session-start':
+      return hostSession.start(rootDocumentUrl!)
+    case 'session-stop':
+      return hostSession.stop()
     case 'dispose':
       disposing = true
       peer?.disconnect()

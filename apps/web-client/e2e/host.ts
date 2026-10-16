@@ -202,6 +202,16 @@ export class Host {
     return this.send<void>({ type: 'restart' })
   }
 
+  /** Opens a session on the root document, as the host's Start button does. */
+  startSession(): Promise<{ sessionId: string; startedAt: string }> {
+    return this.send({ type: 'session-start' })
+  }
+
+  /** Closes the open session, as the host's Stop button does. */
+  stopSession(): Promise<void> {
+    return this.send<void>({ type: 'session-stop' })
+  }
+
   async dispose(): Promise<void> {
     if (!this.child) {
       return
@@ -273,6 +283,17 @@ export function stopHost(): Promise<void> {
 
 export function restartHost(): Promise<void> {
   return defaultHost.restart()
+}
+
+export function startHostSession(): Promise<{
+  sessionId: string
+  startedAt: string
+}> {
+  return defaultHost.startSession()
+}
+
+export function stopHostSession(): Promise<void> {
+  return defaultHost.stopSession()
 }
 
 export function disposeHost(): Promise<void> {

@@ -11,12 +11,18 @@ const SESSION = {
   startedAt: '2026-10-16T10:00:00.000Z',
 }
 
+const CLOSED = {
+  sessionId: 'session-1',
+  signsAt: '2026-10-16T10:01:00.000Z',
+}
+
 function fakeSession(overrides: Partial<HostSession> = {}): HostSession {
   return {
     start: vi.fn(async () => SESSION),
-    stop: vi.fn(async () => {}),
+    stop: vi.fn(async () => CLOSED),
     current: vi.fn(() => SESSION),
     clearStale: vi.fn(async () => {}),
+    onSettled: vi.fn(() => () => {}),
     ...overrides,
   }
 }
@@ -60,6 +66,14 @@ describe('the session channels', () => {
     const response = await new StopSessionChannel(session).handle()
 
     expect(session.stop).toHaveBeenCalled()
+    expect(response).toEqual({ success: true, data: { closed: CLOSED } })
+  })
+
+  it('answers a stop with nothing open with no closed session', async () => {
+    const session = fakeSession({ stop: async () => undefined })
+
+    const response = await new StopSessionChannel(session).handle()
+
     expect(response).toEqual({ success: true, data: {} })
   })
 

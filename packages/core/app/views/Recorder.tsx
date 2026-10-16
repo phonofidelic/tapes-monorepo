@@ -10,6 +10,7 @@ import { Recording, RootDocument } from '@/types'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useSetting } from '@/context/SettingsContext'
 import { AudioVisualizer } from '@/components/AudioVisualizer'
+import { SessionStrip, useHasSessionStrip } from '@/components/SessionStrip'
 import { getAudioStream, useRequiredAutomergeUrl } from '@/utils'
 import { useAppContext } from '@/context/AppContext'
 import { useRecorder } from '@/context/RecordingContext'
@@ -41,6 +42,7 @@ export function Recorder() {
   })
 
   const { isMonitoring, setIsMonitoring } = useMonitor(audioInputDeviceId)
+  const hasSessionStrip = useHasSessionStrip()
   const {
     time,
     isRecording,
@@ -194,9 +196,13 @@ export function Recorder() {
   return (
     <>
       <div className="flex h-full touch-none flex-col">
+        <SessionStrip />
         <div
           ref={visualizerContainerRef}
-          className="absolute top-0 right-0 bottom-20 left-0 p-4 pt-0"
+          className={clsx('absolute right-0 bottom-20 left-0 p-4 pt-0', {
+            'top-10': hasSessionStrip,
+            'top-0': !hasSessionStrip,
+          })}
         >
           {audioInputDeviceId && isMonitoring && (
             <div className="relative">
