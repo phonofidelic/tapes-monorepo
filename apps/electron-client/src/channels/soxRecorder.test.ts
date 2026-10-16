@@ -84,9 +84,9 @@ describe('starting', () => {
 })
 
 describe('stopping', () => {
-  const startedRecorder = async () => {
+  const startedRecorder = async (sessionId?: string) => {
     const recorder = await newRecorder()
-    const started = recorder.start(startOptions)
+    const started = recorder.start({ ...startOptions, sessionId })
     sox.emit('spawn')
     await started
     return recorder
@@ -121,6 +121,15 @@ describe('stopping', () => {
     await expect(stopped).resolves.toMatchObject({
       filepath: expect.stringContaining('/tapes/recordings/'),
     })
+  })
+
+  it('returns the session the take started in', async () => {
+    const recorder = await startedRecorder('session-1')
+
+    const stopped = recorder.stop()
+    sox.emit('close')
+
+    expect((await stopped).sessionId).toBe('session-1')
   })
 
   it('rejects when nothing is recording', async () => {

@@ -136,18 +136,25 @@ type InitializeRepoParams = {
   syncServerUrl: string | undefined
 }
 
-type InitializeRepoResult = { repo: Repo }
+type InitializeRepoResult = {
+  repo: Repo
+  /** Whether the socket to the host is up. False with no sync server. */
+  isHostConnected: () => boolean
+}
 
 // Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
 // BroadcastChannel always, and a websocket to whichever sync server resolved.
 async function initializeRepo({
   syncServerUrl,
 }: InitializeRepoParams): Promise<InitializeRepoResult> {
+  const hostAdapter = syncServerUrl
+    ? new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey)
+    : undefined
   const network: NetworkAdapterInterface[] = [
     new BroadcastChannelNetworkAdapter(),
   ]
-  if (syncServerUrl) {
-    network.push(new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey))
+  if (hostAdapter) {
+    network.push(hostAdapter)
   }
 
   const repo = new Repo({
@@ -168,7 +175,10 @@ async function initializeRepo({
   }
 
   writeAutomergeUrl(handle.url)
-  return { repo }
+  return {
+    repo,
+    isHostConnected: () => (hostAdapter ? hostAdapter.isConnected() : false),
+  }
 }
 
 const cache = new Map<string, Promise<InitializeRepoResult>>()
@@ -188,7 +198,7 @@ function WithWebClientContextProviders({
 }: {
   children: React.ReactNode
 }) {
-  const { repo } = use(
+  const { repo, isHostConnected } = use(
     initializeRepoCached({
       syncServerUrl,
     }),
@@ -197,7 +207,11 @@ function WithWebClientContextProviders({
   return (
     <Providers
       values={{
-        appContext: { type: 'web-client' as const, worker: getWorker() },
+        appContext: {
+          type: 'web-client' as const,
+          worker: getWorker(),
+          isHostConnected,
+        },
         repoContext: repo,
         blobEndpoints,
         eventTarget,

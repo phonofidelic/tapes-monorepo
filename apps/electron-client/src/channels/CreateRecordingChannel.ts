@@ -5,12 +5,22 @@ import {
   IpcResponse,
   ValidIpcChanel,
 } from '@tapes-monorepo/core'
+import type { HostSession } from '@/hostSession'
+import { hostSession } from '@/syncServer'
 import { SoxRecorder } from './soxRecorder'
 
+/**
+ * Starts sox, and tags the take with the host session open at this moment.
+ * The session comes from the host's own state, which is what the root
+ * document's field is written from.
+ */
 export class CreateRecordingChannel implements IpcChannel {
   name: ValidIpcChanel = 'recorder:start'
 
-  constructor(private recorder: SoxRecorder) {}
+  constructor(
+    private recorder: SoxRecorder,
+    private session: Pick<HostSession, 'current'> = hostSession,
+  ) {}
 
   async handle(request: IpcRequest): Promise<IpcResponse> {
     const { data } = request
@@ -19,7 +29,10 @@ export class CreateRecordingChannel implements IpcChannel {
     }
 
     try {
-      await this.recorder.start(data)
+      await this.recorder.start({
+        ...data,
+        sessionId: this.session.current()?.sessionId,
+      })
       return { success: true }
     } catch (error) {
       // The renderer drops out of its recording state on this. Answering

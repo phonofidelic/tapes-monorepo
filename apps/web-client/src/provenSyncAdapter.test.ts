@@ -136,4 +136,15 @@ describe('ProvenSyncAdapter', () => {
 
     expect(urls).toEqual([])
   })
+
+  it('is connected only while the host has answered on the socket', () => {
+    const adapter = new ProvenSyncAdapter(SYNC_URL, generateSigningKeyPair)
+    const host = 'host' as PeerId
+
+    expect(adapter.isConnected()).toBe(false)
+    adapter.emit('peer-candidate', { peerId: host, peerMetadata: {} })
+    expect(adapter.isConnected()).toBe(true)
+    adapter.emit('peer-disconnected', { peerId: host })
+    expect(adapter.isConnected()).toBe(false)
+  })
 })

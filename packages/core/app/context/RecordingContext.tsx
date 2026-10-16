@@ -12,13 +12,19 @@ import { getAudioStream } from '@/utils'
 import { useSetting } from './SettingsContext'
 import { callWorker } from '@/workerClient'
 import { recordingMimeType } from '@/blobUpload'
+import type { PublishedSession } from '@/types'
+
+type StartOptions = {
+  /** The session the root document shows as open right now. */
+  session?: PublishedSession
+}
 
 const RecordingContext = createContext<{
   isRecording: boolean
   time: number
   handleFilename: string | null
   setIsRecording: (state: boolean) => void
-  startRecording: () => Promise<void>
+  startRecording: (options?: StartOptions) => Promise<void>
   /** Resolves with the encoded signed claim, when one could be made. */
   stopRecording: () => Promise<string | undefined>
 } | null>(null)
@@ -43,7 +49,11 @@ export const RecordingStateProvider = ({
   const isStartingRef = useRef(false)
   const stopRequestedRef = useRef(false)
   // What the claim needs to know about the recording in progress.
-  const takeRef = useRef<{ filename: string; startedAt: string } | null>(null)
+  const takeRef = useRef<{
+    filename: string
+    startedAt: string
+    sessionId?: string
+  } | null>(null)
 
   useEffect(() => {
     if (!isRecording) {
@@ -89,79 +99,91 @@ export const RecordingStateProvider = ({
    * the web client records this way; on electron the main process owns the
    * whole thing and the Recorder view drives it over IPC.
    */
-  const startRecording = useCallback(async () => {
-    if (appContext.type !== 'web-client') {
-      return
-    }
-    const { worker } = appContext
-    setIsRecording(true)
-    isStartingRef.current = true
-    stopRequestedRef.current = false
-
-    try {
-      let filename: string
-      try {
-        const reply = await callWorker<{ filename: string }>(
-          worker,
-          'recorder:start',
-          { audioFormat, audioInputDeviceId },
-        )
-        filename = reply.filename
-      } catch (error) {
-        // Without this the UI stays in the recording state with no recorder.
-        console.error('Failed to start recording:', error)
-        setIsRecording(false)
+  const startRecording = useCallback(
+    async (options?: StartOptions) => {
+      if (appContext.type !== 'web-client') {
         return
       }
-      setHandleFilename(filename)
-
-      let audioStream: MediaStream
-      try {
-        audioStream = await getAudioStream(audioInputDeviceId ?? '')
-      } catch (error) {
-        console.error('Failed to open the audio input:', error)
-        setIsRecording(false)
-        return
-      }
-
-      let recorder: MediaRecorder
-      try {
-        recorder = await getMediaRecorder(audioStream)
-      } catch (error) {
-        // Otherwise this rejects with nothing to catch it. The microphone
-        // would stay open while the UI still showed a recording in progress.
-        console.error('Failed to create the recorder:', error)
-        audioStream.getTracks().forEach((track) => track.stop())
-        setIsRecording(false)
-        return
-      }
-
-      // Attach the listener at construction, before start(), so the first (and
-      // only, without a timeslice) `dataavailable` is never missed.
-      recorder.addEventListener('dataavailable', (event: BlobEvent) => {
-        // Fire and forget: the worker sends no reply to a chunk write.
-        worker.postMessage({
-          type: 'recorder:write',
-          payload: { chunk: event.data },
-        })
-      })
-      mediaRecorderRef.current = recorder
-      recorder.start()
-      takeRef.current = { filename, startedAt: new Date().toISOString() }
-
-      // The stop arrived while the microphone was still opening, so it had no
-      // recorder to act on. Honour it now. Without this the microphone stays
-      // open and the file the worker created is never written.
-      if (stopRequestedRef.current) {
-        // That stop has already returned, so no claim is made for this take.
-        takeRef.current = null
-        void stopRecorder(recorder)
-      }
-    } finally {
-      isStartingRef.current = false
+      const { worker, isHostConnected } = appContext
+      // Read now, not at stop: a take that runs past the session's end still
+      // belongs to it.
+      const sessionId = isHostConnected?.()
+        ? options?.session?.sessionId
+        : undefined
+      setIsRecording(true)
+      isStartingRef.current = true
       stopRequestedRef.current = false
-    }
-  }, [appContext, audioFormat, audioInputDeviceId, stopRecorder])
+
+      try {
+        let filename: string
+        try {
+          const reply = await callWorker<{ filename: string }>(
+            worker,
+            'recorder:start',
+            { audioFormat, audioInputDeviceId },
+          )
+          filename = reply.filename
+        } catch (error) {
+          // Without this the UI stays in the recording state with no recorder.
+          console.error('Failed to start recording:', error)
+          setIsRecording(false)
+          return
+        }
+        setHandleFilename(filename)
+
+        let audioStream: MediaStream
+        try {
+          audioStream = await getAudioStream(audioInputDeviceId ?? '')
+        } catch (error) {
+          console.error('Failed to open the audio input:', error)
+          setIsRecording(false)
+          return
+        }
+
+        let recorder: MediaRecorder
+        try {
+          recorder = await getMediaRecorder(audioStream)
+        } catch (error) {
+          // Otherwise this rejects with nothing to catch it. The microphone
+          // would stay open while the UI still showed a recording in progress.
+          console.error('Failed to create the recorder:', error)
+          audioStream.getTracks().forEach((track) => track.stop())
+          setIsRecording(false)
+          return
+        }
+
+        // Attach the listener at construction, before start(), so the first (and
+        // only, without a timeslice) `dataavailable` is never missed.
+        recorder.addEventListener('dataavailable', (event: BlobEvent) => {
+          // Fire and forget: the worker sends no reply to a chunk write.
+          worker.postMessage({
+            type: 'recorder:write',
+            payload: { chunk: event.data },
+          })
+        })
+        mediaRecorderRef.current = recorder
+        recorder.start()
+        takeRef.current = {
+          filename,
+          startedAt: new Date().toISOString(),
+          sessionId,
+        }
+
+        // The stop arrived while the microphone was still opening, so it had no
+        // recorder to act on. Honour it now. Without this the microphone stays
+        // open and the file the worker created is never written.
+        if (stopRequestedRef.current) {
+          // That stop has already returned, so no claim is made for this take.
+          takeRef.current = null
+          void stopRecorder(recorder)
+        }
+      } finally {
+        isStartingRef.current = false
+        stopRequestedRef.current = false
+      }
+    },
+    [appContext, audioFormat, audioInputDeviceId, stopRecorder],
+  )
 
   /**
    * Flushes the file in the worker first, then stops the recorder. The final
@@ -209,6 +231,7 @@ export const RecordingStateProvider = ({
           mimeType: recordingMimeType(audioFormat),
           startedAt: take.startedAt,
           endedAt,
+          sessionId: take.sessionId,
         },
       )
       return claim

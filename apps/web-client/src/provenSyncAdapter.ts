@@ -28,6 +28,7 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
   declare url: string
   private proving = false
   private stopped = false
+  private hostConnected = false
 
   constructor(
     private readonly baseUrl: string,
@@ -35,6 +36,19 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
   ) {
     super(baseUrl)
+    // The base class's `isReady` turns true after a second whether or not the
+    // host answered, so it cannot say whether the host is reachable.
+    this.on('peer-candidate', () => {
+      this.hostConnected = true
+    })
+    this.on('peer-disconnected', () => {
+      this.hostConnected = false
+    })
+  }
+
+  /** Whether the host has answered on the socket that is open now. */
+  isConnected(): boolean {
+    return this.hostConnected
   }
 
   override connect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
