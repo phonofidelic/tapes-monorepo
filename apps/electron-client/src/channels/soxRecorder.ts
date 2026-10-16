@@ -26,11 +26,14 @@ export type RecordedTake = {
   filepath: string
   startedAt: string
   endedAt: string
+  /** The session open when the take started. Absent outside one. */
+  sessionId?: string
 }
 
 export class SoxRecorder {
   private filepath: string | null = null
   private startedAt: string | null = null
+  private sessionId: string | undefined
   private sox: ChildProcess | null = null
   private soxPath =
     process.env.NODE_ENV !== 'development'
@@ -42,6 +45,7 @@ export class SoxRecorder {
     storageLocation: string
     audioChannelCount: number
     audioFormat: 'mp3' | 'wav' | 'ogg' | 'flac'
+    sessionId?: string
   }) {
     const filepath = path.resolve(
       options.storageLocation,
@@ -75,6 +79,7 @@ export class SoxRecorder {
     this.sox = sox
     this.filepath = filepath
     this.startedAt = new Date().toISOString()
+    this.sessionId = options.sessionId
 
     // Debug sox output:
     // this.sox?.stdout?.on('data', (chunk) => console.log(chunk.toString()))
@@ -86,6 +91,7 @@ export class SoxRecorder {
     const sox = this.sox
     const filepath = this.filepath
     const startedAt = this.startedAt
+    const sessionId = this.sessionId
     if (!sox || !filepath || !startedAt) {
       throw new Error('No recording is in progress')
     }
@@ -115,6 +121,7 @@ export class SoxRecorder {
     this.sox = null
     this.filepath = null
     this.startedAt = null
-    return { filepath, startedAt, endedAt }
+    this.sessionId = undefined
+    return { filepath, startedAt, endedAt, sessionId }
   }
 }

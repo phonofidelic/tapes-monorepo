@@ -57,6 +57,7 @@ export class StopRecordingChannel implements IpcChannel {
           blob: { hash, size, mimeType: mimeTypeOfFile(take.filepath) },
           startedAt: take.startedAt,
           endedAt: take.endedAt,
+          sessionId: take.sessionId,
         },
         await this.loadSigningKey(),
       )
