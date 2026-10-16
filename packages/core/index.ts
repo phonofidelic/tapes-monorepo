@@ -8,6 +8,7 @@ export * from './app/workerClient'
 export * from './app/blobCache'
 export * from './app/blobUpload'
 export * from './app/deviceLabel'
+export * from './app/hostConnection'
 export {
   InvalidAutomergeUrlError,
   readAutomergeUrl,

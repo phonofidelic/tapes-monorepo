@@ -67,6 +67,13 @@ export type PublishedSession = {
   startedAt: string
 }
 
+/** A stopped host session, waiting out its grace period before signing. */
+export type ClosedSession = {
+  sessionId: string
+  /** ISO 8601. When the grace period ends and the record is signed. */
+  signsAt: string
+}
+
 export interface ErrorWithRecover extends Error {
   userMessage?: string | undefined
   recoveryCta: string

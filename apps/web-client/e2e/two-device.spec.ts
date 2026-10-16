@@ -15,7 +15,9 @@ import {
   restartHost,
   seedRecording,
   startHost,
+  startHostSession,
   stopHost,
+  stopHostSession,
   PAIRING_TOKEN,
   type SeededRecording,
 } from './host'
@@ -108,6 +110,33 @@ test.describe('host and guest', () => {
     // its own and had never seen this hash.
     await expect(failureLine(page)).toBeHidden()
     await expect(playerDuration(page)).not.toHaveText('00:00:00')
+  })
+
+  test('a guest sees the host start and stop a session', async ({ page }) => {
+    await pair(page)
+    await page.getByRole('button', { name: 'Recorder' }).click()
+    const strip = page.getByRole('status').filter({ hasText: /session/i })
+    await expect(strip).toContainText('takes recorded now have no session')
+
+    const { sessionId } = await startHostSession()
+    const short = sessionId.replace(/-/g, '').slice(0, 8)
+    try {
+      await expect(strip).toContainText(
+        `Session ${short.slice(0, 4)}·${short.slice(4)}`,
+      )
+      await expect(strip).toContainText(/open \d+:\d\d/)
+    } finally {
+      await stopHostSession()
+    }
+
+    await expect(strip).toContainText('No session')
+
+    await stopHost()
+    try {
+      await expect(strip).toContainText("Can't reach the host")
+    } finally {
+      await restartHost()
+    }
   })
 
   test('a guest keeps nothing it has only played', async ({ page }) => {

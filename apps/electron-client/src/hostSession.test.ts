@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import type { RootDocument } from '@tapes-monorepo/core'
 import { createHostSession } from './hostSession'
-import { createSessionRecorder } from './sessionRecorder'
+import {
+  createSessionRecorder,
+  DEFAULT_SESSION_GRACE_MS,
+  type SessionRecorder,
+} from './sessionRecorder'
 
 const T0 = Date.parse('2026-10-16T10:00:00.000Z')
 
@@ -32,6 +36,7 @@ function setup(root: RootDocument = { recordings: [] }) {
     sessions: recorder,
     getRepo: () => repo,
     newSessionId: () => `session-${++next}`,
+    now: () => T0,
   })
   const published = async (url: AutomergeUrl = docUrl) =>
     (await repo.find<RootDocument>(url)).doc().session
@@ -87,6 +92,54 @@ describe('the host session', () => {
     expect(await published()).toMatchObject({ sessionId: 'session-1' })
     expect(await published(otherUrl)).toBeUndefined()
   })
+
+  it('answers a stop with the time the record will be signed', async () => {
+    const { docUrl, host } = setup()
+    await host.start(docUrl)
+
+    await expect(host.stop()).resolves.toEqual({
+      sessionId: 'session-1',
+      signsAt: new Date(T0 + DEFAULT_SESSION_GRACE_MS).toISOString(),
+    })
+  })
+
+  it.each([
+    ['signed', 'record-hash', { signedAt: new Date(T0).toISOString() }],
+    ['failed to sign', undefined, {}],
+  ])(
+    'tells listeners when a record has %s',
+    async (_, recordHash, expected) => {
+      const repo = new Repo()
+      openRepos.push(repo)
+      const docUrl = repo.create<RootDocument>({ recordings: [] }).url
+      let open: ReturnType<SessionRecorder['current']>
+      const host = createHostSession({
+        sessions: {
+          open: ({ sessionId }) => (open = { sessionId, openedAt: T0 }),
+          current: () => open,
+          close: async () => {
+            open = undefined
+            return recordHash
+          },
+        },
+        getRepo: () => repo,
+        newSessionId: () => 'session-1',
+        now: () => T0,
+      })
+      const listener = vi.fn()
+      host.onSettled(listener)
+      await host.start(docUrl)
+
+      await host.stop()
+
+      await vi.waitFor(() =>
+        expect(listener).toHaveBeenCalledWith({
+          sessionId: 'session-1',
+          ...expected,
+        }),
+      )
+    },
+  )
 
   it('does nothing on stop when no session is open', async () => {
     const { host } = setup()

@@ -1,5 +1,5 @@
 import type { ClaimVerification } from '@tapes-monorepo/provenance'
-import type { PublishedSession } from './types'
+import type { ClosedSession, PublishedSession } from './types'
 
 /**
  * The request/response contract between core and a platform backend.
@@ -54,10 +54,10 @@ export type ValidIpcChanel =
 /**
  * Events the main process sends to the renderer.
  *
- * One entry on purpose. The channels above cover everything the renderer asks
- * for. This is only for state that changes on its own.
+ * The channels above cover everything the renderer asks for. These are only
+ * for state that changes on its own.
  */
-export type ValidIpcEvent = 'sync:connected-devices'
+export type ValidIpcEvent = 'sync:connected-devices' | 'session:settled'
 
 export type IpcRequest = {
   params?: string[]
@@ -142,7 +142,8 @@ export type DeviceKeyResponse =
 
 /**
  * The host session after a start, stop or read. `session` is absent when none
- * is open. A start while one is already open is a failure.
+ * is open. A start while one is already open is a failure. A stop answers with
+ * the session it closed in `closed`, absent when none was open.
  */
 export type HostSessionResponse =
   | {
@@ -151,8 +152,18 @@ export type HostSessionResponse =
     }
   | {
       success: true
-      data: { session?: PublishedSession }
+      data: { session?: PublishedSession; closed?: ClosedSession }
     }
+
+/**
+ * Sent once a stopped session's record is signed, or has failed to sign.
+ * `signedAt` is absent on a failure.
+ */
+export type SessionSettledEvent = {
+  sessionId: string
+  /** ISO 8601. */
+  signedAt?: string
+}
 
 export type HasBlobResponse =
   | {

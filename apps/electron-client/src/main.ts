@@ -15,6 +15,7 @@ import {
 import { readSyncServerConfig } from './syncServerConfig'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
+import { startSessionSettledPush } from './sessionSettledPush'
 import { isSyncServerCert } from './certManager'
 import { loadHostSigningKey } from './hostSigningKey'
 import { hashFromTapesBlobUrl } from './protocolUrls'
@@ -71,6 +72,10 @@ export class MainWindow {
     this.registerSyncServerCertTrust()
     this.registerIpcChannels(ipcChannels)
     this.startConnectedDevicesPush()
+    this.stopSessionSettledPush = startSessionSettledPush(
+      hostSession,
+      () => this.window?.webContents,
+    )
   }
 
   // When the embedded sync server runs over HTTPS, the host's own renderer
@@ -147,6 +152,7 @@ export class MainWindow {
   }
 
   private stopConnectedDevicesPush?: () => void
+  private stopSessionSettledPush?: () => void
 
   /**
    * Forwards connection changes to the renderer as they happen.
@@ -206,6 +212,7 @@ export class MainWindow {
     event.preventDefault()
     this.syncServerStopped = true
     this.stopConnectedDevicesPush?.()
+    this.stopSessionSettledPush?.()
     // Sign any session first. Its record is stored through the running server.
     // Stopping clears the published session before the repo is flushed.
     hostSession

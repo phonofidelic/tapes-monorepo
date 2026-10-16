@@ -17,6 +17,8 @@ import {
   readAutomergeUrl,
   writeAutomergeUrl,
   GenericErrorFallbackScreen,
+  createHostConnection,
+  type HostConnection,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
 import { resolveSyncServerUrl } from './syncServerUrl'
@@ -140,6 +142,8 @@ type InitializeRepoResult = {
   repo: Repo
   /** Whether the socket to the host is up. False with no sync server. */
   isHostConnected: () => boolean
+  /** The same, for the session strip. Absent with no sync server. */
+  hostConnection?: HostConnection
 }
 
 // Builds the repo this shell hands to core: IndexedDB for storage, cross-tab
@@ -150,6 +154,8 @@ async function initializeRepo({
   const hostAdapter = syncServerUrl
     ? new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey)
     : undefined
+  // Made before the repo connects, so it hears the first handshake.
+  const hostConnection = hostAdapter && createHostConnection(hostAdapter)
   const network: NetworkAdapterInterface[] = [
     new BroadcastChannelNetworkAdapter(),
   ]
@@ -178,6 +184,7 @@ async function initializeRepo({
   return {
     repo,
     isHostConnected: () => (hostAdapter ? hostAdapter.isConnected() : false),
+    hostConnection,
   }
 }
 
@@ -198,7 +205,7 @@ function WithWebClientContextProviders({
 }: {
   children: React.ReactNode
 }) {
-  const { repo, isHostConnected } = use(
+  const { repo, isHostConnected, hostConnection } = use(
     initializeRepoCached({
       syncServerUrl,
     }),
@@ -215,6 +222,7 @@ function WithWebClientContextProviders({
         repoContext: repo,
         blobEndpoints,
         eventTarget,
+        hostConnection,
       }}
     >
       {children}

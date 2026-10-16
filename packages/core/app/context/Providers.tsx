@@ -13,6 +13,8 @@ import { usePlayEventQueue } from '../hooks/usePlayEventQueue'
 import type { BlobEndpoint } from '../blobClient'
 import type { EventHost } from '../eventTarget'
 import { PortalsProvider } from './PortalsContext'
+import { HostConnectionProvider } from './HostConnectionContext'
+import type { HostConnection } from '../hostConnection'
 
 /**
  * The player, with its measured play sessions going to the event queue. A
@@ -39,37 +41,41 @@ export function Providers({
     repoContext: Repo | null
     blobEndpoints?: readonly BlobEndpoint[]
     eventTarget?: EventHost
+    /** A guest's link to its host. Left out by a shell with no host. */
+    hostConnection?: HostConnection
   }
   children: React.ReactNode
 }) {
   return (
     <AppContextProvider value={values.appContext}>
-      <SettingsProvider>
-        <ViewProvider>
-          <RepoContext value={values.repoContext}>
-            <RecordingStateProvider>
-              <PortalsProvider>
-                {/* Pins need the endpoints to prefetch; the player needs pins to
+      <HostConnectionProvider connection={values.hostConnection}>
+        <SettingsProvider>
+          <ViewProvider>
+            <RepoContext value={values.repoContext}>
+              <RecordingStateProvider>
+                <PortalsProvider>
+                  {/* Pins need the endpoints to prefetch; the player needs pins to
                   know what it must not evict. */}
-                <BlobProvider endpoints={values.blobEndpoints}>
-                  <PinProvider>
-                    {/* Inside the app context, which supplies the electron ipc
+                  <BlobProvider endpoints={values.blobEndpoints}>
+                    <PinProvider>
+                      {/* Inside the app context, which supplies the electron ipc
                       service. Around the player, so a finished play can ask
                       for the numbers again. */}
-                    <AggregatesProvider target={values.eventTarget}>
-                      {values.repoContext ? (
-                        <CountedPlayback>{children}</CountedPlayback>
-                      ) : (
-                        children
-                      )}
-                    </AggregatesProvider>
-                  </PinProvider>
-                </BlobProvider>
-              </PortalsProvider>
-            </RecordingStateProvider>
-          </RepoContext>
-        </ViewProvider>
-      </SettingsProvider>
+                      <AggregatesProvider target={values.eventTarget}>
+                        {values.repoContext ? (
+                          <CountedPlayback>{children}</CountedPlayback>
+                        ) : (
+                          children
+                        )}
+                      </AggregatesProvider>
+                    </PinProvider>
+                  </BlobProvider>
+                </PortalsProvider>
+              </RecordingStateProvider>
+            </RepoContext>
+          </ViewProvider>
+        </SettingsProvider>
+      </HostConnectionProvider>
     </AppContextProvider>
   )
 }
