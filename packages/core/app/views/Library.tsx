@@ -27,6 +27,7 @@ import { usePins } from '@/context/PinContext'
 import { deleteBlobEverywhere } from '@/blobClient'
 import { FormattedTime } from '@/components/FormattedTime'
 import { PlaybackSummary } from '@/components/PlaybackSummary'
+import { ProvenanceSummary } from '@/components/ProvenanceSummary'
 import { useRequiredAutomergeUrl } from '@/utils'
 import { createPortal } from 'react-dom'
 import { usePortals } from '@/context/PortalsContext'
@@ -151,6 +152,7 @@ function LibraryListItem({
             <span aria-hidden="true">·</span>
             <PlaybackSummary recordingUrl={recording.url} />
           </p>
+          <ProvenanceSummary recording={recording} />
         </div>
         <div className="flex gap-2">
           <div className="relative flex items-center gap-2">

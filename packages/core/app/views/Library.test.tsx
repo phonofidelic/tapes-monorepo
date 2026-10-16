@@ -16,6 +16,16 @@ import type { BlobEndpoint } from '@/blobClient'
 import type { IpcService } from '@/IpcService'
 import type { Recording, RootDocument } from '@/types'
 import { AggregatesProvider } from '@/context/AggregatesContext'
+import {
+  createHostReceipt,
+  createRecordingClaim,
+  generateSigningKeyPair,
+  keyFingerprint,
+  statementAddress,
+  statementBytes,
+  type Signed,
+} from '@tapes-monorepo/provenance'
+import { clearStatementCache } from '@/recordingProvenance'
 import { Library } from './Library'
 
 const REPO_URL = 'automerge:repo' as AutomergeUrl
@@ -117,6 +127,13 @@ vi.mock('@automerge/automerge-repo-react-hooks', () => ({
     }
     return [recording, changeDocument]
   },
+}))
+
+// The key this device signs with, as its backend reports it. Undefined unless
+// a test sets it.
+let localDeviceKey: string | undefined
+vi.mock('@/localDeviceKey', () => ({
+  readLocalDeviceKey: () => Promise.resolve(localDeviceKey),
 }))
 
 vi.mock('@/utils', () => ({
@@ -329,8 +346,13 @@ describe('deleting', () => {
     await userEvent.click(screen.getByTitle('Options'))
     await userEvent.click(screen.getByText('Delete'))
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
-    const released = fetchMock.mock.calls.map(([url]) => url as string)
+    // The row also fetches the statements to check them. Count only deletes.
+    const deletes = () =>
+      fetchMock.mock.calls.filter(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'DELETE',
+      )
+    await waitFor(() => expect(deletes()).toHaveLength(3))
+    const released = deletes().map(([url]) => url as string)
     expect(released).toEqual([
       expect.stringContaining(`/blobs/${HASH}?`),
       expect.stringContaining(`/blobs/${claimHash}?`),
@@ -471,6 +493,204 @@ describe('the editor backdrop', () => {
 
     await waitFor(() =>
       expect(screen.queryByTitle('Close editor')).not.toBeInTheDocument(),
+    )
+  })
+})
+
+// The wording for each provenance state. The statements are really signed and
+// really checked. Only the host serving them is faked.
+describe('provenance on a row', () => {
+  const STARTED_AT = '2026-10-05T12:00:00.000Z'
+  const ENDED_AT = '2026-10-05T12:03:00.000Z'
+  const RECEIVED_AT = '2026-10-05T12:03:02.000Z'
+  const audio = { hash: HASH, size: 1024, mimeType: 'audio/wav' }
+
+  let deviceKeys: CryptoKeyPair
+  let hostKeys: CryptoKeyPair
+
+  beforeEach(async () => {
+    cleanup()
+    clearStatementCache()
+    vi.unstubAllGlobals()
+    localDeviceKey = undefined
+    deviceKeys = await generateSigningKeyPair()
+    hostKeys = await generateSigningKeyPair()
+  })
+
+  const claimFor = (
+    keys: CryptoKeyPair,
+    details: { sessionId?: string; blob?: typeof audio } = {},
+  ) =>
+    createRecordingClaim(
+      {
+        blob: details.blob ?? audio,
+        startedAt: STARTED_AT,
+        endedAt: ENDED_AT,
+        sessionId: details.sessionId,
+      },
+      keys,
+    )
+
+  /** Serves these statements from the host, and a 404 for anything else. */
+  const showRow = async (
+    statements: Signed<unknown>[],
+    listed: string[] = [],
+  ) => {
+    const served = new Map<string, Uint8Array>()
+    for (const statement of statements) {
+      served.set(await statementAddress(statement), statementBytes(statement))
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const hash = String(url).split('/').at(-1) ?? ''
+        const bytes = served.get(hash)
+        return Promise.resolve(
+          bytes
+            ? new Response(bytes.slice(), { status: 200 })
+            : new Response(null, { status: 404 }),
+        )
+      }),
+    )
+    recording = {
+      ...withBlob(),
+      statements: [...served.keys(), ...listed],
+    }
+    renderLibrary(webContext, [ENDPOINT])
+  }
+
+  const details = () => document.querySelector('details')
+
+  it('says so when a recording was never signed', async () => {
+    recording = withBlob()
+    renderLibrary(webContext, [ENDPOINT])
+
+    expect(
+      await screen.findByText(
+        'Not signed. There is no record of which device made it.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('names the device by fingerprint and the host by its receipt time', async () => {
+    const claim = await claimFor(deviceKeys)
+    const receipt = await createHostReceipt(
+      claim,
+      hostKeys,
+      new Date(RECEIVED_AT),
+    )
+    const fingerprint = await keyFingerprint(claim.payload.deviceKey)
+
+    await showRow([claim, receipt])
+
+    expect(
+      await screen.findByText(`Recorded on device ${fingerprint}`, {
+        exact: false,
+      }),
+    ).toHaveTextContent(/received by the host/)
+    expect(details()).toHaveTextContent(
+      /Started .* and ended .*, by the recording device's clock\./,
+    )
+    expect(details()).toHaveTextContent(/Received .*, by the host's clock\./)
+    expect(details()).toHaveTextContent(
+      'Which host signed the receipt is not checked yet.',
+    )
+    const times = [...details()!.querySelectorAll('time')].map((time) =>
+      time.getAttribute('dateTime'),
+    )
+    expect(times).toEqual(
+      expect.arrayContaining([STARTED_AT, ENDED_AT, RECEIVED_AT]),
+    )
+  })
+
+  it('says "this device" for a claim signed with the local key', async () => {
+    const claim = await claimFor(deviceKeys)
+    const receipt = await createHostReceipt(
+      claim,
+      hostKeys,
+      new Date(RECEIVED_AT),
+    )
+    localDeviceKey = claim.payload.deviceKey
+
+    await showRow([claim, receipt])
+
+    expect(
+      await screen.findByText('Recorded on this device', { exact: false }),
+    ).toBeInTheDocument()
+  })
+
+  it('does not present a self-signed receipt as separate confirmation', async () => {
+    const claim = await claimFor(hostKeys)
+    const receipt = await createHostReceipt(
+      claim,
+      hostKeys,
+      new Date(RECEIVED_AT),
+    )
+    localDeviceKey = claim.payload.deviceKey
+
+    await showRow([claim, receipt])
+
+    expect(
+      await screen.findByText('Recorded by the host, on this device.'),
+    ).toBeInTheDocument()
+    expect(details()).toHaveTextContent(
+      'The host recorded this itself and signed its own receipt, so the receipt is not separate confirmation.',
+    )
+    expect(details()).toHaveTextContent(/by the host's clock/)
+  })
+
+  it('marks a claim without a receipt as signed on the device only', async () => {
+    const claim = await claimFor(deviceKeys)
+    localDeviceKey = claim.payload.deviceKey
+
+    await showRow([claim])
+
+    expect(
+      await screen.findByText(
+        'Signed on this device. The host did not confirm when it arrived.',
+      ),
+    ).toBeInTheDocument()
+    expect(details()).toHaveTextContent(/by the recording device's clock/)
+    expect(details()).not.toHaveTextContent(/host's clock/)
+  })
+
+  it('shows the session from the claim', async () => {
+    await showRow([await claimFor(deviceKeys, { sessionId: 'session-42' })])
+
+    await screen.findByText(/^Signed on/)
+    expect(details()).toHaveTextContent('Session session-42.')
+  })
+
+  it('hides the session while the recording has none', async () => {
+    await showRow([await claimFor(deviceKeys)])
+
+    await screen.findByText(/^Signed on/)
+    expect(details()).not.toHaveTextContent(/Session/)
+  })
+
+  it('reports a claim about other audio as a failed check', async () => {
+    const otherAudio = { ...audio, hash: 'b'.repeat(64) }
+
+    await showRow([await claimFor(deviceKeys, { blob: otherAudio })])
+
+    expect(
+      await screen.findByText(
+        "The signature check failed. This recording's record may have been changed.",
+      ),
+    ).toBeInTheDocument()
+    expect(details()).toHaveTextContent(
+      '1 signed statement listed for this recording did not pass.',
+    )
+  })
+
+  it('says it cannot check right now when no host has a statement', async () => {
+    await showRow([await claimFor(deviceKeys)], ['c'.repeat(64)])
+
+    expect(
+      await screen.findByText("Can't check where this was recorded right now."),
+    ).toBeInTheDocument()
+    expect(details()).toHaveTextContent(
+      'No host could send 1 statement for this recording.',
     )
   })
 })

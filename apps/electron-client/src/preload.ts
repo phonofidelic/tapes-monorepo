@@ -27,6 +27,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'blob:cache-put': true,
   'root-document:announce': true,
   'events:get-aggregates': true,
+  'provenance:get-device-key': true,
 }
 
 // Main-process events the renderer may listen for. Nothing asked for these and
