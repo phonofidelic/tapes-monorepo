@@ -6,7 +6,13 @@ import installExtension, {
   REACT_DEVELOPER_TOOLS,
 } from 'electron-devtools-installer'
 import { updateElectronApp } from 'update-electron-app'
-import { flushSessions, getBlobStore, stopSyncServer } from './syncServer'
+import {
+  flushSessions,
+  getBlobStore,
+  hostSession,
+  stopSyncServer,
+} from './syncServer'
+import { readSyncServerConfig } from './syncServerConfig'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
 import { isSyncServerCert } from './certManager'
@@ -172,6 +178,13 @@ export class MainWindow {
       await startSyncServerFromConfig()
     } catch (error) {
       console.error('Failed to start sync server:', error)
+      return
+    }
+    // No session survives a restart, so a published one is left from a crash.
+    for (const url of readSyncServerConfig().knownRoots ?? []) {
+      hostSession.clearStale(url).catch((error) => {
+        console.error(`Could not clear a stale session from ${url}:`, error)
+      })
     }
   }
 
@@ -194,7 +207,10 @@ export class MainWindow {
     this.syncServerStopped = true
     this.stopConnectedDevicesPush?.()
     // Sign any session first. Its record is stored through the running server.
-    flushSessions()
+    // Stopping clears the published session before the repo is flushed.
+    hostSession
+      .stop()
+      .then(flushSessions)
       .then(stopSyncServer)
       .catch((error) => {
         console.error('Failed to stop sync server:', error)

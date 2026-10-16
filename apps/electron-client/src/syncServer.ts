@@ -38,6 +38,7 @@ import {
 } from './syncChallenges'
 import { createSessionRecorder, type OpenSession } from './sessionRecorder'
 import { listSessionRecord } from './sessionDelivery'
+import { createHostSession } from './hostSession'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
 import {
   exportPublicKey,
@@ -212,6 +213,15 @@ export function closeSession(): Promise<string | undefined> {
   return sessions.close()
 }
 
+/**
+ * The session the renderer starts and stops over IPC, published in the root
+ * document. It drives the recorder above.
+ */
+export const hostSession = createHostSession({
+  sessions,
+  getRepo: () => getSyncRepo(),
+})
+
 /** Signs every open and closing session now. Call before stopping to quit. */
 export function flushSessions(): Promise<void> {
   return sessions.flush()
@@ -249,9 +259,9 @@ export function getBlobStore(): BlobStore | undefined {
 
 /**
  * The running host's repo, for the blob GC's walk from the root documents.
- * The only other reader is the session recorder, which lists a signed record
- * on its recordings. Keep this narrow rather than a general seam for
- * interpreting docs in main.
+ * The only other readers are the session code: the recorder lists a signed
+ * record on its recordings, and the host session publishes the open session.
+ * Keep this narrow rather than a general seam for interpreting docs in main.
  */
 export function getSyncRepo(): Repo | undefined {
   return current?.repo

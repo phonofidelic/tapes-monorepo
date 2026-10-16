@@ -15,6 +15,11 @@ import { SetDefaultAudioInputChannel } from './channels/SetDefaultAudioInputChan
 import { SetSyncServerLanChannel } from './channels/SetSyncServerLanChannel'
 import { SetSyncServerHttpsChannel } from './channels/SetSyncServerHttpsChannel'
 import { SoxRecorder } from './channels/soxRecorder'
+import {
+  GetCurrentSessionChannel,
+  StartSessionChannel,
+  StopSessionChannel,
+} from './channels/session'
 import { StopRecordingChannel } from './channels/StopRecordingChannel'
 import { MainWindow } from './main'
 
@@ -39,4 +44,7 @@ new MainWindow().init([
   new AnnounceRootDocumentChannel(),
   new GetAggregatesChannel(),
   new GetDeviceKeyChannel(),
+  new StartSessionChannel(),
+  new StopSessionChannel(),
+  new GetCurrentSessionChannel(),
 ])

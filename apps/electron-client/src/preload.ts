@@ -28,6 +28,9 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'root-document:announce': true,
   'events:get-aggregates': true,
   'provenance:get-device-key': true,
+  'session:start': true,
+  'session:stop': true,
+  'session:get-current': true,
 }
 
 // Main-process events the renderer may listen for. Nothing asked for these and
