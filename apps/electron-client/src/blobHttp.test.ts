@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createHostReceipt,
   createRecordingClaim,
+  createSessionRecord,
   decodeSignedStatement,
   encodeSignedStatement,
   exportPublicKey,
@@ -682,6 +683,19 @@ describe('signed statements on upload', () => {
     )
   }
 
+  async function sessionListing(claims: string[]) {
+    return createSessionRecord(
+      {
+        sessionId: 'session-one',
+        openedAt: new Date('2026-10-05T11:59:00.000Z'),
+        closedAt: new Date('2026-10-05T12:05:00.000Z'),
+        devices: [],
+        claims,
+      },
+      await generateSigningKeyPair(),
+    )
+  }
+
   async function problemOf(response: Response) {
     expect(response.status).toBe(422)
     return ((await response.json()) as { problem: string }).problem
@@ -792,6 +806,57 @@ describe('signed statements on upload', () => {
     const tampered = {
       ...receipt,
       payload: { ...receipt.payload, receivedAt: '2020-01-01T00:00:00.000Z' },
+    }
+
+    const response = await sendStatement(origin, asText(tampered))
+
+    expect(await problemOf(response)).toBe('bad-signature')
+  })
+
+  it('stores a session record once a claim it lists is stored', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    // The other claim is from a recording this host was never sent.
+    const record = await sessionListing([
+      await statementAddress(claim),
+      'f'.repeat(64),
+    ])
+
+    const early = await sendStatement(origin, asText(record))
+    expect(await problemOf(early)).toBe('claim-missing')
+
+    await sendStatement(origin, asText(claim))
+    const late = await sendStatement(origin, asText(record))
+    expect(late.status).toBe(201)
+    await expect(late.json()).resolves.toMatchObject({
+      hash: await statementAddress(record),
+    })
+  })
+
+  it('refuses a session record whose claim was stored as audio', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    await upload(origin, asText(claim))
+
+    const response = await sendStatement(
+      origin,
+      asText(await sessionListing([await statementAddress(claim)])),
+    )
+
+    expect(await problemOf(response)).toBe('claim-missing')
+  })
+
+  it('refuses a session record whose signature does not verify', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    await sendStatement(origin, asText(claim))
+    const record = await sessionListing([await statementAddress(claim)])
+    const tampered = {
+      ...record,
+      payload: { ...record.payload, closedAt: '2030-01-01T00:00:00.000Z' },
     }
 
     const response = await sendStatement(origin, asText(tampered))
