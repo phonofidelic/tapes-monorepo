@@ -332,13 +332,13 @@ function LibraryListItem({
 function LibraryListItemSkeleton() {
   return (
     <div className="flex w-full p-4">
-      <div className="flex w-full flex-col">
-        <div className={`bg-subtle m-1 my-2 h-5 w-40 animate-pulse rounded`} />
+      <div className="flex w-full flex-col gap-4">
+        <div className="bg-subtle mb-1 h-5 w-40 animate-pulse rounded p-1" />
         <div className="flex gap-4">
-          <div className="bg-subtle m-1 h-3 w-12 animate-pulse rounded" />
-          <div className="bg-subtle m-1 h-3 w-40 animate-pulse rounded" />
+          <div className="bg-subtle h-3 w-12 animate-pulse rounded" />
+          <div className="bg-subtle h-3 w-40 animate-pulse rounded" />
         </div>
-        <div className="bg-subtle m-1 h-3 w-64 animate-pulse rounded" />
+        <div className="bg-subtle h-3 w-64 animate-pulse rounded" />
       </div>
       <div className="p-2 not-pointer-coarse:hidden">
         <MdPlayArrow className="fill-subtle animate-pulse" />
