@@ -1,13 +1,15 @@
+import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import type { AppContextValue } from './context/AppContext'
 import type { BlobDescriptor } from './types'
 import type { HasBlobResponse, IpcResponse } from './IpcService'
 import { callWorker } from './workerClient'
 
 /**
- * The device-local copy of blobs held for offline playback. Pinning is the
- * only thing that writes here. Playback streams from the host and keeps
- * nothing, so a guest's storage holds what the user asked to keep rather than
- * everything they have played.
+ * The device-local copy of blobs held for offline playback, and of the signed
+ * statements that let a pinned recording's provenance be checked offline.
+ * Pinning is the only thing that writes here. Playback streams from the host
+ * and keeps nothing, so a guest's storage holds what the user asked to keep
+ * rather than everything they have played.
  *
  * Web keeps blobs in an OPFS `blobs/` directory keyed by hash. Electron hands
  * them to its own blob store, which for a host is already where the bytes
@@ -155,6 +157,48 @@ export async function cacheBlob(
       bytes,
     },
   })
+}
+
+/**
+ * Keeps a pinned recording's signed statement on this device. Web only.
+ * Electron's store is the host's own, which takes statements only through its
+ * checked upload route. Pinning there already copies them in that way.
+ */
+export async function cacheStatement(
+  appContext: AppContextValue,
+  hash: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  if (appContext.type !== 'web-client') {
+    return
+  }
+  const buffer = bytes.slice().buffer
+  await callWorker(
+    appContext.worker,
+    'blob:put',
+    { hash, bytes: buffer },
+    { transfer: [buffer] },
+  )
+}
+
+/** A statement cached by `cacheStatement`, or null if this device has none. */
+export async function readCachedStatement(
+  appContext: AppContextValue,
+  hash: string,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (appContext.type !== 'web-client') {
+    return null
+  }
+  try {
+    const { blob } = await callWorker<{ blob: Blob }>(
+      appContext.worker,
+      'blob:get',
+      { hash, mimeType: STATEMENT_MIME_TYPE },
+    )
+    return new Uint8Array(await blob.arrayBuffer())
+  } catch {
+    return null
+  }
 }
 
 export async function evictCachedBlob(
