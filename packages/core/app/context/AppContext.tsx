@@ -9,6 +9,12 @@ export type AppContextValue =
   | {
       type: 'web-client'
       worker: Worker
+      /**
+       * Whether the sync socket to the host is up. A take started while it is
+       * down signs no session, because the doc may show one that has closed.
+       * Absent on a shell with no host.
+       */
+      isHostConnected?: () => boolean
     }
 
 const AppContext = createContext<AppContextValue | null>(null)

@@ -37,7 +37,7 @@ export function Recorder() {
   const { automergeUrl } = useRequiredAutomergeUrl()
   const repo = useRepo()
   const blobEndpoint = useUploadEndpoint()
-  const [, changeDocState] = useDocument<RootDocument>(automergeUrl, {
+  const [docState, changeDocState] = useDocument<RootDocument>(automergeUrl, {
     suspense: true,
   })
 
@@ -365,7 +365,7 @@ export function Recorder() {
                   disabled={isEditorOpen}
                   onClick={async () => {
                     if (appContext.type === 'web-client' && !isRecording) {
-                      await startRecording()
+                      await startRecording({ session: docState?.session })
                       return
                     }
 

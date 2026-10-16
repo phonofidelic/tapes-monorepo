@@ -9,6 +9,7 @@ import {
   decodeSignedStatement,
   exportPublicKey,
   generateSigningKeyPair,
+  NO_SESSION_ID,
   verifyStatement,
   type RecordingClaim,
   type Signed,
@@ -306,6 +307,31 @@ describe('recorder:claim', () => {
       deviceKey: await exportPublicKey(keyPair.publicKey),
     })
     expect(await verifyStatement(signed, keyPair.publicKey)).toBe(true)
+  })
+
+  it('signs the session the take started in', async () => {
+    addFile('take.webm', 'recorded audio')
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      sessionId: 'session-1',
+      requestId: 'one',
+    })
+
+    expect((await claimFrom('one')).payload.sessionId).toBe('session-1')
+  })
+
+  it('signs the placeholder for a take outside a session', async () => {
+    addFile('take.webm', 'recorded audio')
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      requestId: 'one',
+    })
+
+    expect((await claimFrom('one')).payload.sessionId).toBe(NO_SESSION_ID)
   })
 
   // The last chunk is posted on `dataavailable`, just before the claim is

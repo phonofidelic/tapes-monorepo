@@ -3,6 +3,7 @@ import { render, cleanup, act, waitFor } from '@testing-library/react'
 import { AppContextProvider } from '@/context/AppContext'
 import { getAudioStream } from '@/utils'
 import { callWorker } from '@/workerClient'
+import type { PublishedSession } from '@/types'
 import { RecordingStateProvider, useRecorder } from './RecordingContext'
 
 vi.mock('@/utils', () => ({ getAudioStream: vi.fn() }))
@@ -57,11 +58,11 @@ class FakeMediaRecorder extends EventTarget {
 
 /** The two callbacks under test, reached through the context. */
 type Controls = {
-  startRecording: () => Promise<void>
+  startRecording: (options?: { session?: PublishedSession }) => Promise<void>
   stopRecording: () => Promise<string | undefined>
 }
 
-const renderProvider = () => {
+const renderProvider = (isHostConnected?: () => boolean) => {
   const controls = {} as Controls
 
   const Probe = () => {
@@ -76,6 +77,7 @@ const renderProvider = () => {
       value={{
         type: 'web-client',
         worker: { postMessage: vi.fn() } as unknown as Worker,
+        isHostConnected,
       }}
     >
       <RecordingStateProvider>
@@ -243,5 +245,69 @@ describe('RecordingStateProvider', () => {
       'Failed to create the recorder:',
       expect.any(Error),
     )
+  })
+})
+
+describe('the session a take signs', () => {
+  const session: PublishedSession = {
+    sessionId: 'session-1',
+    startedAt: '2026-10-16T09:00:00.000Z',
+  }
+
+  /** Records a take and returns the session ID its claim was asked for. */
+  async function signedSessionId(
+    controls: Controls,
+    start: { session?: PublishedSession },
+    between: () => void = () => {},
+  ) {
+    vi.mocked(getAudioStream).mockResolvedValue(fakeStream().stream)
+    await act(async () => {
+      await controls.startRecording(start)
+    })
+    between()
+    vi.mocked(callWorker).mockResolvedValue({ claim: 'signed-claim' })
+    await act(async () => {
+      await controls.stopRecording()
+    })
+    const claimCall = vi
+      .mocked(callWorker)
+      .mock.calls.find(([, type]) => type === 'recorder:claim')
+    return (claimCall?.[2] as { sessionId?: string }).sessionId
+  }
+
+  it('is the session open when the take started', async () => {
+    const controls = renderProvider(() => true)
+
+    expect(await signedSessionId(controls, { session })).toBe('session-1')
+  })
+
+  it('stays the starting session when the take stops after it closes', async () => {
+    let connected = true
+    const controls = renderProvider(() => connected)
+
+    const sessionId = await signedSessionId(controls, { session }, () => {
+      // The host closed the session and the guest lost its socket mid-take.
+      connected = false
+    })
+
+    expect(sessionId).toBe('session-1')
+  })
+
+  it('is left out when no session is open', async () => {
+    const controls = renderProvider(() => true)
+
+    expect(await signedSessionId(controls, {})).toBeUndefined()
+  })
+
+  it('is left out when the host is unreachable at start', async () => {
+    const controls = renderProvider(() => false)
+
+    expect(await signedSessionId(controls, { session })).toBeUndefined()
+  })
+
+  it('is left out on a shell with no host', async () => {
+    const controls = renderProvider()
+
+    expect(await signedSessionId(controls, { session })).toBeUndefined()
   })
 })

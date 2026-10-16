@@ -140,7 +140,9 @@ type InitializeRepoParams = {
 
 type InitializeRepoResult = {
   repo: Repo
-  /** Absent with no sync server, which core reads as having no host. */
+  /** Whether the socket to the host is up. False with no sync server. */
+  isHostConnected: () => boolean
+  /** The same, for the session strip. Absent with no sync server. */
   hostConnection?: HostConnection
 }
 
@@ -149,14 +151,16 @@ type InitializeRepoResult = {
 async function initializeRepo({
   syncServerUrl,
 }: InitializeRepoParams): Promise<InitializeRepoResult> {
+  const hostAdapter = syncServerUrl
+    ? new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey)
+    : undefined
+  // Made before the repo connects, so it hears the first handshake.
+  const hostConnection = hostAdapter && createHostConnection(hostAdapter)
   const network: NetworkAdapterInterface[] = [
     new BroadcastChannelNetworkAdapter(),
   ]
-  let hostConnection: HostConnection | undefined
-  if (syncServerUrl) {
-    const adapter = new ProvenSyncAdapter(syncServerUrl, loadDeviceSigningKey)
-    hostConnection = createHostConnection(adapter)
-    network.push(adapter)
+  if (hostAdapter) {
+    network.push(hostAdapter)
   }
 
   const repo = new Repo({
@@ -177,7 +181,11 @@ async function initializeRepo({
   }
 
   writeAutomergeUrl(handle.url)
-  return { repo, hostConnection }
+  return {
+    repo,
+    isHostConnected: () => (hostAdapter ? hostAdapter.isConnected() : false),
+    hostConnection,
+  }
 }
 
 const cache = new Map<string, Promise<InitializeRepoResult>>()
@@ -197,7 +205,7 @@ function WithWebClientContextProviders({
 }: {
   children: React.ReactNode
 }) {
-  const { repo, hostConnection } = use(
+  const { repo, isHostConnected, hostConnection } = use(
     initializeRepoCached({
       syncServerUrl,
     }),
@@ -206,7 +214,11 @@ function WithWebClientContextProviders({
   return (
     <Providers
       values={{
-        appContext: { type: 'web-client' as const, worker: getWorker() },
+        appContext: {
+          type: 'web-client' as const,
+          worker: getWorker(),
+          isHostConnected,
+        },
         repoContext: repo,
         blobEndpoints,
         eventTarget,

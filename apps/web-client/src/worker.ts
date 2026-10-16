@@ -60,6 +60,8 @@ type EventData =
         mimeType: string
         startedAt: string
         endedAt: string
+        /** The session open when the take started. Absent outside one. */
+        sessionId?: string
         requestId: string
       }
     }
@@ -231,7 +233,8 @@ onmessage = async (event) => {
         // Hashes the bytes this device captured and signs a claim over them,
         // before anything is uploaded. Fails without a device key, and the
         // caller then uploads unsigned.
-        const { filename, mimeType, startedAt, endedAt, requestId } = payload
+        const { filename, mimeType, startedAt, endedAt, sessionId, requestId } =
+          payload
         try {
           await pendingWrite
           const keyPair = await loadDeviceSigningKey()
@@ -246,6 +249,7 @@ onmessage = async (event) => {
               },
               startedAt,
               endedAt,
+              sessionId,
             },
             keyPair,
           )
