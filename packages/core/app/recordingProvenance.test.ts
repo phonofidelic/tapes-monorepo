@@ -200,4 +200,39 @@ describe('checkRecordingProvenance', () => {
       ),
     ).rejects.toThrow()
   })
+
+  it('verifies statements kept on this device without asking a host', async () => {
+    const fetchMock = stubHosts({ [LOCAL.baseUrl]: { [claimHash]: 'offline' } })
+    const kept = new Map([
+      [claimHash, statementBytes(claim).slice()],
+      [receiptHash, statementBytes(receipt).slice()],
+    ])
+
+    expect(
+      await checkRecordingProvenance(
+        [LOCAL],
+        { blob, statements },
+        { readCached: async (hash) => kept.get(hash) ?? null },
+      ),
+    ).toMatchObject({ state: 'verified' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('asks a host when the device copy does not match its address', async () => {
+    const fetchMock = stubHosts({
+      [LOCAL.baseUrl]: { [claimHash]: claim, [receiptHash]: receipt },
+    })
+    const damaged = new TextEncoder().encode('not the claim')
+
+    expect(
+      await checkRecordingProvenance(
+        [LOCAL],
+        { blob, statements },
+        {
+          readCached: async (hash) => (hash === claimHash ? damaged : null),
+        },
+      ),
+    ).toMatchObject({ state: 'verified' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })
