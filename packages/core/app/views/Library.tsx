@@ -338,6 +338,7 @@ function LibraryListItemSkeleton() {
           <div className="bg-subtle m-1 h-3 w-12 animate-pulse rounded" />
           <div className="bg-subtle m-1 h-3 w-40 animate-pulse rounded" />
         </div>
+        <div className="bg-subtle m-1 h-3 w-64 animate-pulse rounded" />
       </div>
       <div className="p-2 not-pointer-coarse:hidden">
         <MdPlayArrow className="fill-subtle animate-pulse" />
