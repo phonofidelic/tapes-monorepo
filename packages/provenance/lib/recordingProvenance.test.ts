@@ -7,6 +7,7 @@ import {
   verifyRecordingStatements,
   type FetchedStatement,
 } from './recordingProvenance'
+import { createSessionRecord } from './sessionRecord'
 import {
   exportPublicKey,
   generateSigningKeyPair,
@@ -43,6 +44,30 @@ function receiptFor(
     claim as Parameters<typeof createHostReceipt>[0],
     keys,
     new Date(receivedAt),
+  )
+}
+
+async function sessionFor(claims: Signed<unknown>[], sessionId = 'session-1') {
+  return createSessionRecord(
+    {
+      sessionId,
+      openedAt: new Date('2026-10-05T11:55:00.000Z'),
+      closedAt: new Date('2026-10-05T12:10:00.000Z'),
+      devices: [
+        {
+          deviceKey,
+          label: 'Studio phone',
+          spans: [
+            {
+              joinedAt: '2026-10-05T11:58:00.000Z',
+              leftAt: '2026-10-05T12:10:00.000Z',
+            },
+          ],
+        },
+      ],
+      claims: await Promise.all(claims.map((claim) => statementAddress(claim))),
+    },
+    hostKeys,
   )
 }
 
@@ -257,6 +282,108 @@ describe('verifyRecordingStatements', () => {
         Promise.resolve({ hash: 'ef'.repeat(32), bytes: null }),
       ),
     ).toMatchObject({ state: 'failed' })
+  })
+
+  it('shows the session from a record that lists the claim', async () => {
+    const claim = await signedClaim()
+
+    expect(
+      await verify(
+        fetched(claim),
+        fetched(await receiptFor(claim)),
+        fetched(await sessionFor([claim])),
+      ),
+    ).toMatchObject({
+      state: 'verified',
+      sessionId: 'session-1',
+      session: {
+        openedAt: '2026-10-05T11:55:00.000Z',
+        closedAt: '2026-10-05T12:10:00.000Z',
+        hostKey: await exportPublicKey(hostKeys.publicKey),
+        // The label is the device's own word, so it is not passed on.
+        devices: [
+          {
+            deviceKey,
+            spans: [
+              {
+                joinedAt: '2026-10-05T11:58:00.000Z',
+                leftAt: '2026-10-05T12:10:00.000Z',
+              },
+            ],
+          },
+        ],
+      },
+    })
+  })
+
+  it('shows the session on a claim signed on device only', async () => {
+    const claim = await signedClaim()
+
+    expect(
+      await verify(fetched(claim), fetched(await sessionFor([claim]))),
+    ).toMatchObject({ state: 'device-only', session: { devices: [{}] } })
+  })
+
+  it('has no session without a session record', async () => {
+    const claim = await signedClaim()
+
+    expect(
+      await verify(fetched(claim), fetched(await receiptFor(claim))),
+    ).not.toHaveProperty('session')
+  })
+
+  it('fails a session record for another session', async () => {
+    const claim = await signedClaim()
+    const record = await sessionFor([claim], 'session-2')
+
+    expect(
+      await verify(
+        fetched(claim),
+        fetched(await receiptFor(claim)),
+        fetched(record),
+      ),
+    ).toEqual({
+      state: 'failed',
+      failures: [
+        { hash: await statementAddress(record), problem: 'session-mismatch' },
+      ],
+    })
+  })
+
+  it('fails a session record that does not list the claim', async () => {
+    const claim = await signedClaim()
+    const other = await signedClaim({ hash: 'cd'.repeat(32), size: 1 })
+    const record = await sessionFor([other])
+
+    expect(
+      await verify(
+        fetched(claim),
+        fetched(await receiptFor(claim)),
+        fetched(record),
+      ),
+    ).toEqual({
+      state: 'failed',
+      failures: [
+        {
+          hash: await statementAddress(record),
+          problem: 'claim-not-in-session',
+        },
+      ],
+    })
+  })
+
+  it('fails a session record whose signature does not verify', async () => {
+    const claim = await signedClaim()
+    const record = await sessionFor([claim])
+    const tampered = {
+      ...record,
+      payload: { ...record.payload, closedAt: '2026-10-05T13:00:00.000Z' },
+    }
+
+    expect(await verify(fetched(claim), fetched(tampered))).toMatchObject({
+      state: 'failed',
+      failures: [{ problem: 'bad-signature' }],
+    })
   })
 
   it('treats a listed address that repeats as one statement', async () => {

@@ -48,12 +48,16 @@ function claim(sessionId: string): RecordingClaim {
 }
 
 /** A recorder whose grace periods end only when the test says so. */
-function setup(connections: SyncConnection[] = []) {
+function setup(
+  connections: SyncConnection[] = [],
+  onSigned?: Parameters<typeof createSessionRecorder>[0]['onSigned'],
+) {
   let endGrace = () => {}
   const recorder = createSessionRecorder({
     loadSigningKey: async () => hostKeyPair,
     getStore: () => store,
     getConnections: () => connections,
+    onSigned,
     now: () => clock,
     wait: () =>
       new Promise((resolve) => {
@@ -191,6 +195,33 @@ describe('createSessionRecorder', () => {
     expect(await first).toBeDefined()
     expect(recorder.current()).toBeUndefined()
     expect((await store.listObjects()).length).toBe(2)
+  })
+
+  it('hands the stored record to be listed on its recordings', async () => {
+    const onSigned = vi.fn(async () => {})
+    const { recorder } = setup([], onSigned)
+    recorder.open({ sessionId: 'session-1', docUrl: DOC_URL })
+    recorder.claimVerified(claim('session-1'), 'aa'.repeat(32))
+
+    const hash = await recorder.close({ graceMs: 0 })
+
+    expect(onSigned).toHaveBeenCalledWith({
+      docUrl: DOC_URL,
+      recordHash: hash,
+      claims: ['aa'.repeat(32)],
+    })
+  })
+
+  it('keeps the record when it cannot be listed', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { recorder } = setup([], async () => {
+      throw new Error('no repo')
+    })
+    recorder.open({ sessionId: 'session-1', docUrl: DOC_URL })
+
+    await readRecord(await recorder.close({ graceMs: 0 }))
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
   })
 
   it('resolves undefined when there is nothing to close', async () => {

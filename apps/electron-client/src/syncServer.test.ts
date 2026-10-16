@@ -4,6 +4,7 @@ import path from 'path'
 import { WebSocket } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'crypto'
+import type { Recording, RootDocument } from '@tapes-monorepo/core'
 import {
   RECORDING_CLAIM_HEADER,
   checkSessionRecord,
@@ -27,6 +28,7 @@ import {
   flushSessions,
   getBlobStore,
   getSyncConnections,
+  getSyncRepo,
   onSyncConnectionsChange,
   openSession,
   startSyncServer,
@@ -278,7 +280,6 @@ describe('connected devices', () => {
 
 describe('session records', () => {
   const TOKEN = 'secret'
-  const DOC = 'automerge:root'
 
   async function startWithStore(hostKey: CryptoKeyPair) {
     storagePath = await mkdtemp(path.join(tmpdir(), 'tapes-sync-'))
@@ -291,6 +292,14 @@ describe('session records', () => {
       pairingToken: TOKEN,
       loadSigningKey: async () => hostKey,
     })
+  }
+
+  /** A root document on the running host, with one recording. */
+  function seedRoot() {
+    const repo = getSyncRepo()!
+    const recording = repo.create<Partial<Recording>>({})
+    const root = repo.create<RootDocument>({ recordings: [recording.url] })
+    return { docUrl: root.url, recording }
   }
 
   /** What a guest does before it opens the socket. */
@@ -384,12 +393,17 @@ describe('session records', () => {
     const hostKey = await generateSigningKeyPair()
     const info = await startWithStore(hostKey)
     const guestKey = await generateSigningKeyPair()
-    openSession({ sessionId: 'session-1', docUrl: DOC })
+    const { docUrl, recording } = seedRoot()
+    openSession({ sessionId: 'session-1', docUrl })
     const socket = await open(
       await provenUrl(`${info.url}/sync?t=${TOKEN}&d=Phone`, guestKey),
     )
     const baseUrl = info.url.replace('ws:', 'http:')
     const accepted = await upload(baseUrl, 'session-1', guestKey)
+    // What the guest's recorder writes once the upload answers.
+    recording.change((doc) => {
+      doc.statements = [accepted]
+    })
 
     const pending = closeSession()
     await flushSessions()
@@ -411,6 +425,7 @@ describe('session records', () => {
         },
       ],
     })
-    expect(await getBlobStore()!.refs(hash!)).toEqual([DOC])
+    expect(await getBlobStore()!.refs(hash!)).toEqual([docUrl])
+    expect(recording.doc().statements).toEqual([accepted, hash])
   })
 })
