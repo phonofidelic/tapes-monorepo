@@ -2,9 +2,11 @@ import type { Readable } from 'stream'
 import {
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
+  SESSION_RECORD_TYPE,
   STATEMENT_MIME_TYPE,
   checkHostReceipt,
   checkRecordingClaim,
+  checkSessionRecord,
   parseSignedStatement,
   statementBytes,
   statementType,
@@ -14,11 +16,13 @@ import { BlobTooLargeError, type BlobStore } from './blobStore'
 
 /**
  * Checks a signed statement sent to `/blobs`, so a client can copy a
- * recording's claim and receipt to a host that only had its audio.
+ * recording's claim, receipt and session record to a host that only had its
+ * audio.
  *
  * Any peer can make a key and sign, so a valid signature alone filters almost
  * nothing. Each statement must also bind to what this host already holds. A
- * claim needs its audio here, and a receipt needs its claim here.
+ * claim needs its audio here. A receipt needs its claim here, and a session
+ * record needs at least one of the claims it lists.
  *
  * Do not import `electron` here. The sync server uses this module, and it
  * stays testable in a plain node process.
@@ -40,7 +44,7 @@ export type StatementProblem =
   | 'unknown-type'
   /** The claim names audio this host does not hold. */
   | 'audio-missing'
-  /** The receipt names a claim this host does not hold. */
+  /** The receipt or session record names no claim this host holds. */
   | 'claim-missing'
 
 export type StatementCheck =
@@ -110,6 +114,9 @@ export async function checkUploadedStatement(
   if (type === HOST_RECEIPT_TYPE) {
     return checkReceipt(signed, store)
   }
+  if (type === SESSION_RECORD_TYPE) {
+    return checkSession(signed, store)
+  }
   return { ok: false, problem: 'unknown-type' }
 }
 
@@ -136,16 +143,37 @@ async function checkReceipt(
   if (!check.ok) {
     return { ok: false, problem: check.problem }
   }
+  return (await holdsClaim(store, check.receipt.payload.claim))
+    ? { ok: true }
+    : { ok: false, problem: 'claim-missing' }
+}
+
+async function checkSession(
+  signed: Signed<unknown>,
+  store: BlobStore,
+): Promise<StatementCheck> {
+  const check = await checkSessionRecord(signed)
+  if (!check.ok) {
+    return { ok: false, problem: check.problem }
+  }
+  // One is enough. The other claims in a session may belong to recordings
+  // this host was never sent.
+  for (const address of check.record.payload.claims) {
+    if (await holdsClaim(store, address)) {
+      return { ok: true }
+    }
+  }
+  return { ok: false, problem: 'claim-missing' }
+}
+
+/** Whether a verified claim is stored here under this address. */
+async function holdsClaim(store: BlobStore, address: string): Promise<boolean> {
   // Only verified statements are stored under this MIME type. Any bytes can be
   // stored as audio, so the type alone would not show the claim was checked.
-  const address = check.receipt.payload.claim
   const meta = await store.stat(address)
   const claim =
     meta?.mimeType === STATEMENT_MIME_TYPE
       ? await readStoredStatement(store, address)
       : null
-  if (!claim || statementType(claim) !== RECORDING_CLAIM_TYPE) {
-    return { ok: false, problem: 'claim-missing' }
-  }
-  return { ok: true }
+  return claim !== null && statementType(claim) === RECORDING_CLAIM_TYPE
 }

@@ -1,6 +1,6 @@
 import {
-  HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_HEADER,
+  RECORDING_CLAIM_TYPE,
   STATEMENT_MIME_TYPE,
 } from '@tapes-monorepo/provenance'
 import { SyncServerInfo } from './services/SyncService'
@@ -594,8 +594,8 @@ export type ReplicatedStatements = {
  * never turns a successful playback into an error.
  *
  * The recording's signed statements go too, after the audio. A host stores a
- * claim only once it holds the audio, and a receipt only once it holds the
- * claim.
+ * claim only once it holds the audio. It stores a receipt or session record
+ * only once it holds a claim that statement names.
  */
 export async function replicateBlob(
   endpoints: readonly BlobEndpoint[],
@@ -623,7 +623,8 @@ export async function replicateBlob(
       if (!copied) {
         return
       }
-      // In order, since a receipt is refused until its claim is stored.
+      // In order, since a receipt or session record is refused until a claim
+      // it names is stored.
       for (const statement of await statements) {
         await copyBlob(endpoint, statement.blob, {
           mimeType: STATEMENT_MIME_TYPE,
@@ -668,7 +669,7 @@ async function copyBlob(
 }
 
 /**
- * The statements that could be fetched, claims before receipts. One that
+ * The statements that could be fetched, claims before anything else. One that
  * cannot be fetched is skipped. The others are still worth copying.
  */
 async function fetchStatements(
@@ -681,7 +682,7 @@ async function fetchStatements(
     statements.hashes.map(async (hash) => {
       try {
         const { blob } = await fetchBlobFromAny(statements.sources, hash)
-        return { hash, blob, isReceipt: await isReceipt(blob) }
+        return { hash, blob, isClaim: await isClaim(blob) }
       } catch (error) {
         console.warn('Could not fetch a signed statement to replicate:', error)
         return null
@@ -690,16 +691,16 @@ async function fetchStatements(
   )
   return fetched
     .filter((statement) => statement !== null)
-    .sort((a, b) => Number(a.isReceipt) - Number(b.isReceipt))
+    .sort((a, b) => Number(b.isClaim) - Number(a.isClaim))
     .map(({ hash, blob }) => ({ hash, blob }))
 }
 
-async function isReceipt(blob: Blob): Promise<boolean> {
+async function isClaim(blob: Blob): Promise<boolean> {
   try {
     const signed = JSON.parse(await blob.text()) as {
       payload?: { type?: unknown }
     }
-    return signed.payload?.type === HOST_RECEIPT_TYPE
+    return signed.payload?.type === RECORDING_CLAIM_TYPE
   } catch {
     return false
   }

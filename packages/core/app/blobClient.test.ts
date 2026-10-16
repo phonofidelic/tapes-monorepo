@@ -584,6 +584,7 @@ describe('replicateBlob', () => {
   describe('with statements', () => {
     const CLAIM_HASH = 'c'.repeat(64)
     const RECEIPT_HASH = 'b'.repeat(64)
+    const SESSION_HASH = 'e'.repeat(64)
     const CLAIM = JSON.stringify({
       payload: { type: 'tapes/recording@1' },
       signature: 'claim-sig',
@@ -592,10 +593,15 @@ describe('replicateBlob', () => {
       payload: { type: 'tapes/receipt@1', claim: CLAIM_HASH },
       signature: 'receipt-sig',
     })
+    const SESSION = JSON.stringify({
+      payload: { type: 'tapes/session@1', claims: [CLAIM_HASH] },
+      signature: 'session-sig',
+    })
     const HASH_BY_BODY: Record<string, string> = {
       'audio bytes': HASH,
       [CLAIM]: CLAIM_HASH,
       [RECEIPT]: RECEIPT_HASH,
+      [SESSION]: SESSION_HASH,
     }
 
     /**
@@ -609,7 +615,11 @@ describe('replicateBlob', () => {
       const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
         if (url.startsWith(LOCAL.baseUrl)) {
           const hash = url.slice(`${LOCAL.baseUrl}/blobs/`.length)
-          const body = { [CLAIM_HASH]: CLAIM, [RECEIPT_HASH]: RECEIPT }[hash]
+          const body = {
+            [CLAIM_HASH]: CLAIM,
+            [RECEIPT_HASH]: RECEIPT,
+            [SESSION_HASH]: SESSION,
+          }[hash]
           return body && !options.missing?.includes(hash)
             ? new Response(body, { status: 200 })
             : jsonResponse(404, { error: 'Unknown blob' })
@@ -649,6 +659,29 @@ describe('replicateBlob', () => {
         { contentType: 'audio/wav', body: 'audio bytes' },
         { contentType: 'application/json', body: CLAIM },
         { contentType: 'application/json', body: RECEIPT },
+      ])
+    })
+
+    // The host refuses a session record until it holds a claim the record
+    // lists.
+    it('sends a session record after the claim it lists', async () => {
+      const uploads = stubReplication()
+
+      await replicateBlob([REMOTE], new Blob(['audio bytes']), {
+        mimeType: 'audio/wav',
+        docUrl: DOC,
+        expectedHash: HASH,
+        statements: {
+          hashes: [SESSION_HASH, RECEIPT_HASH, CLAIM_HASH],
+          sources: [LOCAL],
+        },
+      })
+
+      expect(uploads.map((upload) => upload.body)).toEqual([
+        'audio bytes',
+        CLAIM,
+        SESSION,
+        RECEIPT,
       ])
     })
 
