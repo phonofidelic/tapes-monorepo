@@ -97,8 +97,13 @@ export function Recorder() {
         const handle = await repo.find<Recording>(docUrl)
         handle.change((doc) => {
           doc.blob = blob
-          if (statements.length > 0) {
-            doc.statements = statements
+          // Add rather than replace. The host lists a session record here
+          // after the upload, and a retried upload must not drop it.
+          const listed = new Set(doc.statements ?? [])
+          const added = statements.filter((hash) => !listed.has(hash))
+          if (added.length > 0) {
+            doc.statements ??= []
+            doc.statements.push(...added)
           }
         })
         removePendingUpload(localStorage, docUrl)

@@ -37,6 +37,7 @@ import {
   readProvenDeviceKey,
 } from './syncChallenges'
 import { createSessionRecorder, type OpenSession } from './sessionRecorder'
+import { listSessionRecord } from './sessionDelivery'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
 import {
   exportPublicKey,
@@ -176,6 +177,13 @@ const sessions = createSessionRecorder({
   },
   getStore: () => current?.blobStore,
   getConnections: getSyncConnections,
+  onSigned: async (details) => {
+    const repo = current?.repo
+    if (!repo) {
+      throw new Error('No repo while the sync server is stopped')
+    }
+    return listSessionRecord(repo, details)
+  },
 })
 connectionListeners.add((connections) =>
   sessions.connectionsChanged(connections),
@@ -241,8 +249,9 @@ export function getBlobStore(): BlobStore | undefined {
 
 /**
  * The running host's repo, for the blob GC's walk from the root documents.
- * Nothing else on the host reads document contents, so this stays narrow
- * rather than becoming a general seam for interpreting docs in main.
+ * The only other reader is the session recorder, which lists a signed record
+ * on its recordings. Keep this narrow rather than a general seam for
+ * interpreting docs in main.
  */
 export function getSyncRepo(): Repo | undefined {
   return current?.repo

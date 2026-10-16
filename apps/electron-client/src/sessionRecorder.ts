@@ -13,7 +13,8 @@ import type { SyncConnection } from './syncConnections'
 /**
  * Follows one open session on the host and signs its record when it closes.
  * The record lists the proven device keys that were connected, with their
- * spans, and the recording claims accepted for the session.
+ * spans, and the recording claims accepted for the session. Once the record
+ * is stored, `onSigned` lists it on the recordings it covers.
  *
  * A claim counts when its session ID matches and it is verified while the
  * session is open or within a grace period after it closes. A take that runs
@@ -43,7 +44,7 @@ export type SessionRecorder = {
   claimVerified(claim: RecordingClaim, claimAddress: string): void
   /**
    * Closes the open session and resolves with the stored record's hash once it
-   * is signed, after the grace period. Resolves undefined when nothing was open
+   * is signed and listed, after the grace period. Resolves undefined when nothing was open
    * or the record could not be signed or stored.
    */
   close(options?: { graceMs?: number }): Promise<string | undefined>
@@ -70,6 +71,7 @@ export function createSessionRecorder({
   loadSigningKey,
   getStore,
   getConnections,
+  onSigned,
   graceMs: defaultGraceMs = DEFAULT_SESSION_GRACE_MS,
   now = Date.now,
   wait = (ms) =>
@@ -83,6 +85,15 @@ export function createSessionRecorder({
   getStore: () => BlobStore | undefined
   /** Who is connected right now, for a session opened mid-connection. */
   getConnections: () => SyncConnection[]
+  /**
+   * Called once a record is stored, to list it on its recordings. A failure
+   * is logged and does not undo the record.
+   */
+  onSigned?: (details: {
+    docUrl: string
+    recordHash: string
+    claims: string[]
+  }) => Promise<unknown>
   graceMs?: number
   now?: () => number
   wait?: (ms: number) => Promise<void>
@@ -176,7 +187,18 @@ export function createSessionRecorder({
         if (graceMs > 0) {
           await Promise.race([wait(graceMs), skipped])
         }
-        return await sign(tracked, closedAt)
+        const recordHash = await sign(tracked, closedAt)
+        await onSigned?.({
+          docUrl: tracked.docUrl,
+          recordHash,
+          claims: [...tracked.claims],
+        }).catch((error: unknown) => {
+          console.error(
+            `Could not list the record for session ${tracked.session.sessionId}:`,
+            error,
+          )
+        })
+        return recordHash
       } catch (error) {
         console.error(
           `Could not sign the record for session ${tracked.session.sessionId}:`,

@@ -20,12 +20,14 @@ const RECORDED_FILE = 'take-one.webm'
 
 /** Every change applied to the recording doc, in order. */
 let documentWrites: Partial<Recording>[] = []
+/** What each change starts from. */
+let existingDoc: Partial<Recording> = {}
 const changeRepoState = vi.fn()
 
 const handle = {
   url: RECORDING_URL,
   change: (mutate: (doc: Partial<Recording>) => void) => {
-    const draft: Partial<Recording> = {}
+    const draft = structuredClone(existingDoc)
     mutate(draft)
     documentWrites.push(draft)
   },
@@ -172,6 +174,7 @@ beforeEach(() => {
     }),
   )
   documentWrites = []
+  existingDoc = {}
   changeRepoState.mockClear()
 })
 
@@ -276,6 +279,39 @@ describe('saving a recording', () => {
     expect(documentWrites.find((write) => write.blob)?.statements).toEqual(
       statements,
     )
+  })
+
+  it('keeps statements already listed when an upload lists more', async () => {
+    const sessionRecord = 'e'.repeat(64)
+    const claim = 'c'.repeat(64)
+    existingDoc = { statements: [claim, sessionRecord] }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            hash: HASH,
+            size: 5,
+            mimeType: 'audio/webm',
+            ext: '.webm',
+            statements: [claim, 'd'.repeat(64)],
+          }),
+          { status: 201 },
+        ),
+      ),
+    )
+
+    renderRecorder(ENDPOINT, recordedFile())
+    await saveRecording()
+
+    await waitFor(() =>
+      expect(documentWrites.some((write) => write.blob)).toBe(true),
+    )
+    expect(documentWrites.find((write) => write.blob)?.statements).toEqual([
+      claim,
+      sessionRecord,
+      'd'.repeat(64),
+    ])
   })
 
   it('still saves, and queues a retry, when the upload fails', async () => {

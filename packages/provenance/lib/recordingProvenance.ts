@@ -15,12 +15,16 @@ import {
   type ReceiptProblem,
 } from './hostReceipt'
 import { parseSignedStatement, statementType } from './recordingClaim'
+import { checkSessionRecord, type SessionRecordProblem } from './sessionRecord'
 import { statementBytes } from './signing'
 import {
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
+  SESSION_RECORD_TYPE,
   type HostReceipt,
   type RecordingClaim,
+  type SessionRecord,
+  type SessionSpan,
   type Signed,
 } from './types'
 
@@ -41,8 +45,13 @@ export type StatementProblem =
   | 'not-canonical'
   /** The receipt names a claim that is not listed or did not pass. */
   | 'claim-not-listed'
+  /** The session record is for a session no passing claim belongs to. */
+  | 'session-mismatch'
+  /** The session record is for the claim's session but does not list it. */
+  | 'claim-not-in-session'
   | ClaimProblem
   | ReceiptProblem
+  | SessionRecordProblem
 
 /** The fields a passing claim vouches for. Times are the device's clock. */
 export type ClaimedRecording = {
@@ -51,6 +60,19 @@ export type ClaimedRecording = {
   endedAt: string
   /** `NO_SESSION_ID` when the recording belongs to no session. */
   sessionId: string
+  /** From a passing session record that lists the claim, when one is listed. */
+  session?: VerifiedSession
+}
+
+/**
+ * The fields a passing session record vouches for. Times are the host's clock.
+ * Device labels are left out: a device names itself, so a label proves nothing.
+ */
+export type VerifiedSession = {
+  openedAt: string
+  closedAt: string
+  hostKey: string
+  devices: { deviceKey: string; spans: SessionSpan[] }[]
 }
 
 export type RecordingProvenance =
@@ -80,6 +102,7 @@ export type RecordingProvenance =
 type Checked =
   | { kind: 'claim'; claim: RecordingClaim }
   | { kind: 'receipt'; receipt: HostReceipt }
+  | { kind: 'session'; record: SessionRecord }
   | { kind: 'unknown' }
   | { kind: 'failed'; problem: StatementProblem }
 
@@ -111,6 +134,12 @@ async function checkStatement(
     const check = await checkHostReceipt(signed)
     return check.ok
       ? { kind: 'receipt', receipt: check.receipt.payload }
+      : { kind: 'failed', problem: check.problem }
+  }
+  if (type === SESSION_RECORD_TYPE) {
+    const check = await checkSessionRecord(signed)
+    return check.ok
+      ? { kind: 'session', record: check.record.payload }
       : { kind: 'failed', problem: check.problem }
   }
   // Later statement types must not break this version.
@@ -149,6 +178,7 @@ export async function verifyRecordingStatements(
   const missing: string[] = []
   const claims = new Map<string, RecordingClaim>()
   const receipts: { hash: string; receipt: HostReceipt }[] = []
+  const sessions: { hash: string; record: SessionRecord }[] = []
 
   const unique = new Map(statements.map((s) => [s.hash, s.bytes]))
   for (const [hash, bytes] of unique) {
@@ -161,6 +191,8 @@ export async function verifyRecordingStatements(
       claims.set(hash, checked.claim)
     } else if (checked.kind === 'receipt') {
       receipts.push({ hash, receipt: checked.receipt })
+    } else if (checked.kind === 'session') {
+      sessions.push({ hash, record: checked.record })
     } else if (checked.kind === 'failed') {
       failures.push({ hash, problem: checked.problem })
     }
@@ -172,6 +204,13 @@ export async function verifyRecordingStatements(
       failures.push({ hash, problem: 'claim-not-listed' })
     }
   }
+  // A session record must cover a passing claim, for the same reason.
+  for (const { hash, record } of sessions) {
+    const problem = sessionProblem(record, claims)
+    if (problem) {
+      failures.push({ hash, problem })
+    }
+  }
 
   if (failures.length > 0) {
     return { state: 'failed', failures }
@@ -179,6 +218,14 @@ export async function verifyRecordingStatements(
   if (missing.length > 0) {
     return { state: 'unavailable', missing }
   }
+
+  // Every session record now covers a passing claim. A recording belongs to
+  // one session, so the first listed is the one to show.
+  const session = sessions[0]?.record
+  const claimed = (claim: RecordingClaim) => ({
+    ...claimedRecording(claim),
+    ...(session && { session: verifiedSession(session) }),
+  })
 
   // Every receipt now names a passing claim. Several receipts for one claim
   // can come from a retried upload, so show the earliest arrival.
@@ -189,7 +236,7 @@ export async function verifyRecordingStatements(
     const claim = claims.get(earliest.claim)!
     return {
       state: 'verified',
-      ...claimedRecording(claim),
+      ...claimed(claim),
       receivedAt: earliest.receivedAt,
       recordedByHost: earliest.hostKey === claim.deviceKey,
     }
@@ -197,7 +244,7 @@ export async function verifyRecordingStatements(
   // All passing claims describe this recording's audio, so any one will do.
   const [claim] = claims.values()
   if (claim) {
-    return { state: 'device-only', ...claimedRecording(claim) }
+    return { state: 'device-only', ...claimed(claim) }
   }
   return { state: 'unverified' }
 }
@@ -208,5 +255,33 @@ function claimedRecording(claim: RecordingClaim): ClaimedRecording {
     startedAt: claim.startedAt,
     endedAt: claim.endedAt,
     sessionId: claim.sessionId,
+  }
+}
+
+function sessionProblem(
+  record: SessionRecord,
+  claims: Map<string, RecordingClaim>,
+): StatementProblem | undefined {
+  const inSession = [...claims].filter(
+    ([, claim]) => claim.sessionId === record.sessionId,
+  )
+  if (inSession.length === 0) {
+    return 'session-mismatch'
+  }
+  if (!inSession.some(([address]) => record.claims.includes(address))) {
+    return 'claim-not-in-session'
+  }
+  return undefined
+}
+
+function verifiedSession(record: SessionRecord): VerifiedSession {
+  return {
+    openedAt: record.openedAt,
+    closedAt: record.closedAt,
+    hostKey: record.hostKey,
+    devices: record.devices.map(({ deviceKey, spans }) => ({
+      deviceKey,
+      spans,
+    })),
   }
 }
