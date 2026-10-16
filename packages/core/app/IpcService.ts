@@ -1,4 +1,5 @@
 import type { ClaimVerification } from '@tapes-monorepo/provenance'
+import type { PublishedSession } from './types'
 
 /**
  * The request/response contract between core and a platform backend.
@@ -46,6 +47,9 @@ export type ValidIpcChanel =
   | 'root-document:announce'
   | 'events:get-aggregates'
   | 'provenance:get-device-key'
+  | 'session:start'
+  | 'session:stop'
+  | 'session:get-current'
 
 /**
  * Events the main process sends to the renderer.
@@ -136,6 +140,20 @@ export type DeviceKeyResponse =
       data: { publicKey: string }
     }
 
+/**
+ * The host session after a start, stop or read. `session` is absent when none
+ * is open. A start while one is already open is a failure.
+ */
+export type HostSessionResponse =
+  | {
+      success: false
+      error: Error
+    }
+  | {
+      success: true
+      data: { session?: PublishedSession }
+    }
+
 export type HasBlobResponse =
   | {
       success: false
@@ -219,6 +237,9 @@ export type IpcSendArgs =
   | ['root-document:announce', IpcRequest & { data: { url: string } }]
   | ['events:get-aggregates']
   | ['provenance:get-device-key']
+  | ['session:start', IpcRequest & { data: { docUrl: string } }]
+  | ['session:stop']
+  | ['session:get-current']
   | [
       'blob:cache-put',
       IpcRequest & {

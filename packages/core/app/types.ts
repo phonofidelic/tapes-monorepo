@@ -53,6 +53,18 @@ export type Recording = {
  */
 export type RootDocument = {
   recordings: AutomergeUrl[]
+  /**
+   * The session open on the host, absent when none is. Only the host's main
+   * process writes this. Other devices read it and must not change it.
+   */
+  session?: PublishedSession
+}
+
+/** An open host session, as published in the root document. */
+export type PublishedSession = {
+  sessionId: string
+  /** ISO 8601. */
+  startedAt: string
 }
 
 export interface ErrorWithRecover extends Error {
