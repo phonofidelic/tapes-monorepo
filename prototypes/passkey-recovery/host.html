@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- THROWAWAY PROTOTYPE (TAP-217). Not production code. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Passkey prototype host</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <p class="banner">Throwaway prototype for TAP-217. Not Tapes.</p>
+    <h1>Host</h1>
+    <p>
+      Scan with the phone. Change the origin to send the phone to a different
+      hostname.
+    </p>
+    <label>Guest origin <input id="origin" autocomplete="off" /></label>
+    <label>Passkey RP ID <input id="rp" autocomplete="off" /></label>
+    <div id="qr"></div>
+    <p><code id="url"></code></p>
+    <h2>Recordings the host checked</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Device</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody id="claims"></tbody>
+    </table>
+    <p><button id="reset" class="danger">Reset host state</button></p>
+    <script type="module" src="/src/host.ts"></script>
+  </body>
+</html>

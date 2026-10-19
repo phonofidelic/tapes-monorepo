@@ -1,0 +1,90 @@
+/* THROWAWAY PROTOTYPE (TAP-217). Plain styles, big tap targets for phones. */
+:root {
+  --bg: #fff;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --ok: #17663a;
+  --warn: #8a5300;
+  --danger: #a3221b;
+  --line: #ddd;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141414;
+    --fg: #eee;
+    --muted: #aaa;
+    --ok: #6fd39a;
+    --warn: #f0b35a;
+    --danger: #ff8a80;
+    --line: #333;
+  }
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    16px/1.4 system-ui,
+    sans-serif;
+  margin: 0 auto;
+  max-width: 560px;
+  padding: 0 16px 48px;
+}
+.banner {
+  background: var(--warn);
+  color: var(--bg);
+  font-weight: 600;
+  margin: 0 -16px;
+  padding: 6px 16px;
+}
+button {
+  display: block;
+  font: inherit;
+  margin: 8px 0;
+  min-height: 48px;
+  padding: 8px 12px;
+  width: 100%;
+}
+button.danger {
+  color: var(--danger);
+}
+label {
+  display: block;
+  margin: 8px 0;
+}
+input {
+  box-sizing: border-box;
+  font: inherit;
+  padding: 6px;
+  width: 100%;
+}
+.ok {
+  color: var(--ok);
+}
+.warn {
+  color: var(--warn);
+}
+.ids dd,
+#log,
+code {
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+#log {
+  padding-left: 20px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+td,
+th {
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  padding: 4px;
+  text-align: left;
+}
+#qr svg {
+  background: #fff;
+}

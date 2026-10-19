@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- THROWAWAY PROTOTYPE (TAP-217). Not production code. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Passkey prototype guest</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <p class="banner">Throwaway prototype for TAP-217. Not Tapes.</p>
+    <h1>Guest</h1>
+    <p id="status"></p>
+    <dl class="ids">
+      <dt>This device</dt>
+      <dd id="device"></dd>
+      <dt>Person</dt>
+      <dd id="person"></dd>
+    </dl>
+
+    <h2>1. Record</h2>
+    <button id="record">Record (fake) and sign</button>
+
+    <h2>2. First time: set up a person</h2>
+    <label>Name on the passkey <input id="name" value="Tapes tester" /></label>
+    <button id="setup-prf">Create passkey (PRF unlocks a person key)</button>
+    <button id="setup-passkey">
+      Create passkey (passkey is the person key)
+    </button>
+
+    <h2>3. Recover on this device</h2>
+    <button id="recover-prf">Recover with passkey (PRF)</button>
+    <button id="recover-passkey">Recover with passkey (passkey-as-key)</button>
+
+    <h2>Simulate</h2>
+    <button id="wipe" class="danger">Wipe this origin (host IP changed)</button>
+
+    <h2>Log</h2>
+    <ol id="log" reversed></ol>
+
+    <details>
+      <summary>What this browser supports</summary>
+      <dl id="caps"></dl>
+    </details>
+    <script type="module" src="/src/guest.ts"></script>
+  </body>
+</html>
