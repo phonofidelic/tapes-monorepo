@@ -33,6 +33,12 @@ The two names stand for one host on two LAN IPs. Each has its own browser storag
 
 This is closer to the real rehearsal room, because traffic stays on the LAN. Some routers block DNS answers that point at private IPs. If the name does not resolve on the phone, use setup A.
 
+### What does not work
+
+- **An IP address.** WebAuthn only accepts a domain as the RP ID.
+- **Wildcard DNS with the IP in the name**, such as `192-168-1-20.nip.io`. The name changes when the IP changes, so the passkey no longer matches.
+- **A quick tunnel.** Its name changes on every run, for the same reason.
+
 ## Run it
 
 From the repo root:
@@ -92,6 +98,22 @@ NODE_PATH=../../node_modules node smoke.mjs
 ```
 
 Set `CHROMIUM_PATH` if Playwright's own Chromium is not installed. This checks the code paths only. It is not a phone test. In Chromium 141 the virtual authenticator returns no PRF output for an imported credential, so the PRF "new phone" step fails there.
+
+The first smoke scenario reports an EdDSA passkey. That comes from the virtual authenticator. iCloud Keychain, Google Password Manager and 1Password are documented as ES256 only, so expect ES256 on phones.
+
+## Relation to the TAP-220 prototype
+
+The recovery API prototype (`prototypes/recovery-api` on its own branch) also wraps an Ed25519 person key with PRF output. The two formats differ:
+
+|                    | This prototype               | TAP-220                                            |
+| ------------------ | ---------------------------- | -------------------------------------------------- |
+| PRF salt           | `tapes/person-key-wrap@0`    | `tapes/person-key-backup/v1`                       |
+| HKDF info          | `tapes person key wrap`      | `tapes/wrap`, plus `tapes/auth` for a server token |
+| AES-GCM extra data | none                         | `tapes/v1/<credential id>`                         |
+| Stored record      | `{ personKey, iv, wrapped }` | `{ v, alg, iv, ct }`                               |
+| RP ID              | `?rp=` or the page hostname  | the page hostname                                  |
+
+A different salt gives a different PRF output from the same passkey. So one passkey cannot open the other prototype's blob. If both paths ship, they should share one format. The TAP-220 format is the better base, because it is versioned and binds the blob to the credential.
 
 `../../node_modules/.bin/vitest run` checks the certificate verifier against a fake authenticator. `../../node_modules/.bin/tsc -p .` type-checks.
 

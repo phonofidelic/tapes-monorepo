@@ -201,8 +201,8 @@ export async function unlockPrfPerson(
       fromBase64Url(record.wrapped)!,
     )
   } catch {
-    // Seen in Safari's cross-device flow, where PRF output differed from
-    // the same passkey used on the device itself.
+    // Not seen here yet. Reported for iOS 18.0 to 18.3 in the cross-device
+    // flow, where PRF output differed from the same passkey used locally.
     throw new Error('PRF output did not unwrap the key. The PRF value changed.')
   }
   const privateKey = await crypto.subtle.importKey(
