@@ -16,8 +16,11 @@ signing. It does not touch the real app, the host, or pairing.
 ## Run it
 
 The folder has its own `package.json` and lockfile. Install from inside it.
+Run the root `yarn` once first. The provenance source's tsconfig extends a
+workspace package, and tests and builds fail without it.
 
 ```sh
+yarn              # at the repo root, once
 cd prototypes/passphrase-backup
 corepack enable
 yarn
@@ -100,6 +103,21 @@ worker chunk is about 11 kB gzipped.
 **Target:** derivation under about 2 seconds on a mid-range phone. If 64 MiB
 fails or takes much longer, try 46 MiB t=1 next.
 
+### Node baseline (not a phone)
+
+`yarn bench:node 5` on a 2-core Xeon at 2.1 GHz, Node 22.22. This is a cloud
+VM, not a phone. Phones are expected to be several times slower, and Node's
+PBKDF2 is native OpenSSL rather than the browser's WebCrypto.
+
+| Setting                       | Median | Min to max |
+| ----------------------------- | -----: | ---------- |
+| PBKDF2, 600k (proposed)       | 116 ms | 101–119    |
+| PBKDF2, 1.2M                  | 225 ms | 210–239    |
+| Argon2id, 19 MiB, t=2         |  81 ms | 75–113     |
+| Argon2id, 46 MiB, t=1         | 130 ms | 117–167    |
+| Argon2id, 64 MiB, t=3 (prop.) | 311 ms | 274–395    |
+| Argon2id, 128 MiB, t=3        | 601 ms | 527–726    |
+
 ## Phone test script
 
 Use a mid-range phone, not a flagship. Use a non-technical person for steps
@@ -160,5 +178,6 @@ origin starts with an empty IndexedDB.
   version would decide what storage and extractability the person key gets.
 - No device certificate is made. That is out of scope here.
 - Camera scanning uses the native BarcodeDetector where present, which is
-  Chrome on Android. iOS Safari falls back to jsQR, which is slower.
+  Chrome on Android. iOS Safari has it disabled by default, so it falls back
+  to jsQR, which is slower.
 - No strength check for chosen passphrases beyond a length floor.

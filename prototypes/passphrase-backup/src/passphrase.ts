@@ -25,9 +25,11 @@ export function generatePassphrase(words = DEFAULT_WORD_COUNT): string {
 
 /**
  * Applied on both wrap and unwrap. Phone keyboards capitalize the first word
- * and add double spaces, and people type hyphens or dots between words. None
+ * and add double spaces, and people type dots or commas between words. None
  * of those should lock someone out. The cost is that case in a chosen
  * passphrase adds no strength.
+ *
+ * Hyphens are kept, because four EFF words contain one (t-shirt, yo-yo).
  */
 export function normalizePassphrase(text: string): string {
   return text
