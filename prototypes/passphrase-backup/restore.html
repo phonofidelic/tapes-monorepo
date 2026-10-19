@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Restore your identity</title>
+  </head>
+  <body>
+    <div class="banner">
+      Throwaway prototype for TAP-218. Not Tapes. Test keys only.
+    </div>
+    <main>
+      <nav>
+        <a href="./index.html">Back up</a><a href="./restore.html">Restore</a
+        ><a href="./bench.html">Benchmark</a>
+      </nav>
+      <h1>Restore your identity</h1>
+      <p class="muted">
+        This device, at <span id="origin" class="fp"></span>:
+        <span id="current">checking…</span>
+      </p>
+
+      <section>
+        <h2>1. Bring in your backup</h2>
+        <button id="scan">Scan QR code</button>
+        <label class="button secondary"
+          >Choose file or photo<input type="file" id="pick" hidden
+        /></label>
+        <video id="video" hidden muted></video>
+        <button class="secondary" id="stopScan" hidden>Stop camera</button>
+        <details>
+          <summary class="muted">Paste backup text</summary>
+          <textarea id="paste"></textarea>
+          <button class="secondary" id="usePaste">Use pasted text</button>
+        </details>
+        <p id="found"></p>
+      </section>
+
+      <section id="step2" hidden>
+        <h2>2. Enter your passphrase</h2>
+        <input
+          type="text"
+          id="passphrase"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+        <button id="unlock">Restore</button>
+        <p id="result"></p>
+      </section>
+
+      <pre id="log"></pre>
+    </main>
+    <script type="module" src="./src/pages/restore.ts"></script>
+  </body>
+</html>

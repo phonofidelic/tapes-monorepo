@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Back up your identity</title>
+  </head>
+  <body>
+    <div class="banner">
+      Throwaway prototype for TAP-218. Not Tapes. Test keys only.
+    </div>
+    <main>
+      <nav>
+        <a href="./index.html">Back up</a><a href="./restore.html">Restore</a
+        ><a href="./bench.html">Benchmark</a>
+      </nav>
+      <h1>Back up your identity</h1>
+      <p class="muted">
+        Your identity is the key that signs your recordings. It lives only in
+        this browser, at
+        <span id="origin" class="fp"></span>. If the address changes or you get
+        a new phone, you need this backup to keep it.
+      </p>
+
+      <section>
+        <h2>1. Your identity on this device</h2>
+        <p id="keyStatus">Checking…</p>
+        <button id="create">Create identity</button>
+      </section>
+
+      <section id="step2" hidden>
+        <h2>2. Choose a passphrase</h2>
+        <label class="inline"
+          ><input type="radio" name="mode" value="generated" checked /> Give me
+          one (recommended)</label
+        >
+        <label class="inline"
+          ><input type="radio" name="mode" value="chosen" /> I will choose my
+          own</label
+        >
+
+        <div id="generatedBox">
+          <p class="passphrase" id="generated"></p>
+          <button class="secondary" id="regenerate">Different words</button>
+          <p class="muted">
+            Six random words. Write them down on paper now. Spaces and capitals
+            do not matter.
+          </p>
+        </div>
+        <div id="chosenBox" hidden>
+          <label
+            >Passphrase
+            <input type="password" id="chosen" autocomplete="new-password"
+          /></label>
+          <label
+            >Type it again
+            <input type="password" id="chosenAgain" autocomplete="new-password"
+          /></label>
+          <p class="muted" id="chosenHint">
+            At least 4 words or 16 characters.
+          </p>
+        </div>
+
+        <details class="noprint">
+          <summary class="muted">Test settings</summary>
+          <label
+            >Key derivation
+            <select id="kdf">
+              <option value="argon2id">Argon2id, 64 MiB, t=3 (proposed)</option>
+              <option value="pbkdf2">PBKDF2-SHA256, 600,000 iterations</option>
+            </select>
+          </label>
+        </details>
+        <button id="makeBackup">Make backup</button>
+        <p id="wrapStatus" class="muted"></p>
+      </section>
+
+      <section id="step3" hidden>
+        <h2>3. Keep the backup somewhere you will find it</h2>
+        <p>You need <b>both</b> this backup and your passphrase to restore.</p>
+        <p>
+          <b>As a file.</b> Save it to Files, Drive, or send it to yourself.
+        </p>
+        <button id="share">Save or send file…</button>
+        <button class="secondary" id="download">Download file</button>
+        <p>
+          <b>As a QR code.</b> Print it, or take a photo or screenshot of it.
+        </p>
+        <img id="qr" class="qr" alt="Backup QR code" />
+        <p class="muted" id="qrInfo"></p>
+        <button class="secondary" id="print">Print</button>
+        <details class="noprint">
+          <summary class="muted">Backup as text</summary>
+          <textarea id="compact" readonly></textarea>
+        </details>
+      </section>
+
+      <section id="step4" hidden>
+        <h2>4. Check your passphrase</h2>
+        <p>
+          Type your passphrase once more from memory or from your note. This
+          proves the backup opens.
+        </p>
+        <input
+          type="text"
+          id="check"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+        <button id="checkButton">Check</button>
+        <p id="checkStatus"></p>
+      </section>
+
+      <pre id="log"></pre>
+    </main>
+    <script type="module" src="./src/pages/backup.ts"></script>
+  </body>
+</html>
