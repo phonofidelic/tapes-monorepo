@@ -1,0 +1,14 @@
+{
+  "name": "recovery-api-prototype",
+  "private": true,
+  "description": "THROWAWAY PROTOTYPE for TAP-220. Not a workspace. Nothing in apps/ or packages/ depends on it.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "check-types": "tsc --noEmit --allowJs --checkJs --strict --module nodenext --moduleResolution nodenext --target es2022 --types node --typeRoots ../../node_modules/@types src/store.js src/server.js"
+  }
+}

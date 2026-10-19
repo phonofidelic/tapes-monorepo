@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- THROWAWAY PROTOTYPE (TAP-220). Not production code. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tapes recovery prototype</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        max-width: 32rem;
+        margin: 0 auto;
+        padding: 1rem;
+        line-height: 1.4;
+      }
+      button {
+        display: block;
+        width: 100%;
+        margin: 0.5rem 0;
+        padding: 0.9rem;
+        font-size: 1rem;
+      }
+      input {
+        width: 100%;
+        padding: 0.6rem;
+        font-size: 1rem;
+        box-sizing: border-box;
+      }
+      .banner {
+        padding: 0.5rem;
+        border: 2px dashed currentColor;
+        font-size: 0.85rem;
+      }
+      #log {
+        white-space: pre-wrap;
+        font-size: 0.8rem;
+        min-height: 8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="banner">
+      Throwaway prototype. Do not use for real keys. Tapes works without this
+      service.
+    </p>
+    <h1>Back up your Tapes identity</h1>
+    <p>
+      Person key on this device:
+      <strong id="current-key">none on this device</strong>
+    </p>
+
+    <h2>On your first phone</h2>
+    <label for="name">Your name, as the passkey will show it</label>
+    <input id="name" autocomplete="off" placeholder="Alex" />
+    <button id="make-key">1. Make a person key</button>
+    <button id="back-up">2. Back it up with a passkey</button>
+
+    <h2>On a new phone</h2>
+    <button id="restore">Restore with my passkey</button>
+
+    <h2>Testing</h2>
+    <button id="forget">Forget the key on this device</button>
+    <pre id="log"></pre>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
