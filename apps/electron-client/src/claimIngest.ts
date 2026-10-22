@@ -2,6 +2,7 @@ import { Readable } from 'stream'
 import {
   HOST_RECEIPT_TYPE,
   STATEMENT_MIME_TYPE,
+  checkDeviceCertificate,
   checkRecordingClaim,
   createHostReceipt,
   decodeSignedStatement,
@@ -10,6 +11,7 @@ import {
   statementBytes,
   verifyStatement,
   type ClaimVerification,
+  type DeviceCertificate,
   type HostReceipt,
   type RecordingClaim,
   type Signed,
@@ -30,6 +32,9 @@ import { readStoredStatement } from './statementUpload'
  * A claim gets one receipt per host. A repeat upload of the same claim gets the
  * receipt signed the first time, so its time stays the first arrival.
  *
+ * The device certificate the claim names may come with it. It is stored only
+ * if it is that certificate and certifies the claim's device key.
+ *
  * Do not import `electron` here. The sync server uses this module, and it
  * stays testable in a plain node process.
  */
@@ -40,6 +45,8 @@ type ClaimIngestOptions = {
   /** Where verified statements are kept, owned by the recording's document. */
   store: BlobStore
   docUrl: string
+  /** The encoded device certificate sent next to the claim, if any. */
+  certificate?: string
   /**
    * Called once the claim is checked and stored, with its statement address.
    * The host uses it to list the claim in its session record.
@@ -50,8 +57,8 @@ type ClaimIngestOptions = {
 type ClaimIngestResult = {
   claim: ClaimVerification
   /**
-   * Store hashes of the signed claim and receipt, for the recording's
-   * `statements` list. Empty unless the claim verified.
+   * Store hashes of the signed claim, receipt and device certificate, for the
+   * recording's `statements` list. Empty unless the claim verified.
    */
   statements: string[]
 }
@@ -120,19 +127,24 @@ async function receiptAndStore(
   options: ClaimIngestOptions,
 ): Promise<ClaimIngestResult> {
   const receipt = await receiptFor(claim, claimHash, receivedAt, options)
+  const certificate = await certificateFor(claim, options.certificate)
   // The claim stands on its own without a receipt, so a missing host key
   // leaves it verified but uncountersigned.
   if (!receipt) {
     return {
       claim: { status: 'verified' },
-      statements: await storeStatements([claim], options.store, options.docUrl),
+      statements: await storeStatements(
+        [claim, ...certificate],
+        options.store,
+        options.docUrl,
+      ),
     }
   }
 
   // Storing a reused receipt again dedupes it and adds this document as an
   // owner, so it is kept as long as any recording that lists it.
   const statements = await storeStatements(
-    [claim, receipt.signed],
+    [claim, receipt.signed, ...certificate],
     options.store,
     options.docUrl,
   )
@@ -146,6 +158,37 @@ async function receiptAndStore(
     },
     statements,
   }
+}
+
+/**
+ * The certificate to store with the claim: the one it names, for its device
+ * key. Anything else is dropped with a warning. The claim still verifies, and
+ * the Library reports the certificate as unavailable.
+ */
+async function certificateFor(
+  claim: Signed<RecordingClaim>,
+  encoded: string | undefined,
+): Promise<Signed<DeviceCertificate>[]> {
+  const { deviceCert, deviceKey } = claim.payload
+  if (encoded === undefined || deviceCert === undefined) {
+    return []
+  }
+  const signed = decodeSignedStatement(encoded)
+  const check = signed
+    ? await checkDeviceCertificate(signed)
+    : ({ ok: false, problem: 'malformed' } as const)
+  if (!check.ok) {
+    console.warn(`Device certificate not stored: ${check.problem}`)
+    return []
+  }
+  if (
+    (await statementAddress(check.certificate)) !== deviceCert ||
+    check.certificate.payload.deviceKey !== deviceKey
+  ) {
+    console.warn('Device certificate not stored: not the one the claim names')
+    return []
+  }
+  return [check.certificate]
 }
 
 /** The receipt this host already signed for the claim, or a new one. */
