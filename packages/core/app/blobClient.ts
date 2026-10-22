@@ -1,4 +1,6 @@
 import {
+  DEVICE_CERTIFICATE_HEADER,
+  DEVICE_CERTIFICATE_TYPE,
   RECORDING_CLAIM_HEADER,
   RECORDING_CLAIM_TYPE,
   STATEMENT_MIME_TYPE,
@@ -304,23 +306,34 @@ export async function uploadBlob(
     docUrl: string
     /** The recorder's encoded signed claim over these bytes, if it made one. */
     claim?: string
+    /** The encoded device certificate the claim names, if it names one. */
+    certificate?: string
+    /**
+     * For a device certificate sent as a statement, the address of the
+     * claim that names it. The host stores the certificate only for it.
+     */
+    forClaim?: string
     signal?: AbortSignal
   },
 ): Promise<StoredBlob> {
-  const response = await fetch(
-    `${endpoint.baseUrl}/blobs?doc=${encodeURIComponent(options.docUrl)}`,
-    {
-      method: 'POST',
-      headers: {
-        ...authHeaders(endpoint),
-        'Content-Type': options.mimeType,
-        'X-Tapes-Recording-Url': options.docUrl,
-        ...(options.claim ? { [RECORDING_CLAIM_HEADER]: options.claim } : {}),
-      },
-      body,
-      signal: options.signal,
+  const query = new URLSearchParams({
+    doc: options.docUrl,
+    ...(options.forClaim ? { for: options.forClaim } : {}),
+  })
+  const response = await fetch(`${endpoint.baseUrl}/blobs?${query}`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(endpoint),
+      'Content-Type': options.mimeType,
+      'X-Tapes-Recording-Url': options.docUrl,
+      ...(options.claim ? { [RECORDING_CLAIM_HEADER]: options.claim } : {}),
+      ...(options.certificate
+        ? { [DEVICE_CERTIFICATE_HEADER]: options.certificate }
+        : {}),
     },
-  )
+    body,
+    signal: options.signal,
+  })
 
   if (!response.ok) {
     throw await failure(response)
@@ -595,7 +608,8 @@ export type ReplicatedStatements = {
  *
  * The recording's signed statements go too, after the audio. A host stores a
  * claim only once it holds the audio. It stores a receipt or session record
- * only once it holds a claim that statement names.
+ * only once it holds a claim that statement names, and a device certificate
+ * only once it holds the claim that names the certificate.
  */
 export async function replicateBlob(
   endpoints: readonly BlobEndpoint[],
@@ -630,6 +644,7 @@ export async function replicateBlob(
           mimeType: STATEMENT_MIME_TYPE,
           docUrl: options.docUrl,
           expectedHash: statement.hash,
+          forClaim: statement.forClaim,
           label: 'a signed statement',
         })
       }
@@ -645,6 +660,7 @@ async function copyBlob(
     mimeType: string
     docUrl: string
     expectedHash: string
+    forClaim?: string
     label: string
   },
 ): Promise<boolean> {
@@ -652,6 +668,7 @@ async function copyBlob(
     const { blob: stored } = await uploadBlob(endpoint, blob, {
       mimeType: options.mimeType,
       docUrl: options.docUrl,
+      forClaim: options.forClaim,
     })
     if (stored.hash !== options.expectedHash) {
       // The host hashes the bytes as it streams them, so a mismatch means
@@ -670,39 +687,58 @@ async function copyBlob(
 
 /**
  * The statements that could be fetched, claims before anything else. One that
- * cannot be fetched is skipped. The others are still worth copying.
+ * cannot be fetched is skipped. The others are still worth copying. A device
+ * certificate carries the address of a claim that names it.
  */
 async function fetchStatements(
   statements: ReplicatedStatements | undefined,
-): Promise<{ hash: string; blob: Blob }[]> {
+): Promise<{ hash: string; blob: Blob; forClaim?: string }[]> {
   if (!statements || statements.hashes.length === 0) {
     return []
   }
-  const fetched = await Promise.all(
-    statements.hashes.map(async (hash) => {
-      try {
-        const { blob } = await fetchBlobFromAny(statements.sources, hash)
-        return { hash, blob, isClaim: await isClaim(blob) }
-      } catch (error) {
-        console.warn('Could not fetch a signed statement to replicate:', error)
-        return null
-      }
-    }),
-  )
+  const fetched = (
+    await Promise.all(
+      statements.hashes.map(async (hash) => {
+        try {
+          const { blob } = await fetchBlobFromAny(statements.sources, hash)
+          return { hash, blob, payload: await readPayload(blob) }
+        } catch (error) {
+          console.warn(
+            'Could not fetch a signed statement to replicate:',
+            error,
+          )
+          return null
+        }
+      }),
+    )
+  ).filter((statement) => statement !== null)
+  const isClaim = (payload: StatementPayload | undefined) =>
+    payload?.type === RECORDING_CLAIM_TYPE
+  const claimNaming = (hash: string) =>
+    fetched.find(
+      ({ payload }) => isClaim(payload) && payload?.deviceCert === hash,
+    )?.hash
   return fetched
-    .filter((statement) => statement !== null)
-    .sort((a, b) => Number(b.isClaim) - Number(a.isClaim))
-    .map(({ hash, blob }) => ({ hash, blob }))
+    .sort((a, b) => Number(isClaim(b.payload)) - Number(isClaim(a.payload)))
+    .map(({ hash, blob, payload }) => ({
+      hash,
+      blob,
+      ...(payload?.type === DEVICE_CERTIFICATE_TYPE && {
+        forClaim: claimNaming(hash),
+      }),
+    }))
 }
 
-async function isClaim(blob: Blob): Promise<boolean> {
+type StatementPayload = { type?: unknown; deviceCert?: unknown }
+
+async function readPayload(blob: Blob): Promise<StatementPayload | undefined> {
   try {
     const signed = JSON.parse(await blob.text()) as {
-      payload?: { type?: unknown }
+      payload?: StatementPayload
     }
-    return signed.payload?.type === RECORDING_CLAIM_TYPE
+    return signed.payload ?? undefined
   } catch {
-    return false
+    return undefined
   }
 }
 

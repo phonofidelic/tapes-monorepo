@@ -17,6 +17,7 @@ import type { IpcService } from '@/IpcService'
 import type { Recording, RootDocument } from '@/types'
 import { AggregatesProvider } from '@/context/AggregatesContext'
 import {
+  createDeviceCertificate,
   createHostReceipt,
   createRecordingClaim,
   createSessionRecord,
@@ -136,6 +137,24 @@ vi.mock('@automerge/automerge-repo-react-hooks', () => ({
 let localDeviceKey: string | undefined
 vi.mock('@/localDeviceKey', () => ({
   readLocalDeviceKey: () => Promise.resolve(localDeviceKey),
+}))
+
+// The person key on this device, as its worker reports it. None unless a test
+// sets it.
+let localPersonKey: string | undefined
+vi.mock('@/personKey', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/personKey')>()),
+  readPersonKeyStatus: () =>
+    Promise.resolve(
+      localPersonKey
+        ? {
+            exists: true,
+            publicKey: localPersonKey,
+            certificate: '',
+            certificateAddress: '',
+          }
+        : { exists: false },
+    ),
 }))
 
 vi.mock('@/utils', () => ({
@@ -515,13 +534,18 @@ describe('provenance on a row', () => {
     clearStatementCache()
     vi.unstubAllGlobals()
     localDeviceKey = undefined
+    localPersonKey = undefined
     deviceKeys = await generateSigningKeyPair()
     hostKeys = await generateSigningKeyPair()
   })
 
   const claimFor = (
     keys: CryptoKeyPair,
-    details: { sessionId?: string; blob?: typeof audio } = {},
+    details: {
+      sessionId?: string
+      blob?: typeof audio
+      deviceCert?: string
+    } = {},
   ) =>
     createRecordingClaim(
       {
@@ -529,9 +553,31 @@ describe('provenance on a row', () => {
         startedAt: STARTED_AT,
         endedAt: ENDED_AT,
         sessionId: details.sessionId,
+        deviceCert: details.deviceCert,
       },
       keys,
     )
+
+  /** A claim by `deviceKeys`, certified by a new person key. */
+  const certifiedClaim = async () => {
+    const personKeys = await generateSigningKeyPair()
+    const certificate = await createDeviceCertificate(
+      {
+        deviceKey: await exportPublicKey(deviceKeys.publicKey),
+        deviceLabel: 'Pixel · Chrome',
+        issuedAt: new Date('2026-10-01T09:00:00.000Z'),
+      },
+      personKeys,
+    )
+    const claim = await claimFor(deviceKeys, {
+      deviceCert: await statementAddress(certificate),
+    })
+    return {
+      claim,
+      certificate,
+      personKey: await exportPublicKey(personKeys.publicKey),
+    }
+  }
 
   /** Serves these statements from the host, and a 404 for anything else. */
   const showRow = async (
@@ -639,6 +685,45 @@ describe('provenance on a row', () => {
       'The host recorded this itself and signed its own receipt, so the receipt is not separate confirmation.',
     )
     expect(details()).toHaveTextContent(/by the host's clock/)
+  })
+
+  it('names the person and the certified device label', async () => {
+    const { claim, certificate, personKey } = await certifiedClaim()
+    const receipt = await createHostReceipt(
+      claim,
+      hostKeys,
+      new Date(RECEIVED_AT),
+    )
+    const fingerprint = await keyFingerprint(personKey)
+
+    await showRow([claim, receipt, certificate])
+
+    expect(
+      await screen.findByText(
+        `Recorded by person ${fingerprint} on “Pixel · Chrome”`,
+        { exact: false },
+      ),
+    ).toHaveTextContent(/received by the host/)
+    expect(details()).toHaveTextContent(
+      `The key of person ${fingerprint} certified the recording device as “Pixel · Chrome”`,
+    )
+  })
+
+  it('says "you" for the person key on this device', async () => {
+    const { claim, certificate, personKey } = await certifiedClaim()
+    localDeviceKey = claim.payload.deviceKey
+    localPersonKey = personKey
+
+    await showRow([claim, certificate])
+
+    expect(
+      await screen.findByText(
+        'Signed by you on this device. The host did not confirm when it arrived.',
+      ),
+    ).toBeInTheDocument()
+    expect(details()).toHaveTextContent(
+      /Your person key certified the recording device as “Pixel · Chrome”/,
+    )
   })
 
   it('marks a claim without a receipt as signed on the device only', async () => {
