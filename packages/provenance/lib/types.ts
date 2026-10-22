@@ -25,10 +25,29 @@ export type RecordingClaim = {
   /** The signer's base64url Ed25519 public key. */
   deviceKey: string
   /**
-   * Address of the DeviceCertificate vouching for the device key. Absent until
-   * devices have certificates.
+   * Address of the Signed<DeviceCertificate> vouching for the device key.
+   * Absent when the device has no person key, such as the host.
    */
   deviceCert?: string
+}
+
+export const DEVICE_CERTIFICATE_TYPE = 'tapes/device-cert@1'
+
+/**
+ * Signed by a person key to say a device key records for that person. It is
+ * issued once per device and stored in the blob store next to the claims that
+ * name it.
+ */
+export type DeviceCertificate = {
+  type: typeof DEVICE_CERTIFICATE_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  personKey: string
+  /** The certified device's base64url Ed25519 public key. */
+  deviceKey: string
+  /** The device's name when the certificate was issued. */
+  deviceLabel: string
+  /** The device's clock. */
+  issuedAt: string
 }
 
 export const HOST_RECEIPT_TYPE = 'tapes/receipt@1'
@@ -90,4 +109,5 @@ export type SyncProof = {
   deviceKey: string
 }
 
-export type Statement = RecordingClaim | HostReceipt | SessionRecord
+export type Statement =
+  RecordingClaim | HostReceipt | SessionRecord | DeviceCertificate
