@@ -27,6 +27,7 @@
     "@tapes-monorepo/core": "*",
     "@tapes-monorepo/provenance": "*",
     "@tapes-monorepo/sync-protocol": "*",
+    "hash-wasm": "4.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
