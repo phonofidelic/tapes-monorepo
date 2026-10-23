@@ -46,7 +46,7 @@ export type DeriveBackupKey = (
 ) => Promise<Uint8Array<ArrayBuffer>>
 
 // The KDF id in the header. Argon2id is the only one accepted.
-const KDF_ARGON2ID = 2
+const KDF_ARGON2ID = 1
 
 const SALT_LENGTH = 16
 const NONCE_LENGTH = 12

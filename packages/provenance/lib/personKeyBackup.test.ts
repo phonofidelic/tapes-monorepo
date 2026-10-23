@@ -163,7 +163,7 @@ describe('backup format', () => {
     })
 
     const unknownKdf = bytes.slice()
-    unknownKdf[1] = 1
+    unknownKdf[1] = 2
     expect(decodeBackup(unknownKdf)).toEqual({
       ok: false,
       problem: 'unsupported-kdf',
