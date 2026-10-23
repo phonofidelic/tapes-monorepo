@@ -11,4 +11,4 @@ Right after the key is made, the guest is asked to back it up. The default passp
 
 The host stores the certificate next to the claim when it is the one the claim names. A copied certificate names its claim with `?for=`. The Library shows the person behind a recording, or "you" for this device's person key.
 
-The provenance package adds `DeviceCertificate` and the version 1 person key backup format. The format is the TAP-218 prototype's, with Argon2id at 64 MiB and three passes. The KDF itself is in the web client, so the provenance package stays free of WebAssembly.
+The provenance package adds `DeviceCertificate` and the version 1 person key backup format. The backup key comes from the passphrase through Argon2id at 64 MiB and three passes. The KDF itself is in the web client, so the provenance package stays free of WebAssembly.

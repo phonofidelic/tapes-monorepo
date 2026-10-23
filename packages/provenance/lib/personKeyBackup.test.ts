@@ -151,7 +151,7 @@ describe('backup format', () => {
     expect(parseBackupText(text)).toEqual({ ok: false, problem })
   })
 
-  it('rejects an unknown version, a PBKDF2 id and out-of-range memory', async () => {
+  it('rejects an unknown version, an unknown KDF id and out-of-range memory', async () => {
     const bytes = encodeBackup(
       await wrapPersonKey(await personKey(), 'a b c d', derive),
     )
@@ -162,9 +162,9 @@ describe('backup format', () => {
       problem: 'newer-version',
     })
 
-    const pbkdf2 = bytes.slice()
-    pbkdf2[1] = 1
-    expect(decodeBackup(pbkdf2)).toEqual({
+    const unknownKdf = bytes.slice()
+    unknownKdf[1] = 1
+    expect(decodeBackup(unknownKdf)).toEqual({
       ok: false,
       problem: 'unsupported-kdf',
     })

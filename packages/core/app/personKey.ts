@@ -5,7 +5,7 @@ import { callWorker } from '@/workerClient'
 /**
  * The person key on this device, as the page sees it. Only web guests have
  * one: the worker creates it on first join and never hands out its private
- * key. The desktop host has no person key yet, so it reports none.
+ * key. The desktop host has no person key, so it reports none.
  */
 
 export type PersonKeyStatus =

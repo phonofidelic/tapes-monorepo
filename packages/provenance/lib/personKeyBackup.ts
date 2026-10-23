@@ -45,7 +45,7 @@ export type DeriveBackupKey = (
   params: Argon2idParams,
 ) => Promise<Uint8Array<ArrayBuffer>>
 
-// Id 1 was PBKDF2 in the prototype. It is not accepted.
+// The KDF id in the header. Argon2id is the only one accepted.
 const KDF_ARGON2ID = 2
 
 const SALT_LENGTH = 16
