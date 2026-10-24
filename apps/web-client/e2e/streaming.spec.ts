@@ -5,7 +5,7 @@ import {
   type Page,
   type Request,
 } from '@playwright/test'
-import { cachedBlobHashes, opfsFiles } from './fixtures'
+import { cachedBlobHashes, dismissBackupPrompt, opfsFiles } from './fixtures'
 import { HOST_BUNDLE_DIR } from './hostBundle'
 import {
   disposeHost,
@@ -152,6 +152,7 @@ const audioState = (page: Page) =>
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(captureAudioElements)
+  await dismissBackupPrompt(page)
 })
 
 test.describe('streaming playback', () => {

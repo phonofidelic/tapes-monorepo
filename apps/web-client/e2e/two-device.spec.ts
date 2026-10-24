@@ -4,6 +4,7 @@ import {
   expect,
   cachedBlobHashes,
   deviceOptions,
+  dismissBackupPrompt,
   opfsFiles,
   recordFor,
   saveRecording,
@@ -164,6 +165,7 @@ test.describe('host and guest', () => {
     const before = await hostObjects()
 
     const other = await context.browser()!.newPage()
+    await dismissBackupPrompt(other)
     await other.goto(
       `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
     )
