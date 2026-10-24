@@ -297,6 +297,21 @@ describe('vouching for a new device', () => {
     expect(host.pending()).toHaveLength(1)
   })
 
+  it('keeps one entry when a device asks twice at once', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const request = await newDevice(sam.personKey)
+
+    const [first, second] = await Promise.all([
+      host.request(request),
+      host.request(request),
+    ])
+
+    expect(first).toEqual(second)
+    expect(host.pending()).toHaveLength(1)
+  })
+
   it('caps waiting requests and drops stale ones', async () => {
     const host = vouching()
     const sam = await person()

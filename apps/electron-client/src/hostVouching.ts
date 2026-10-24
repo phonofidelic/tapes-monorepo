@@ -231,7 +231,10 @@ export function createHostVouching({
       if (!person) {
         return { ok: false, error: 'unknown-person' }
       }
+      const deviceFingerprint = (await keyFingerprint(request.deviceKey)) ?? '?'
       // A device that asks twice, such as after a reload, keeps one entry.
+      // No await from here to the insert, so two requests sent at once cannot
+      // both miss each other and leave the guest waiting on the wrong one.
       const pending = [...entries.values()].filter(
         (entry) => entry.status === 'pending',
       )
@@ -250,7 +253,7 @@ export function createHostVouching({
         id: crypto.randomUUID(),
         request,
         personName: person.name,
-        deviceFingerprint: (await keyFingerprint(request.deviceKey)) ?? '?',
+        deviceFingerprint,
         receivedAt: now(),
         status: 'pending',
       }
