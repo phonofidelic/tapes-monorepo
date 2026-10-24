@@ -11,6 +11,7 @@ import {
   GenericErrorFallbackScreen,
 } from './components/ErrorBoundary'
 import { PortalContainer } from './context/PortalsContext'
+import { PendingVouches } from './components/PendingVouches'
 import { PersonKeyBackupPrompt } from './components/PersonKeyBackupPrompt'
 import { ScreenLoader } from './components/ScreenLoader'
 import './index.css'
@@ -77,6 +78,7 @@ export function App() {
         </div>
       </div>
       <PersonKeyBackupPrompt />
+      <PendingVouches />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
+import { AppContextProvider } from '@/context/AppContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import type { PersonKeyStatus } from '@/personKey'
 import {
@@ -11,6 +12,10 @@ import {
   tryPin,
 } from '@/rosterClient'
 import { VOUCH_POLL_MS, WelcomeBackFlow } from './RejoinFlow'
+
+vi.mock('@/localDeviceKey', () => ({
+  readLocalDeviceKey: vi.fn(() => Promise.resolve(undefined)),
+}))
 
 vi.mock('@/rosterClient', () => ({
   acceptVouch: vi.fn(),
@@ -62,16 +67,18 @@ function renderFlow() {
   const onNew = vi.fn(() => Promise.resolve())
   const onVouched = vi.fn()
   render(
-    <SettingsProvider>
-      <WelcomeBackFlow
-        worker={worker}
-        endpoint={ENDPOINT}
-        roster={[SAM, ALEX]}
-        onNew={onNew}
-        onVouched={onVouched}
-        onLater={vi.fn()}
-      />
-    </SettingsProvider>,
+    <AppContextProvider value={{ type: 'web-client', worker }}>
+      <SettingsProvider>
+        <WelcomeBackFlow
+          worker={worker}
+          endpoint={ENDPOINT}
+          roster={[SAM, ALEX]}
+          onNew={onNew}
+          onVouched={onVouched}
+          onLater={vi.fn()}
+        />
+      </SettingsProvider>
+    </AppContextProvider>,
   )
   return { onNew, onVouched }
 }

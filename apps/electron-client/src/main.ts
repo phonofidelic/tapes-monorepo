@@ -15,6 +15,7 @@ import {
 import { readSyncServerConfig } from './syncServerConfig'
 import { startSyncServerFromConfig } from './syncServerRuntime'
 import { startConnectedDevicesPush } from './connectedDevicesPush'
+import { startPendingVouchesPush } from './pendingVouchesPush'
 import { startSessionSettledPush } from './sessionSettledPush'
 import { isSyncServerCert } from './certManager'
 import { loadHostSigningKey } from './hostSigningKey'
@@ -72,6 +73,9 @@ export class MainWindow {
     this.registerSyncServerCertTrust()
     this.registerIpcChannels(ipcChannels)
     this.startConnectedDevicesPush()
+    this.stopPendingVouchesPush = startPendingVouchesPush(
+      () => this.window?.webContents,
+    )
     this.stopSessionSettledPush = startSessionSettledPush(
       hostSession,
       () => this.window?.webContents,
@@ -153,6 +157,7 @@ export class MainWindow {
 
   private stopConnectedDevicesPush?: () => void
   private stopSessionSettledPush?: () => void
+  private stopPendingVouchesPush?: () => void
 
   /**
    * Forwards connection changes to the renderer as they happen.
@@ -213,6 +218,7 @@ export class MainWindow {
     this.syncServerStopped = true
     this.stopConnectedDevicesPush?.()
     this.stopSessionSettledPush?.()
+    this.stopPendingVouchesPush?.()
     // Sign any session first. Its record is stored through the running server.
     // Stopping clears the published session before the repo is flushed.
     hostSession

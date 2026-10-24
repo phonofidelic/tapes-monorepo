@@ -19,7 +19,18 @@ import {
   VOUCHES_PATH,
   type SyncChallengeResponse,
 } from '@tapes-monorepo/sync-protocol'
-import { getHostVouching, startSyncServer, stopSyncServer } from './syncServer'
+import {
+  ConfirmVouchChannel,
+  GetPendingVouchesChannel,
+  RejectVouchChannel,
+} from './channels/VouchChannels'
+import type { PendingVouch } from './hostVouching'
+import {
+  getHostVouching,
+  startSyncServer,
+  stopSyncServer,
+  subscribeToPendingVouches,
+} from './syncServer'
 
 const TOKEN = 'test-vouch-token'
 
@@ -194,5 +205,48 @@ describe('roster and vouch routes', () => {
     })
 
     expect(response.status).toBe(400)
+  })
+})
+
+describe("the operator's channels", () => {
+  it('lists a waiting device and confirms it, telling the window each time', async () => {
+    const pushed: PendingVouch[][] = []
+    const stop = subscribeToPendingVouches((pending) => pushed.push(pending))
+    try {
+      const id = await askForVouch(await joinAs('Sam'))
+
+      expect(new GetPendingVouchesChannel().handle()).toMatchObject({
+        success: true,
+        data: {
+          pending: [{ id, personName: 'Sam', deviceLabel: 'New phone' }],
+        },
+      })
+      expect(await new ConfirmVouchChannel().handle({ data: { id } })).toEqual({
+        success: true,
+      })
+      expect(pushed.map((list) => list.length)).toEqual([1, 0])
+      expect(await (await send(`${VOUCHES_PATH}/${id}`)).json()).toMatchObject({
+        status: 'vouched',
+      })
+    } finally {
+      stop()
+    }
+  })
+
+  it('rejects a waiting device', async () => {
+    const id = await askForVouch(await joinAs('Sam'))
+
+    expect(new RejectVouchChannel().handle({ data: { id } })).toEqual({
+      success: true,
+    })
+    expect(await (await send(`${VOUCHES_PATH}/${id}`)).json()).toEqual({
+      status: 'rejected',
+    })
+  })
+
+  it('says a request that is no longer waiting cannot be confirmed', async () => {
+    expect(
+      await new ConfirmVouchChannel().handle({ data: { id: 'gone' } }),
+    ).toMatchObject({ success: false })
   })
 })

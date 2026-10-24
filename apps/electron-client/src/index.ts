@@ -5,6 +5,11 @@ import { DeleteRecordingChannel } from './channels/DeleteRecordingChannel'
 import { EditRecordingChannel } from './channels/EditRecordingChannel'
 import { GetAggregatesChannel } from './channels/GetAggregatesChannel'
 import { GetConnectedDevicesChannel } from './channels/GetConnectedDevicesChannel'
+import {
+  ConfirmVouchChannel,
+  GetPendingVouchesChannel,
+  RejectVouchChannel,
+} from './channels/VouchChannels'
 import { GetDeviceKeyChannel } from './channels/GetDeviceKeyChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { HasBlobChannel } from './channels/HasBlobChannel'
@@ -36,6 +41,9 @@ new MainWindow().init([
   new SetDefaultAudioInputChannel(),
   new GetSyncServerInfoChannel(),
   new GetConnectedDevicesChannel(),
+  new GetPendingVouchesChannel(),
+  new ConfirmVouchChannel(),
+  new RejectVouchChannel(),
   new SetSyncServerLanChannel(),
   new SetSyncServerHttpsChannel(),
   new PutBlobChannel(),

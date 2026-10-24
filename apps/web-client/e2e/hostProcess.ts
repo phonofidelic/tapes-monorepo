@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import {
+  getHostVouching,
   hostSession,
   startSyncServer,
   stopSyncServer,
@@ -56,6 +57,8 @@ type Command =
   | { id: number; type: 'restart' }
   | { id: number; type: 'session-start' }
   | { id: number; type: 'session-stop' }
+  | { id: number; type: 'vouches-pending' }
+  | { id: number; type: 'vouch-confirm'; requestId: string }
   | { id: number; type: 'dispose' }
 
 type Paths = {
@@ -407,6 +410,11 @@ async function run(command: Command): Promise<unknown> {
       return hostSession.start(rootDocumentUrl!)
     case 'session-stop':
       return hostSession.stop()
+    // What the operator's panel lists and its "Yes" button calls.
+    case 'vouches-pending':
+      return getHostVouching()?.pending() ?? []
+    case 'vouch-confirm':
+      return (await getHostVouching()?.confirm(command.requestId)) !== undefined
     case 'dispose':
       disposing = true
       peer?.disconnect()

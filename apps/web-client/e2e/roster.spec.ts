@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { disposeHost, hostRoster, startHost, PAIRING_TOKEN } from './host'
+import {
+  confirmHostVouch,
+  disposeHost,
+  hostPendingVouches,
+  hostRoster,
+  startHost,
+  PAIRING_TOKEN,
+} from './host'
 
 /**
  * A guest's first join puts the person on the host's roster. A later guest
@@ -89,4 +96,26 @@ test('a guest that lost its keys is vouched for with its PIN', async ({
   expect(vouch).toMatchObject({
     payload: { personName: 'Sam', method: 'pin', hostKey },
   })
+})
+
+test('a guest that lost its keys is vouched for when the operator confirms', async ({
+  page,
+}) => {
+  await page.goto(pairingUrl())
+  await page
+    .getByRole('dialog', { name: 'Have you been here before?' })
+    .getByRole('button', { name: 'Sam' })
+    .click()
+  const rejoin = page.getByRole('dialog', { name: 'Welcome back, Sam' })
+  await expect(rejoin).toBeVisible()
+
+  // The operator sees the request and says yes. The guest is polling.
+  await expect
+    .poll(async () => (await hostPendingVouches()).map((p) => p.personName))
+    .toEqual(['Sam'])
+  const [request] = await hostPendingVouches()
+  expect(await confirmHostVouch(request.id)).toBe(true)
+
+  await expect(rejoin).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })

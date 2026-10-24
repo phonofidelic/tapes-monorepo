@@ -31,6 +31,9 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'session:start': true,
   'session:stop': true,
   'session:get-current': true,
+  'vouch:get-pending': true,
+  'vouch:confirm': true,
+  'vouch:reject': true,
 }
 
 // Main-process events the renderer may listen for. Nothing asked for these and
@@ -41,6 +44,7 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
 const EVENT_ALLOWLIST: Record<ValidIpcEvent, true> = {
   'sync:connected-devices': true,
   'session:settled': true,
+  'vouch:pending': true,
 }
 
 const validChannels = Object.keys(CHANNEL_ALLOWLIST) as ValidIpcChanel[]

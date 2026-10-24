@@ -1,8 +1,11 @@
 import { useEffect, useEffectEvent, useState } from 'react'
+import { keyFingerprint } from '@tapes-monorepo/provenance'
 import { isValidPin, type RosterPerson } from '@tapes-monorepo/sync-protocol'
 import type { BlobEndpoint } from '@/blobClient'
+import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import { resolveDeviceLabel } from '@/deviceLabel'
+import { readLocalDeviceKey } from '@/localDeviceKey'
 import type { PersonKeyStatus } from '@/personKey'
 import {
   acceptVouch,
@@ -110,6 +113,25 @@ function acceptanceError(
     : 'The host answered with something this phone cannot use. Try again.'
 }
 
+/** This device's key fingerprint, which the operator sees next to the request. */
+function useDeviceFingerprint(): string | undefined {
+  const appContext = useAppContext()
+  const [fingerprint, setFingerprint] = useState<string>()
+  useEffect(() => {
+    let current = true
+    readLocalDeviceKey(appContext)
+      .then((key) => (key ? keyFingerprint(key) : undefined))
+      .then(
+        (value) => current && setFingerprint(value),
+        () => undefined,
+      )
+    return () => {
+      current = false
+    }
+  }, [appContext])
+  return fingerprint
+}
+
 export function RejoinFlow({
   worker,
   endpoint,
@@ -130,6 +152,7 @@ export function RejoinFlow({
   const [pin, setPin] = useState('')
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string>()
+  const fingerprint = useDeviceFingerprint()
 
   const accept = async (vouch: string) => {
     const result = await acceptVouch(worker, vouch, pinnedHostKey)
@@ -268,6 +291,11 @@ export function RejoinFlow({
         </form>
       ) : (
         <p role="status">Waiting for the host to confirm you…</p>
+      )}
+      {fingerprint && (
+        <p className="text-xs text-zinc-400">
+          The host sees this phone as key {fingerprint}.
+        </p>
       )}
       {error && (
         <p role="alert" className="text-rose-300">

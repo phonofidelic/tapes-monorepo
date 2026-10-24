@@ -886,6 +886,8 @@ export async function stopSyncServer(): Promise<void> {
   // Before the sockets are torn down, so the list empties once rather than
   // draining socket by socket as each `close` fires.
   connections.close()
+  // Waiting requests live with the server, so a restart starts with none.
+  emitPendingVouches([])
 
   await repo.flush()
   for (const client of wss.clients) {

@@ -213,6 +213,16 @@ export class Host {
     return this.send<void>({ type: 'session-stop' })
   }
 
+  /** The devices waiting for the operator, as the host's panel lists them. */
+  pendingVouches(): Promise<{ id: string; personName: string }[]> {
+    return this.send({ type: 'vouches-pending' })
+  }
+
+  /** Confirms a waiting device, as the operator's "Yes" button does. */
+  confirmVouch(requestId: string): Promise<boolean> {
+    return this.send({ type: 'vouch-confirm', requestId })
+  }
+
   async dispose(): Promise<void> {
     if (!this.child) {
       return
@@ -304,6 +314,16 @@ export function startHostSession(): Promise<{
 
 export function stopHostSession(): Promise<void> {
   return defaultHost.stopSession()
+}
+
+export function hostPendingVouches(): Promise<
+  { id: string; personName: string }[]
+> {
+  return defaultHost.pendingVouches()
+}
+
+export function confirmHostVouch(requestId: string): Promise<boolean> {
+  return defaultHost.confirmVouch(requestId)
 }
 
 export function disposeHost(): Promise<void> {
