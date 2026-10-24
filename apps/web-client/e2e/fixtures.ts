@@ -71,12 +71,15 @@ const installInstrumentation = () => {
 }
 
 /**
- * Presses "Not now" whenever the person key backup prompt appears. A guest
- * shows it on first join, and it covers the bottom dock the specs click.
+ * Presses "Not now" whenever the first-join prompt appears, at its join step
+ * or its backup step. A guest shows it on first join, and it covers the
+ * bottom dock the specs click.
  */
 export const dismissBackupPrompt = (page: Page) =>
   page.addLocatorHandler(
-    page.getByRole('dialog', { name: 'Back up your person key' }),
+    page.getByRole('dialog', {
+      name: /^(Tell the host who you are|Back up your person key)$/,
+    }),
     async (dialog) => {
       await dialog.getByRole('button', { name: 'Not now' }).click()
     },

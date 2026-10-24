@@ -63,6 +63,7 @@ type Paths = {
   blobRoot: string
   storageRoot: string
   eventRoot: string
+  rosterPath: string
 }
 
 let disposing = false
@@ -116,6 +117,8 @@ async function listen(where: Paths) {
     // blob-auth service worker registers under.
     webClientPath,
     loadSigningKey: signingKey ? () => signingKey! : undefined,
+    // The roster and vouch routes mount only with a signing key as well.
+    rosterPath: where.rosterPath,
   })
   if (info.port !== port) {
     // `startSyncServer` falls back to an OS-assigned port on EADDRINUSE, which
@@ -139,6 +142,7 @@ async function start(command: Extract<Command, { type: 'start' }>) {
     blobRoot: path.join(root, 'blobs'),
     storageRoot: path.join(root, 'automerge'),
     eventRoot: path.join(root, 'events'),
+    rosterPath: path.join(root, 'people.json'),
   }
   await mkdir(paths.blobRoot, { recursive: true })
   await mkdir(paths.storageRoot, { recursive: true })

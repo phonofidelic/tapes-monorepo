@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import type { BlobDescriptor, RecordingAggregate } from '@tapes-monorepo/core'
+import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
 /**
@@ -275,6 +276,15 @@ export async function hostPlays(
   return (await hostAggregates()).find(
     (aggregate) => aggregate.recordingUrl === recordingUrl,
   )
+}
+
+/** The people on the host's roster, read over the route guests read. */
+export async function hostRoster(): Promise<RosterPerson[]> {
+  const response = await fetch(`${HOST_ORIGIN}/people?t=${PAIRING_TOKEN}`)
+  if (!response.ok) {
+    throw new Error(`Reading the roster failed: ${response.status}`)
+  }
+  return ((await response.json()) as { people: RosterPerson[] }).people
 }
 
 export function stopHost(): Promise<void> {

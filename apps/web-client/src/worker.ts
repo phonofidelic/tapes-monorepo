@@ -30,7 +30,9 @@ import {
   backUpPersonKey,
   checkPersonKeyBackup,
   createPersonKey,
+  markJoined,
   personKeyStatus,
+  signJoinRequest,
 } from './personKeyRequests'
 
 declare global {
@@ -97,6 +99,20 @@ type EventData =
       type: 'person:backup'
       payload: {
         passphrase: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:sign-join'
+      payload: {
+        challenge: string
+        personName: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:mark-joined'
+      payload: {
         requestId: string
       }
     }
@@ -348,6 +364,29 @@ onmessage = async (event) => {
         const { passphrase, requestId } = payload
         try {
           respond(type, requestId, true, await backUpPersonKey(passphrase))
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:sign-join': {
+        const { challenge, personName, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await signJoinRequest(challenge, personName),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:mark-joined': {
+        const { requestId } = payload
+        try {
+          respond(type, requestId, true, await markJoined())
         } catch (error) {
           respond(type, requestId, false, undefined, error)
         }

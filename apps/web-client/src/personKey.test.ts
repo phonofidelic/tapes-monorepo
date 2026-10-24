@@ -10,6 +10,7 @@ import {
   createPersonIdentity,
   loadPersonIdentity,
   markPersonKeyBackedUp,
+  markPersonKeyJoined,
 } from './personKey'
 
 /** The guest's person key against an in-memory IndexedDB. */
@@ -101,5 +102,26 @@ describe('markPersonKeyBackedUp', () => {
     await expect(
       markPersonKeyBackedUp(other, new Date(), factory),
     ).rejects.toThrow(/different person key/)
+  })
+})
+
+describe('markPersonKeyJoined', () => {
+  it('records when the host added the person, next to the backup time', async () => {
+    const { publicKey } = await createPersonIdentity(device, factory)
+    await markPersonKeyBackedUp(
+      publicKey,
+      new Date('2026-10-22T10:00:00Z'),
+      factory,
+    )
+    await markPersonKeyJoined(
+      publicKey,
+      new Date('2026-10-22T09:00:00Z'),
+      factory,
+    )
+
+    expect(await loadPersonIdentity(factory)).toMatchObject({
+      backedUpAt: '2026-10-22T10:00:00.000Z',
+      joinedAt: '2026-10-22T09:00:00.000Z',
+    })
   })
 })

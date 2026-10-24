@@ -1,6 +1,7 @@
 import {
   backupToFileText,
   backupToText,
+  createJoinRequest,
   encodeSignedStatement,
   parseBackupText,
   unwrapPersonKey,
@@ -12,6 +13,7 @@ import {
   createPersonIdentity,
   loadPersonIdentity,
   markPersonKeyBackedUp,
+  markPersonKeyJoined,
   type PersonIdentity,
 } from './personKey'
 
@@ -31,6 +33,7 @@ export type PersonKeyStatus =
       certificate: string
       certificateAddress: string
       backedUpAt?: string
+      joinedAt?: string
     }
 
 function statusOf(identity: PersonIdentity | undefined): PersonKeyStatus {
@@ -43,6 +46,7 @@ function statusOf(identity: PersonIdentity | undefined): PersonKeyStatus {
     certificate: encodeSignedStatement(identity.certificate),
     certificateAddress: identity.certificateAddress,
     backedUpAt: identity.backedUpAt,
+    joinedAt: identity.joinedAt,
   }
 }
 
@@ -107,4 +111,41 @@ export async function checkPersonKeyBackup(
   const at = new Date()
   await markPersonKeyBackedUp(unwrapped.publicKey, at)
   return { ok: true, backedUpAt: at.toISOString() }
+}
+
+/**
+ * Signs a request to join the host's roster over the host's challenge. The
+ * page sends it, with the PIN, which never reaches this worker.
+ */
+export async function signJoinRequest(
+  challenge: string,
+  personName: string,
+): Promise<{ join: string; certificate: string }> {
+  const identity = await loadPersonIdentity()
+  if (!identity) {
+    throw new Error('There is no person key to join with')
+  }
+  const join = await createJoinRequest(
+    {
+      personName,
+      certificate: identity.certificateAddress,
+      challenge,
+    },
+    identity.keyPair,
+  )
+  return {
+    join: encodeSignedStatement(join),
+    certificate: encodeSignedStatement(identity.certificate),
+  }
+}
+
+/** Notes the host's answer to a join. Returns when, for the page's status. */
+export async function markJoined(): Promise<{ joinedAt: string }> {
+  const identity = await loadPersonIdentity()
+  if (!identity) {
+    throw new Error('There is no person key that joined')
+  }
+  const at = new Date()
+  await markPersonKeyJoined(identity.publicKey, at)
+  return { joinedAt: at.toISOString() }
 }

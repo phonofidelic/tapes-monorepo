@@ -18,6 +18,8 @@ export type PersonKeyStatus =
       certificateAddress: string
       /** When a saved backup last unlocked with its passphrase. */
       backedUpAt?: string
+      /** When this guest's host added the person to its roster. */
+      joinedAt?: string
     }
 
 export type BackupCheck =

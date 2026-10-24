@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppContextProvider } from '@/context/AppContext'
+import { BlobProvider } from '@/context/BlobContext'
 import { HostConnectionProvider } from '@/context/HostConnectionContext'
+import { SettingsProvider } from '@/context/SettingsContext'
 import type { HostConnection } from '@/hostConnection'
 import {
   backUpPersonKey,
@@ -12,8 +14,10 @@ import {
   readPersonKeyStatus,
   type PersonKeyStatus,
 } from '@/personKey'
+import { joinHostRoster } from '@/rosterClient'
 import {
   BackupFlow,
+  JoinFlow,
   PersonKeyBackupPrompt,
   saveBackupFile,
 } from './PersonKeyBackupPrompt'
@@ -26,6 +30,10 @@ vi.mock('@/personKey', () => ({
   checkPersonKeyBackup: vi.fn(),
 }))
 
+vi.mock('@/rosterClient', () => ({ joinHostRoster: vi.fn() }))
+
+const ENDPOINT = { baseUrl: 'https://192.168.1.20:433', token: 'pair-token' }
+
 const PASSPHRASE = 'abacus ablaze able abroad absence absolute'
 const worker = {} as Worker
 
@@ -37,6 +45,11 @@ const STATUS: PersonKeyStatus = {
 }
 
 beforeEach(() => {
+  localStorage.clear()
+  vi.mocked(joinHostRoster).mockResolvedValue({
+    ok: true,
+    joinedAt: '2026-10-22T09:00:00.000Z',
+  })
   vi.mocked(generatePassphrase).mockResolvedValue(PASSPHRASE)
   vi.mocked(backUpPersonKey).mockResolvedValue({
     text: 'TPK1.backup',
@@ -169,20 +182,127 @@ describe('saveBackupFile', () => {
   })
 })
 
+describe('JoinFlow', () => {
+  const renderFlow = () => {
+    const onJoined = vi.fn()
+    render(
+      <SettingsProvider>
+        <JoinFlow
+          worker={worker}
+          endpoint={ENDPOINT}
+          onLater={vi.fn()}
+          onJoined={onJoined}
+        />
+      </SettingsProvider>,
+    )
+    return { onJoined }
+  }
+
+  it('joins with the name and PIN, and keeps the name as a setting', async () => {
+    const user = userEvent.setup()
+    const { onJoined } = renderFlow()
+
+    await user.type(screen.getByLabelText('Your name'), ' Sam ')
+    await user.type(screen.getByLabelText('PIN (optional)'), '48a21')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(joinHostRoster).toHaveBeenCalledWith(worker, ENDPOINT, {
+      personName: 'Sam',
+      pin: '4821',
+    })
+    await waitFor(() =>
+      expect(onJoined).toHaveBeenCalledWith('2026-10-22T09:00:00.000Z'),
+    )
+    expect(JSON.parse(localStorage.getItem('settings') ?? '{}')).toMatchObject({
+      personName: 'Sam',
+    })
+  })
+
+  it('joins without a PIN when the field is empty', async () => {
+    const user = userEvent.setup()
+    renderFlow()
+
+    await user.type(screen.getByLabelText('Your name'), 'Sam')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(joinHostRoster).toHaveBeenCalledWith(worker, ENDPOINT, {
+      personName: 'Sam',
+    })
+  })
+
+  it('will not join with a PIN that is too short', async () => {
+    const user = userEvent.setup()
+    renderFlow()
+
+    await user.type(screen.getByLabelText('Your name'), 'Sam')
+    await user.type(screen.getByLabelText('PIN (optional)'), '12')
+
+    expect(screen.getByRole('button', { name: 'Join' })).toBeDisabled()
+  })
+
+  it('says so when the host does not answer', async () => {
+    vi.mocked(joinHostRoster).mockResolvedValue({
+      ok: false,
+      problem: 'unreachable',
+    })
+    const user = userEvent.setup()
+    const { onJoined } = renderFlow()
+
+    await user.type(screen.getByLabelText('Your name'), 'Sam')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The host did not answer.',
+    )
+    expect(onJoined).not.toHaveBeenCalled()
+  })
+})
+
 describe('PersonKeyBackupPrompt', () => {
   const connected: HostConnection = {
     isConnected: () => true,
     subscribe: () => () => {},
   }
 
-  const renderPrompt = () =>
+  const renderPrompt = (endpoints: (typeof ENDPOINT)[] = []) =>
     render(
       <AppContextProvider value={{ type: 'web-client', worker }}>
-        <HostConnectionProvider connection={connected}>
-          <PersonKeyBackupPrompt />
-        </HostConnectionProvider>
+        <SettingsProvider>
+          <BlobProvider endpoints={endpoints}>
+            <HostConnectionProvider connection={connected}>
+              <PersonKeyBackupPrompt />
+            </HostConnectionProvider>
+          </BlobProvider>
+        </SettingsProvider>
       </AppContextProvider>,
     )
+
+  it('asks a guest of a host to join before the backup', async () => {
+    vi.mocked(readPersonKeyStatus).mockResolvedValue(STATUS)
+    const user = userEvent.setup()
+
+    renderPrompt([ENDPOINT])
+
+    await screen.findByRole('dialog', { name: 'Tell the host who you are' })
+    await user.type(screen.getByLabelText('Your name'), 'Sam')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+    expect(
+      await screen.findByRole('dialog', { name: 'Back up your person key' }),
+    ).toBeInTheDocument()
+  })
+
+  it('asks a guest that joined but has no backup only for the backup', async () => {
+    vi.mocked(readPersonKeyStatus).mockResolvedValue({
+      ...STATUS,
+      joinedAt: '2026-10-22T09:00:00.000Z',
+    })
+
+    renderPrompt([ENDPOINT])
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Back up your person key' }),
+    ).toBeInTheDocument()
+  })
 
   it('makes the person key on first join and asks for a backup', async () => {
     vi.mocked(readPersonKeyStatus).mockResolvedValue({ exists: false })
