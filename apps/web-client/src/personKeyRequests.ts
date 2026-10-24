@@ -2,12 +2,21 @@ import {
   backupToFileText,
   backupToText,
   createJoinRequest,
+  createVouchRequest,
+  decodeSignedStatement,
   encodeSignedStatement,
+  exportPublicKey,
   parseBackupText,
   unwrapPersonKey,
   wrapPersonKey,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
+import {
+  loadDeviceVouch,
+  storeDeviceVouch,
+  type StoredVouch,
+  type VouchRejection,
+} from './deviceVouch'
 import { deriveArgon2id } from './passphrase'
 import {
   createPersonIdentity,
@@ -19,8 +28,12 @@ import {
 
 /**
  * What the worker answers to core's person key requests. The private key never
- * leaves the worker. Only public keys, the encoded certificate and the backup
- * text cross to the page.
+ * leaves the worker. Only public keys, the encoded certificate or vouch and
+ * the backup text cross to the page.
+ *
+ * A guest with a person key reports its certificate. A guest that re-joined
+ * without one reports the host's vouch in the same fields, since claims name
+ * either one the same way.
  */
 
 /** Mirrors core's `PersonKeyStatus`. */
@@ -29,16 +42,21 @@ export type PersonKeyStatus =
   | {
       exists: true
       publicKey: string
-      /** The encoded signed certificate for this device. */
+      /** The encoded signed certificate or vouch for this device. */
       certificate: string
       certificateAddress: string
       backedUpAt?: string
       joinedAt?: string
+      /** The name of the host that vouched, when this device has no person key. */
+      vouchedBy?: string
     }
 
-function statusOf(identity: PersonIdentity | undefined): PersonKeyStatus {
+function statusOf(
+  identity: PersonIdentity | undefined,
+  vouch?: StoredVouch,
+): PersonKeyStatus {
   if (!identity) {
-    return { exists: false }
+    return vouch ? vouchStatus(vouch) : { exists: false }
   }
   return {
     exists: true,
@@ -50,8 +68,69 @@ function statusOf(identity: PersonIdentity | undefined): PersonKeyStatus {
   }
 }
 
+function vouchStatus({ vouch, address }: StoredVouch): PersonKeyStatus {
+  return {
+    exists: true,
+    publicKey: vouch.payload.personKey,
+    certificate: encodeSignedStatement(vouch),
+    certificateAddress: address,
+    // The host vouched for a person on its roster.
+    joinedAt: vouch.payload.vouchedAt,
+    vouchedBy: vouch.payload.hostLabel,
+  }
+}
+
 export async function personKeyStatus(): Promise<PersonKeyStatus> {
-  return statusOf(await loadPersonIdentity())
+  const identity = await loadPersonIdentity()
+  return statusOf(identity, identity ? undefined : await loadDeviceVouch())
+}
+
+/**
+ * The address claims should name for this device: its certificate, or the
+ * host's vouch when it has no person key. Undefined when it has neither.
+ */
+export async function deviceLinkAddress(): Promise<string | undefined> {
+  const identity = await loadPersonIdentity()
+  return identity?.certificateAddress ?? (await loadDeviceVouch())?.address
+}
+
+/** Signs a request for the host to vouch for this device as `personKey`. */
+export async function signVouchRequest(
+  personKey: string,
+  deviceLabel: string,
+): Promise<{ request: string }> {
+  const request = await createVouchRequest(
+    { personKey, deviceLabel },
+    await loadDeviceSigningKey(),
+  )
+  return { request: encodeSignedStatement(request) }
+}
+
+export type VouchAcceptance =
+  { ok: true; status: PersonKeyStatus } | { ok: false; problem: VouchRejection }
+
+/**
+ * Stores the host's vouch for this device, if the pinned host signed it for
+ * this device's key.
+ */
+export async function acceptVouch(
+  encoded: string,
+  pinnedHostKey: string | undefined,
+): Promise<VouchAcceptance> {
+  const signed = decodeSignedStatement(encoded)
+  if (!signed) {
+    return { ok: false, problem: 'bad-vouch' }
+  }
+  const deviceKey = await exportPublicKey(
+    (await loadDeviceSigningKey()).publicKey,
+  )
+  const result = await storeDeviceVouch(signed, {
+    hostKey: pinnedHostKey,
+    deviceKey,
+  })
+  return result.ok
+    ? { ok: true, status: vouchStatus(result.stored) }
+    : { ok: false, problem: result.problem }
 }
 
 export async function createPersonKey(

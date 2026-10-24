@@ -32,6 +32,11 @@ export type SyncServerInfo = {
   rootCertFingerprint?: string
   /** The Mac's own name: the host's name when the user has set none. */
   computerName?: string
+  /**
+   * The host's public signing key, when it has one. The pairing link carries
+   * it so a guest can check the vouches this host signs.
+   */
+  hostKey?: string
   port: number
   host: string
 }

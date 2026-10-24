@@ -14,7 +14,7 @@ import {
   readPersonKeyStatus,
   type PersonKeyStatus,
 } from '@/personKey'
-import { joinHostRoster } from '@/rosterClient'
+import { fetchRoster, joinHostRoster } from '@/rosterClient'
 import {
   BackupFlow,
   JoinFlow,
@@ -30,7 +30,10 @@ vi.mock('@/personKey', () => ({
   checkPersonKeyBackup: vi.fn(),
 }))
 
-vi.mock('@/rosterClient', () => ({ joinHostRoster: vi.fn() }))
+vi.mock('@/rosterClient', () => ({
+  fetchRoster: vi.fn(),
+  joinHostRoster: vi.fn(),
+}))
 
 const ENDPOINT = { baseUrl: 'https://192.168.1.20:433', token: 'pair-token' }
 
@@ -46,6 +49,7 @@ const STATUS: PersonKeyStatus = {
 
 beforeEach(() => {
   localStorage.clear()
+  vi.mocked(fetchRoster).mockResolvedValue([])
   vi.mocked(joinHostRoster).mockResolvedValue({
     ok: true,
     joinedAt: '2026-10-22T09:00:00.000Z',
@@ -289,6 +293,38 @@ describe('PersonKeyBackupPrompt', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Back up your person key' }),
     ).toBeInTheDocument()
+  })
+
+  it('asks a keyless guest of a host that knows people who they are', async () => {
+    vi.mocked(readPersonKeyStatus).mockResolvedValue({ exists: false })
+    vi.mocked(fetchRoster).mockResolvedValue([
+      { personKey: 'sam-key', name: 'Sam', hasPin: false, pinLocked: false },
+    ])
+    vi.mocked(createPersonKey).mockResolvedValue(STATUS)
+    const user = userEvent.setup()
+
+    renderPrompt([ENDPOINT])
+
+    await screen.findByRole('dialog', { name: 'Have you been here before?' })
+    expect(createPersonKey).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: "I'm new here" }))
+    expect(
+      await screen.findByRole('dialog', { name: 'Tell the host who you are' }),
+    ).toBeInTheDocument()
+    expect(createPersonKey).toHaveBeenCalled()
+  })
+
+  it('stays away from a device the host vouched for', async () => {
+    vi.mocked(readPersonKeyStatus).mockResolvedValue({
+      ...STATUS,
+      joinedAt: '2026-10-22T09:00:00.000Z',
+      vouchedBy: 'Studio Mac',
+    })
+
+    renderPrompt([ENDPOINT])
+
+    await waitFor(() => expect(readPersonKeyStatus).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('asks a guest that joined but has no backup only for the backup', async () => {

@@ -112,6 +112,7 @@ function HostSettings() {
           automergeUrl,
           pairingToken: serverInfo?.pairingToken,
           rootCertFingerprint: serverInfo?.rootCertFingerprint,
+          hostKey: serverInfo?.hostKey,
         })
       : null
 

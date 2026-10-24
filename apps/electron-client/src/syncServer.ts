@@ -820,6 +820,8 @@ export async function startSyncServer(
   const lanIp = host === '0.0.0.0' ? getLocalNetworkIp() : undefined
   const wsScheme = tls ? 'wss' : 'ws'
   const httpScheme = tls ? 'https' : 'http'
+  // Guests pin this key from the QR link and check every vouch against it.
+  const publicHostKey = await loadHostKey()
 
   current = {
     info: {
@@ -854,6 +856,7 @@ export async function startSyncServer(
       // to install, so there is nothing to compare.
       rootCertFingerprint: tls ? rootCertFingerprint : undefined,
       computerName,
+      hostKey: publicHostKey,
       port,
       host,
     },

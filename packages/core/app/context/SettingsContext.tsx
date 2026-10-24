@@ -24,6 +24,11 @@ export type Settings = {
    * person names themselves. Self-reported, like the device label.
    */
   personName: string | undefined
+  /**
+   * The host key from the pairing link this guest last opened. A vouch counts
+   * only when that key signed it.
+   */
+  pinnedHostKey: string | undefined
   syncServerLanEnabled: 'true' | 'false' | undefined
   syncServerHttpsEnabled: 'true' | 'false' | undefined
 }

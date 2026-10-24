@@ -103,7 +103,7 @@ export class Host {
    */
   async start(
     options: HostOptions = {},
-  ): Promise<{ rootDocumentUrl: AutomergeUrl }> {
+  ): Promise<{ rootDocumentUrl: AutomergeUrl; hostKey?: string }> {
     const here = path.dirname(fileURLToPath(import.meta.url))
     const child = spawn(
       process.execPath,
@@ -161,7 +161,7 @@ export class Host {
       this.pending.clear()
     })
 
-    return this.send<{ rootDocumentUrl: AutomergeUrl }>({
+    return this.send<{ rootDocumentUrl: AutomergeUrl; hostKey?: string }>({
       type: 'start',
       webClientPath: options.webClientPath,
       signs: options.signs ?? false,
@@ -235,7 +235,7 @@ const defaultHost = new Host()
 
 export function startHost(
   options: HostOptions = {},
-): Promise<{ rootDocumentUrl: AutomergeUrl }> {
+): Promise<{ rootDocumentUrl: AutomergeUrl; hostKey?: string }> {
   return defaultHost.start(options)
 }
 

@@ -159,7 +159,12 @@ async function start(command: Extract<Command, { type: 'start' }>) {
   rootDocumentUrl = rootDocument.url
   await waitForStoredDoc(rootDocument.url)
 
-  return { rootDocumentUrl, blobRoot: paths.blobRoot, port: info.port }
+  return {
+    rootDocumentUrl,
+    blobRoot: paths.blobRoot,
+    port: info.port,
+    hostKey: info.hostKey,
+  }
 }
 
 /**

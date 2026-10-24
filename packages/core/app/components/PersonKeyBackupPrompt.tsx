@@ -14,6 +14,8 @@ import {
   generatePassphrase,
 } from '@/personKey'
 import { joinHostRoster } from '@/rosterClient'
+import { PromptFrame } from './PromptFrame'
+import { WelcomeBackFlow } from './RejoinFlow'
 
 /**
  * Walks a guest through its first join, right after its person key is made.
@@ -21,6 +23,10 @@ import { joinHostRoster } from '@/rosterClient'
  * can vouch for a new device of theirs later. Then they back up the person key:
  * lock it with a passphrase, save it as a file or a QR code, and type the
  * passphrase again. That check unlocks the saved backup for real.
+ *
+ * When the host already knows people and this device has no key, the person
+ * may be one of them on a new device. They pick their name and the host
+ * vouches for this device (see `RejoinFlow`), or they say they are new.
  *
  * Each step stops appearing once done. "Not now" hides the prompt until the
  * next page load.
@@ -40,11 +46,27 @@ type Step =
 
 export function PersonKeyBackupPrompt() {
   const appContext = useAppContext()
-  const { status, update } = usePersonKey()
+  const { status, roster, update, create } = usePersonKey()
   const endpoint = useUploadEndpoint()
   const [dismissed, setDismissed] = useState(false)
 
-  if (appContext.type !== 'web-client' || !status?.exists || dismissed) {
+  if (appContext.type !== 'web-client' || !status || dismissed) {
+    return null
+  }
+  if (!status.exists) {
+    return endpoint && roster.length > 0 ? (
+      <WelcomeBackFlow
+        worker={appContext.worker}
+        endpoint={endpoint}
+        roster={roster}
+        onNew={create}
+        onVouched={update}
+        onLater={() => setDismissed(true)}
+      />
+    ) : null
+  }
+  // A vouched device holds no person key, so there is nothing to back up.
+  if (status.vouchedBy) {
     return null
   }
   // Joining needs a host to join. A standalone web client skips it.
@@ -151,27 +173,6 @@ export function BackupFlow({
         </p>
       )}
     </PromptFrame>
-  )
-}
-
-function PromptFrame({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <section
-      role="dialog"
-      aria-labelledby="person-key-prompt-title"
-      className="fixed inset-x-0 bottom-0 z-50 m-4 flex max-h-[90vh] flex-col gap-3 overflow-y-auto rounded-lg bg-zinc-900 p-4 text-sm text-zinc-50 shadow-lg md:left-auto md:w-96"
-    >
-      <h2 id="person-key-prompt-title" className="font-medium">
-        {title}
-      </h2>
-      {children}
-    </section>
   )
 }
 
