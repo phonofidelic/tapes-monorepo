@@ -1,20 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
   checkDeviceVouch,
+  checkJoinRequest,
   checkVouchRequest,
   createDeviceVouch,
+  createJoinRequest,
   createVouchRequest,
 } from './deviceVouch'
 import { exportPublicKey, generateSigningKeyPair } from './signing'
-import { DEVICE_VOUCH_TYPE, VOUCH_REQUEST_TYPE } from './types'
+import {
+  DEVICE_VOUCH_TYPE,
+  JOIN_REQUEST_TYPE,
+  VOUCH_REQUEST_TYPE,
+} from './types'
 
 const deviceKeys = await generateSigningKeyPair()
 const hostKeys = await generateSigningKeyPair()
 const deviceKey = await exportPublicKey(deviceKeys.publicKey)
 const hostKey = await exportPublicKey(hostKeys.publicKey)
-const personKey = await exportPublicKey(
-  (await generateSigningKeyPair()).publicKey,
-)
+const personKeys = await generateSigningKeyPair()
+const personKey = await exportPublicKey(personKeys.publicKey)
 const firstCertificate = 'cd'.repeat(32)
 
 const request = () =>
@@ -39,6 +44,43 @@ const vouch = async () =>
     },
     hostKeys,
   )
+
+describe('createJoinRequest', () => {
+  it('signs the name and challenge with the person key', async () => {
+    const signed = await createJoinRequest(
+      { personName: 'Sam', certificate: firstCertificate, challenge: 'c1' },
+      personKeys,
+    )
+
+    expect(signed.payload).toEqual({
+      type: JOIN_REQUEST_TYPE,
+      personKey,
+      personName: 'Sam',
+      certificate: firstCertificate,
+      challenge: 'c1',
+    })
+    expect(await checkJoinRequest(signed)).toEqual({
+      ok: true,
+      request: signed,
+    })
+  })
+
+  it('rejects a join request with a changed name', async () => {
+    const signed = await createJoinRequest(
+      { personName: 'Sam', certificate: firstCertificate, challenge: 'c1' },
+      personKeys,
+    )
+    const renamed = {
+      ...signed,
+      payload: { ...signed.payload, personName: 'Alex' },
+    }
+
+    expect(await checkJoinRequest(renamed)).toEqual({
+      ok: false,
+      problem: 'bad-signature',
+    })
+  })
+})
 
 describe('createVouchRequest', () => {
   it('signs the request with the new device key', async () => {

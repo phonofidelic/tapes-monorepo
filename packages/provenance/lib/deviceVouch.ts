@@ -1,6 +1,7 @@
 /**
- * The statements behind host vouching. A guest that lost its keys signs a
- * vouch request with its new device key. Once the operator or a PIN confirms
+ * The statements behind host vouching. A person joins a host's roster with a
+ * join request signed by their person key. A guest that later lost its keys
+ * signs a vouch request with its new device key. Once the operator or a PIN confirms
  * the person, the host signs a vouch, and the guest's claims name it in place
  * of a device certificate.
  *
@@ -12,12 +13,30 @@
 import { exportPublicKey, signStatement, verifyStatement } from './signing'
 import {
   DEVICE_VOUCH_TYPE,
+  JOIN_REQUEST_TYPE,
   VOUCH_REQUEST_TYPE,
   type DeviceVouch,
+  type JoinRequest,
   type Signed,
   type VouchMethod,
   type VouchRequest,
 } from './types'
+
+export async function createJoinRequest(
+  details: { personName: string; certificate: string; challenge: string },
+  personKeyPair: CryptoKeyPair,
+): Promise<Signed<JoinRequest>> {
+  return signStatement(
+    {
+      type: JOIN_REQUEST_TYPE,
+      personKey: await exportPublicKey(personKeyPair.publicKey),
+      personName: details.personName,
+      certificate: details.certificate,
+      challenge: details.challenge,
+    },
+    personKeyPair.privateKey,
+  )
+}
 
 export async function createVouchRequest(
   details: { personKey: string; deviceLabel: string; requestedAt?: Date },
@@ -68,8 +87,12 @@ export async function createDeviceVouch(
   )
 }
 
-/** Why a vouch request or vouch did not verify. */
+/** Why a join request, vouch request or vouch did not verify. */
 export type VouchProblem = 'malformed' | 'bad-signature'
+
+export type JoinRequestCheck =
+  | { ok: true; request: Signed<JoinRequest> }
+  | { ok: false; problem: VouchProblem }
 
 export type VouchRequestCheck =
   | { ok: true; request: Signed<VouchRequest> }
@@ -78,6 +101,23 @@ export type VouchRequestCheck =
 export type DeviceVouchCheck =
   | { ok: true; vouch: Signed<DeviceVouch> }
   | { ok: false; problem: VouchProblem }
+
+/**
+ * Checks a join request's shape and that its person key signed it. The caller
+ * must still consume its challenge and check the certificate it names.
+ */
+export async function checkJoinRequest(
+  signed: Signed<unknown>,
+): Promise<JoinRequestCheck> {
+  const { payload } = signed
+  if (!isJoinRequest(payload)) {
+    return { ok: false, problem: 'malformed' }
+  }
+  if (!(await verifyStatement(signed, payload.personKey))) {
+    return { ok: false, problem: 'bad-signature' }
+  }
+  return { ok: true, request: { payload, signature: signed.signature } }
+}
 
 /** Checks a request's shape and that its device key signed it. */
 export async function checkVouchRequest(
@@ -111,6 +151,19 @@ export async function checkDeviceVouch(
 }
 
 const isString = (value: unknown) => typeof value === 'string'
+
+function isJoinRequest(payload: unknown): payload is JoinRequest {
+  const request = payload as Partial<JoinRequest> | null
+  return (
+    typeof request === 'object' &&
+    request !== null &&
+    request.type === JOIN_REQUEST_TYPE &&
+    isString(request.personKey) &&
+    isString(request.personName) &&
+    isString(request.certificate) &&
+    isString(request.challenge)
+  )
+}
 
 function isVouchRequest(payload: unknown): payload is VouchRequest {
   const request = payload as Partial<VouchRequest> | null

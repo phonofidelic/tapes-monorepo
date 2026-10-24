@@ -1,5 +1,6 @@
 /**
- * What a guest and a host must agree on to open a sync socket.
+ * What a guest and a host must agree on to open a sync socket, and to join
+ * the host's roster of people.
  *
  * This package exists because the two sides run in different bundles. Guests
  * are renderer code in `@tapes-monorepo/core`. The host is the Electron main
@@ -13,5 +14,6 @@
  */
 
 export * from './label'
+export * from './roster'
 export * from './hostClient'
 export * from './syncProof'

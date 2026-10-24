@@ -51,6 +51,26 @@ export type DeviceCertificate = {
   issuedAt: string
 }
 
+export const JOIN_REQUEST_TYPE = 'tapes/join@1'
+
+/**
+ * Signed by a person key to join a host's roster, or to update the name or PIN
+ * it has there. It is signed over a challenge from that host, so it cannot be
+ * replayed. A certificate alone cannot do this job, because any paired peer
+ * can read one from the blob store. Never stored.
+ */
+export type JoinRequest = {
+  type: typeof JOIN_REQUEST_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  personKey: string
+  /** What the person wants the host to call them. */
+  personName: string
+  /** Address of the Signed<DeviceCertificate> sent with the request. */
+  certificate: string
+  /** The one-time value the host issued for this request. */
+  challenge: string
+}
+
 export const VOUCH_REQUEST_TYPE = 'tapes/vouch-request@1'
 
 /**
