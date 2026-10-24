@@ -30,6 +30,8 @@ export type SyncServerInfo = {
    * check the root they install is this host's.
    */
   rootCertFingerprint?: string
+  /** The Mac's own name: the host's name when the user has set none. */
+  computerName?: string
   port: number
   host: string
 }

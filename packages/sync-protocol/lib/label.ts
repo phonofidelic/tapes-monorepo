@@ -1,13 +1,16 @@
 /**
- * The device name a guest sends on the sync socket handshake.
+ * The rules for the names people type: a device's name, a person's name and a
+ * host's name. A guest sends its device name on the sync socket handshake and
+ * its person name when it joins a host's roster.
  *
- * Guests build the name, and the host re-sanitizes whatever arrives. Both sides
- * must agree on the cap and the character rules, so they are defined once here
- * rather than copied. See the package header for why this is its own package.
+ * Guests build the names, and the host re-sanitizes whatever arrives. Both
+ * sides must agree on the cap and the character rules, so they are defined
+ * once here rather than copied. See the package header for why this is its own
+ * package.
  */
 
 /** Long enough for a name like "Studio iPad", short enough to list. */
-export const MAX_DEVICE_LABEL_LENGTH = 64
+export const MAX_LABEL_LENGTH = 64
 
 /**
  * Query parameter carrying the name on the upgrade request, next to the pairing
@@ -23,7 +26,7 @@ export const DEVICE_LABEL_PARAM = 'd'
  * On the host this runs on attacker-controlled input that reaches a log line
  * and the UI.
  */
-export function sanitizeDeviceLabel(value: unknown): string | undefined {
+export function sanitizeLabel(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined
   }
@@ -34,7 +37,7 @@ export function sanitizeDeviceLabel(value: unknown): string | undefined {
     .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, MAX_DEVICE_LABEL_LENGTH)
+    .slice(0, MAX_LABEL_LENGTH)
     // Cutting by code unit can leave a trailing space or half a surrogate pair.
     .replace(/[\s\p{Cs}]+$/gu, '')
   return cleaned.length > 0 ? cleaned : undefined

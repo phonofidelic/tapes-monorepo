@@ -109,6 +109,11 @@ type SyncServerOptions = {
    */
   rootCertFingerprint?: string
   /**
+   * The Mac's own name. Passed in so this module does not shell out. It is the
+   * host's name until the user sets one.
+   */
+  computerName?: string
+  /**
    * The host's provenance signing key, for receipts on uploaded recordings.
    * Passed in because loading it needs electron, which this module avoids.
    */
@@ -545,6 +550,7 @@ export async function startSyncServer(
     eventStorePath,
     pairingToken,
     rootCertFingerprint,
+    computerName,
     loadSigningKey,
   } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
@@ -784,6 +790,7 @@ export async function startSyncServer(
       // Only meaningful with TLS on: without it there is no root for a guest
       // to install, so there is nothing to compare.
       rootCertFingerprint: tls ? rootCertFingerprint : undefined,
+      computerName,
       port,
       host,
     },

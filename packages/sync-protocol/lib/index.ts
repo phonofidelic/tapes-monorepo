@@ -12,6 +12,6 @@
  * TypeScript so that either side can import it.
  */
 
-export * from './deviceLabel'
+export * from './label'
 export * from './hostClient'
 export * from './syncProof'
