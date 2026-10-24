@@ -6,7 +6,7 @@ import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import { resolveDeviceLabel } from '@/deviceLabel'
 import { readLocalDeviceKey } from '@/localDeviceKey'
-import type { PersonKeyStatus } from '@/personKey'
+import { markPersonKeyJoined, type PersonKeyStatus } from '@/personKey'
 import {
   acceptVouch,
   askForVouch,
@@ -15,12 +15,13 @@ import {
   type VouchAcceptance,
 } from '@/rosterClient'
 import { PromptFrame } from './PromptFrame'
+import { RestoreFlow } from './RestoreFlow'
 
 /**
  * A guest with no keys, on a host that already knows people. The person picks
- * their name, or says they are new. A returning person then waits for the
- * operator to confirm them, or types their PIN, and the host vouches for this
- * device.
+ * their name, restores their person key from its backup, or says they are new.
+ * A returning person who picked their name waits for the operator to confirm
+ * them, or types their PIN, and the host vouches for this device.
  *
  * The vouch is kept only if the host key pinned from the QR link signed it.
  */
@@ -33,26 +34,51 @@ export function WelcomeBackFlow({
   endpoint,
   roster,
   onNew,
-  onVouched,
+  onIdentified,
   onLater,
 }: {
   worker: Worker
   endpoint: BlobEndpoint
   roster: RosterPerson[]
   onNew: () => Promise<void>
-  onVouched: (status: PersonKeyStatus) => void
+  /** This device now has a person key or the host's vouch. */
+  onIdentified: (status: PersonKeyStatus) => void
   onLater: () => void
 }) {
   const [person, setPerson] = useState<RosterPerson>()
+  const [restoring, setRestoring] = useState(false)
   const [error, setError] = useState<string>()
 
+  if (restoring) {
+    return (
+      <RestoreFlow
+        worker={worker}
+        onCancel={() => setRestoring(false)}
+        onRestored={(status) => {
+          // A person the host already knows needs no join step.
+          const known =
+            status.exists &&
+            !status.joinedAt &&
+            roster.some((entry) => entry.personKey === status.publicKey)
+          if (!known) {
+            onIdentified(status)
+            return
+          }
+          markPersonKeyJoined(worker).then(
+            ({ joinedAt }) => onIdentified({ ...status, joinedAt }),
+            () => onIdentified(status),
+          )
+        }}
+      />
+    )
+  }
   if (person) {
     return (
       <RejoinFlow
         worker={worker}
         endpoint={endpoint}
         person={person}
-        onVouched={onVouched}
+        onVouched={onIdentified}
         onBack={(message) => {
           setError(message)
           setPerson(undefined)
@@ -92,6 +118,15 @@ export function WelcomeBackFlow({
           onClick={onLater}
         >
           Not now
+        </button>
+        <button
+          className="rounded-md px-3 py-1.5 text-zinc-400 hover:text-zinc-50"
+          onClick={() => {
+            setError(undefined)
+            setRestoring(true)
+          }}
+        >
+          Restore from a backup
         </button>
         <button
           className="rounded-md bg-zinc-50 px-3 py-1.5 font-medium text-zinc-900 hover:bg-zinc-200"

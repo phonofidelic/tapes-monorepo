@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { AppContextProvider } from '@/context/AppContext'
 import { SettingsProvider } from '@/context/SettingsContext'
-import type { PersonKeyStatus } from '@/personKey'
+import { markPersonKeyJoined, type PersonKeyStatus } from '@/personKey'
 import {
   acceptVouch,
   askForVouch,
@@ -12,6 +12,31 @@ import {
   tryPin,
 } from '@/rosterClient'
 import { VOUCH_POLL_MS, WelcomeBackFlow } from './RejoinFlow'
+
+vi.mock('@/personKey', () => ({ markPersonKeyJoined: vi.fn() }))
+
+// The restore screen has its own tests. Here it only has to finish.
+vi.mock('./RestoreFlow', () => ({
+  RestoreFlow: ({
+    onRestored,
+  }: {
+    onRestored: (status: PersonKeyStatus) => void
+  }) => (
+    <button
+      onClick={() =>
+        onRestored({
+          exists: true,
+          publicKey: 'sam-key',
+          certificate: 'encoded-certificate',
+          certificateAddress: 'cd'.repeat(32),
+          backedUpAt: '2026-10-24T12:00:00.000Z',
+        })
+      }
+    >
+      Finish restoring
+    </button>
+  ),
+}))
 
 vi.mock('@/localDeviceKey', () => ({
   readLocalDeviceKey: vi.fn(() => Promise.resolve(undefined)),
@@ -65,7 +90,7 @@ afterEach(() => {
 
 function renderFlow() {
   const onNew = vi.fn(() => Promise.resolve())
-  const onVouched = vi.fn()
+  const onIdentified = vi.fn()
   render(
     <AppContextProvider value={{ type: 'web-client', worker }}>
       <SettingsProvider>
@@ -74,13 +99,13 @@ function renderFlow() {
           endpoint={ENDPOINT}
           roster={[SAM, ALEX]}
           onNew={onNew}
-          onVouched={onVouched}
+          onIdentified={onIdentified}
           onLater={vi.fn()}
         />
       </SettingsProvider>
     </AppContextProvider>,
   )
-  return { onNew, onVouched }
+  return { onNew, onIdentified }
 }
 
 describe('WelcomeBackFlow', () => {
@@ -96,10 +121,32 @@ describe('WelcomeBackFlow', () => {
     expect(askForVouch).not.toHaveBeenCalled()
   })
 
+  it('marks a restored person the host knows as joined', async () => {
+    vi.mocked(markPersonKeyJoined).mockResolvedValue({
+      joinedAt: '2026-10-24T12:00:01.000Z',
+    })
+    const user = userEvent.setup()
+    const { onIdentified } = renderFlow()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Restore from a backup' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Finish restoring' }))
+
+    await waitFor(() =>
+      expect(onIdentified).toHaveBeenCalledWith(
+        expect.objectContaining({
+          publicKey: 'sam-key',
+          joinedAt: '2026-10-24T12:00:01.000Z',
+        }),
+      ),
+    )
+  })
+
   it('is vouched for after the right PIN', async () => {
     vi.mocked(tryPin).mockResolvedValue({ ok: true, vouch: 'encoded-vouch' })
     const user = userEvent.setup()
-    const { onVouched } = renderFlow()
+    const { onIdentified } = renderFlow()
 
     await user.click(screen.getByRole('button', { name: 'Sam' }))
     await waitFor(() =>
@@ -114,7 +161,7 @@ describe('WelcomeBackFlow', () => {
     expect(tryPin).toHaveBeenCalledWith(ENDPOINT, 'request-1', '4821')
     // The worker checks the vouch against the key the QR link pinned.
     expect(acceptVouch).toHaveBeenCalledWith(worker, 'encoded-vouch', HOST_KEY)
-    await waitFor(() => expect(onVouched).toHaveBeenCalledWith(VOUCHED))
+    await waitFor(() => expect(onIdentified).toHaveBeenCalledWith(VOUCHED))
   })
 
   it('says how many PIN tries are left', async () => {
@@ -153,7 +200,7 @@ describe('WelcomeBackFlow', () => {
   it('is vouched for once the operator confirms a person without a PIN', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    const { onVouched } = renderFlow()
+    const { onIdentified } = renderFlow()
 
     await user.click(screen.getByRole('button', { name: 'Alex' }))
     expect(
@@ -167,7 +214,7 @@ describe('WelcomeBackFlow', () => {
     })
     await act(() => vi.advanceTimersByTimeAsync(VOUCH_POLL_MS))
 
-    await waitFor(() => expect(onVouched).toHaveBeenCalledWith(VOUCHED))
+    await waitFor(() => expect(onIdentified).toHaveBeenCalledWith(VOUCHED))
   })
 
   it('goes back to the names when the operator says no', async () => {
@@ -193,7 +240,7 @@ describe('WelcomeBackFlow', () => {
       problem: 'other-host',
     })
     const user = userEvent.setup()
-    const { onVouched } = renderFlow()
+    const { onIdentified } = renderFlow()
 
     await user.click(screen.getByRole('button', { name: 'Sam' }))
     await user.type(screen.getByLabelText('Your PIN'), '4821')
@@ -202,6 +249,6 @@ describe('WelcomeBackFlow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'did not come from the host you scanned',
     )
-    expect(onVouched).not.toHaveBeenCalled()
+    expect(onIdentified).not.toHaveBeenCalled()
   })
 })

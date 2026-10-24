@@ -113,3 +113,31 @@ export async function certificateForClaim(
     return undefined
   }
 }
+
+export type RestoreResult =
+  | { ok: true; status: PersonKeyStatus }
+  | {
+      ok: false
+      problem: 'unreadable' | 'wrong-passphrase' | 'other-person-key'
+    }
+
+/**
+ * Restores the person key from its backup on this device. On success the
+ * person key has certified this device in place of any host vouch. Takes
+ * about a second on a phone, like a backup check.
+ */
+export function restorePersonKey(
+  worker: Worker,
+  text: string,
+  passphrase: string,
+  deviceLabel: string,
+): Promise<RestoreResult> {
+  return callWorker(worker, 'person:restore', { text, passphrase, deviceLabel })
+}
+
+/** Notes that the host already has the restored person on its roster. */
+export function markPersonKeyJoined(
+  worker: Worker,
+): Promise<{ joinedAt: string }> {
+  return callWorker(worker, 'person:mark-joined')
+}

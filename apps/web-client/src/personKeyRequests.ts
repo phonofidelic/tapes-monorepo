@@ -12,6 +12,7 @@ import {
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
 import {
+  clearDeviceVouch,
   loadDeviceVouch,
   storeDeviceVouch,
   type StoredVouch,
@@ -23,6 +24,7 @@ import {
   loadPersonIdentity,
   markPersonKeyBackedUp,
   markPersonKeyJoined,
+  restorePersonIdentity,
   type PersonIdentity,
 } from './personKey'
 
@@ -227,4 +229,54 @@ export async function markJoined(): Promise<{ joinedAt: string }> {
   const at = new Date()
   await markPersonKeyJoined(identity.publicKey, at)
   return { joinedAt: at.toISOString() }
+}
+
+export type RestoreResult =
+  | { ok: true; status: PersonKeyStatus }
+  | {
+      ok: false
+      problem: 'unreadable' | 'wrong-passphrase' | 'other-person-key'
+    }
+
+/**
+ * Restores the person key from its backup on this device. The person key then
+ * signs a certificate for this device's key, which replaces the host's vouch.
+ * Recordings made under either still name the same person key.
+ */
+export async function restorePersonKey(
+  text: string,
+  passphrase: string,
+  deviceLabel: string,
+): Promise<RestoreResult> {
+  const parsed = parseBackupText(text)
+  if (!parsed.ok) {
+    return { ok: false, problem: 'unreadable' }
+  }
+  const unwrapped = await unwrapPersonKey(
+    parsed.backup,
+    passphrase,
+    deriveArgon2id,
+  )
+  if (!unwrapped.ok) {
+    return { ok: false, problem: 'wrong-passphrase' }
+  }
+  const vouch = await loadDeviceVouch()
+  // A vouch for another person is not this person's to replace.
+  if (vouch && vouch.vouch.payload.personKey !== unwrapped.publicKey) {
+    return { ok: false, problem: 'other-person-key' }
+  }
+  const result = await restorePersonIdentity(
+    { keyPair: await loadDeviceSigningKey(), label: deviceLabel },
+    {
+      keyPair: unwrapped.keyPair,
+      backedUpAt: new Date(),
+      // The host vouched for a person on its roster, so they have joined.
+      joinedAt: vouch?.vouch.payload.vouchedAt,
+    },
+  )
+  if (!result.ok) {
+    return result
+  }
+  await clearDeviceVouch()
+  return { ok: true, status: statusOf(result.identity) }
 }

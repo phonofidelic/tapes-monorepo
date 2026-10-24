@@ -5,6 +5,7 @@ import {
   type Signed,
 } from '@tapes-monorepo/provenance'
 import {
+  deleteRecord,
   openProvenanceDatabase,
   putRecord,
   readRecord,
@@ -13,7 +14,8 @@ import {
 /**
  * The host's vouch for this device, on a guest that lost its keys and has no
  * person key. Claims name it in place of a device certificate until the person
- * restores their person key. Kept in IndexedDB next to the device key.
+ * restores their person key, which then certifies the device and replaces it.
+ * Kept in IndexedDB next to the device key.
  *
  * Only a vouch the pinned host signed for this device's own key is stored.
  */
@@ -48,6 +50,18 @@ export async function loadDeviceVouch(
       throw new Error('The stored device vouch does not verify')
     }
     return { vouch: check.vouch, address: await statementAddress(check.vouch) }
+  } finally {
+    db.close()
+  }
+}
+
+/** Drops the vouch, once a restored person key has certified this device. */
+export async function clearDeviceVouch(
+  factory: IDBFactory | undefined = globalThis.indexedDB,
+): Promise<void> {
+  const db = await openProvenanceDatabase(factory)
+  try {
+    await deleteRecord(db, VOUCH_ID)
   } finally {
     db.close()
   }

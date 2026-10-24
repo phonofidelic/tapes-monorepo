@@ -33,6 +33,7 @@ import {
   deviceLinkAddress,
   markJoined,
   personKeyStatus,
+  restorePersonKey,
   signJoinRequest,
   signVouchRequest,
 } from './personKeyRequests'
@@ -125,6 +126,15 @@ type EventData =
       payload: {
         vouch: string
         pinnedHostKey?: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:restore'
+      payload: {
+        text: string
+        passphrase: string
+        deviceLabel: string
         requestId: string
       }
     }
@@ -426,6 +436,21 @@ onmessage = async (event) => {
             requestId,
             true,
             await acceptVouch(vouch, pinnedHostKey),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:restore': {
+        // Runs Argon2id here, like a backup check.
+        const { text, passphrase, deviceLabel, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await restorePersonKey(text, passphrase, deviceLabel),
           )
         } catch (error) {
           respond(type, requestId, false, undefined, error)

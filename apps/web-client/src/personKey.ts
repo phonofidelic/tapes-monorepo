@@ -15,8 +15,8 @@ import {
 
 /**
  * The person key on this guest, with the certificate it signed for this
- * device's key. Created on the guest's first join and kept in IndexedDB next
- * to the device key.
+ * device's key. Created on the guest's first join, or restored from its
+ * backup, and kept in IndexedDB next to the device key.
  *
  * Unlike the device key, the person key is extractable. Its seed has to be read
  * to make the passphrase backup, and a backup can be made after creation.
@@ -125,6 +125,52 @@ export function createPersonIdentity(
       throw new Error('The person key vanished while being created')
     }
     return toIdentity(winner)
+  })
+}
+
+/**
+ * Stores a person key restored from its backup, with a new certificate for
+ * this device's key. Refuses when the device already holds a different person
+ * key. A device that already holds this one keeps its certificate.
+ */
+export function restorePersonIdentity(
+  device: { keyPair: CryptoKeyPair; label: string },
+  restored: { keyPair: CryptoKeyPair; backedUpAt: Date; joinedAt?: string },
+  factory: IDBFactory | undefined = globalThis.indexedDB,
+): Promise<
+  | { ok: true; identity: PersonIdentity }
+  | { ok: false; problem: 'other-person-key' }
+> {
+  return withDatabase(factory, async (db) => {
+    const restoredKey = await exportPublicKey(restored.keyPair.publicKey)
+    const backedUpAt = restored.backedUpAt.toISOString()
+    const existing = await readStored(db)
+    if (existing) {
+      if ((await exportPublicKey(existing.keyPair.publicKey)) !== restoredKey) {
+        return { ok: false, problem: 'other-person-key' }
+      }
+      const updated = { ...existing, backedUpAt }
+      await putRecord(db, PERSON_KEY_ID, updated)
+      return { ok: true, identity: await toIdentity(updated) }
+    }
+    const certificate = await createDeviceCertificate(
+      {
+        deviceKey: await exportPublicKey(device.keyPair.publicKey),
+        deviceLabel: device.label,
+      },
+      restored.keyPair,
+    )
+    const created: StoredIdentity = {
+      keyPair: restored.keyPair,
+      certificate,
+      backedUpAt,
+      ...(restored.joinedAt && { joinedAt: restored.joinedAt }),
+    }
+    // `add`, so a key another tab stored meanwhile is never overwritten.
+    if (!(await addRecord(db, PERSON_KEY_ID, created))) {
+      return { ok: false, problem: 'other-person-key' }
+    }
+    return { ok: true, identity: await toIdentity(created) }
   })
 }
 

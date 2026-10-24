@@ -60,7 +60,7 @@ export function PersonKeyBackupPrompt() {
         endpoint={endpoint}
         roster={roster}
         onNew={create}
-        onVouched={update}
+        onIdentified={update}
         onLater={() => setDismissed(true)}
       />
     ) : null

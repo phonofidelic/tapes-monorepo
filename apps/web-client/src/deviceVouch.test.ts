@@ -7,7 +7,11 @@ import {
   generateSigningKeyPair,
   statementAddress,
 } from '@tapes-monorepo/provenance'
-import { loadDeviceVouch, storeDeviceVouch } from './deviceVouch'
+import {
+  clearDeviceVouch,
+  loadDeviceVouch,
+  storeDeviceVouch,
+} from './deviceVouch'
 
 /** The host's vouch for this guest, against an in-memory IndexedDB. */
 
@@ -93,5 +97,15 @@ describe('storeDeviceVouch', () => {
     expect(
       await storeDeviceVouch(changed, { hostKey, deviceKey }, factory),
     ).toEqual({ ok: false, problem: 'bad-vouch' })
+  })
+})
+
+describe('clearDeviceVouch', () => {
+  it('drops the stored vouch', async () => {
+    await storeDeviceVouch(await vouch(), { hostKey, deviceKey }, factory)
+
+    await clearDeviceVouch(factory)
+
+    expect(await loadDeviceVouch(factory)).toBeUndefined()
   })
 })
