@@ -1,9 +1,15 @@
 /**
- * The signed statements Tapes stores next to the audio.
+ * The signed statements Tapes stores next to the audio, and the signed
+ * messages a guest sends a host.
  *
  * Each statement's `type` names its format and version. Never change the
  * fields of a published version: old signatures must keep verifying. Add a new
  * version such as `tapes/recording@2` instead.
+ *
+ * Sync proofs, join requests and vouch requests are checked once and never
+ * stored, so that rule does not bind them. They still carry a versioned
+ * `type`. It keeps a signature over one kind of message from verifying as
+ * another made by the same key, and lets a host refuse an old shape.
  */
 
 /**
