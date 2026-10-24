@@ -7,6 +7,10 @@
  * taken from statements that passed, never from the document.
  */
 
+import {
+  checkDeviceCertificate,
+  type DeviceCertificateProblem,
+} from './deviceCertificate'
 import { sha256Hex } from './encoding'
 import {
   checkHostReceipt,
@@ -18,9 +22,11 @@ import { parseSignedStatement, statementType } from './recordingClaim'
 import { checkSessionRecord, type SessionRecordProblem } from './sessionRecord'
 import { statementBytes } from './signing'
 import {
+  DEVICE_CERTIFICATE_TYPE,
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
   SESSION_RECORD_TYPE,
+  type DeviceCertificate,
   type HostReceipt,
   type RecordingClaim,
   type SessionRecord,
@@ -49,7 +55,12 @@ export type StatementProblem =
   | 'session-mismatch'
   /** The session record is for the claim's session but does not list it. */
   | 'claim-not-in-session'
+  /** The device certificate is not named by any passing claim. */
+  | 'certificate-not-claimed'
+  /** The device certificate is for a different device key from the claim's. */
+  | 'certificate-device-mismatch'
   | ClaimProblem
+  | DeviceCertificateProblem
   | ReceiptProblem
   | SessionRecordProblem
 
@@ -62,6 +73,19 @@ export type ClaimedRecording = {
   sessionId: string
   /** From a passing session record that lists the claim, when one is listed. */
   session?: VerifiedSession
+  /** From the passing device certificate the claim names, when it names one. */
+  person?: VerifiedPerson
+}
+
+/**
+ * The fields a passing device certificate vouches for. The person signed the
+ * label, so unlike a session label it is the person's own name for the device.
+ */
+export type VerifiedPerson = {
+  personKey: string
+  deviceLabel: string
+  /** The device's clock. */
+  issuedAt: string
 }
 
 /**
@@ -103,6 +127,7 @@ type Checked =
   | { kind: 'claim'; claim: RecordingClaim }
   | { kind: 'receipt'; receipt: HostReceipt }
   | { kind: 'session'; record: SessionRecord }
+  | { kind: 'certificate'; certificate: DeviceCertificate }
   | { kind: 'unknown' }
   | { kind: 'failed'; problem: StatementProblem }
 
@@ -142,6 +167,12 @@ async function checkStatement(
       ? { kind: 'session', record: check.record.payload }
       : { kind: 'failed', problem: check.problem }
   }
+  if (type === DEVICE_CERTIFICATE_TYPE) {
+    const check = await checkDeviceCertificate(signed)
+    return check.ok
+      ? { kind: 'certificate', certificate: check.certificate.payload }
+      : { kind: 'failed', problem: check.problem }
+  }
   // Later statement types must not break this version.
   return { kind: 'unknown' }
 }
@@ -179,6 +210,7 @@ export async function verifyRecordingStatements(
   const claims = new Map<string, RecordingClaim>()
   const receipts: { hash: string; receipt: HostReceipt }[] = []
   const sessions: { hash: string; record: SessionRecord }[] = []
+  const certificates = new Map<string, DeviceCertificate>()
 
   const unique = new Map(statements.map((s) => [s.hash, s.bytes]))
   for (const [hash, bytes] of unique) {
@@ -193,6 +225,8 @@ export async function verifyRecordingStatements(
       receipts.push({ hash, receipt: checked.receipt })
     } else if (checked.kind === 'session') {
       sessions.push({ hash, record: checked.record })
+    } else if (checked.kind === 'certificate') {
+      certificates.set(hash, checked.certificate)
     } else if (checked.kind === 'failed') {
       failures.push({ hash, problem: checked.problem })
     }
@@ -212,6 +246,33 @@ export async function verifyRecordingStatements(
     }
   }
 
+  // A certificate must vouch for the key of a passing claim that names it.
+  // Listing one for another device would put a person's name on this take.
+  const named = new Map<string, RecordingClaim[]>()
+  for (const claim of claims.values()) {
+    if (claim.deviceCert !== undefined) {
+      named.set(claim.deviceCert, [
+        ...(named.get(claim.deviceCert) ?? []),
+        claim,
+      ])
+    }
+  }
+  for (const [hash, certificate] of certificates) {
+    const namedBy = named.get(hash)
+    if (!namedBy) {
+      failures.push({ hash, problem: 'certificate-not-claimed' })
+    } else if (namedBy.some((c) => c.deviceKey !== certificate.deviceKey)) {
+      failures.push({ hash, problem: 'certificate-device-mismatch' })
+    }
+  }
+  // A claim's certificate that is not listed cannot be checked. Showing the
+  // claim without it would hide that the device named a person.
+  for (const address of named.keys()) {
+    if (!unique.has(address)) {
+      missing.push(address)
+    }
+  }
+
   if (failures.length > 0) {
     return { state: 'failed', failures }
   }
@@ -222,10 +283,17 @@ export async function verifyRecordingStatements(
   // Every session record now covers a passing claim. A recording belongs to
   // one session, so the first listed is the one to show.
   const session = sessions[0]?.record
-  const claimed = (claim: RecordingClaim) => ({
-    ...claimedRecording(claim),
-    ...(session && { session: verifiedSession(session) }),
-  })
+  const claimed = (claim: RecordingClaim) => {
+    const certificate =
+      claim.deviceCert !== undefined
+        ? certificates.get(claim.deviceCert)
+        : undefined
+    return {
+      ...claimedRecording(claim),
+      ...(session && { session: verifiedSession(session) }),
+      ...(certificate && { person: verifiedPerson(certificate) }),
+    }
+  }
 
   // Every receipt now names a passing claim. Several receipts for one claim
   // can come from a retried upload, so show the earliest arrival.
@@ -283,5 +351,13 @@ function verifiedSession(record: SessionRecord): VerifiedSession {
       deviceKey,
       spans,
     })),
+  }
+}
+
+function verifiedPerson(certificate: DeviceCertificate): VerifiedPerson {
+  return {
+    personKey: certificate.personKey,
+    deviceLabel: certificate.deviceLabel,
+    issuedAt: certificate.issuedAt,
   }
 }

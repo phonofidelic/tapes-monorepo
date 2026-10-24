@@ -1,4 +1,9 @@
 import { generateSigningKeyPair } from '@tapes-monorepo/provenance'
+import {
+  addRecord,
+  openProvenanceDatabase,
+  readRecord,
+} from './provenanceDatabase'
 
 /**
  * This device's Ed25519 key for signing provenance statements. It is generated
@@ -9,24 +14,7 @@ import { generateSigningKeyPair } from '@tapes-monorepo/provenance'
  * LAN IP. When that IP changes, the guest starts over with a new key.
  */
 
-const DB_NAME = 'tapes-provenance'
-const STORE_NAME = 'keys'
 const DEVICE_KEY_ID = 'device'
-
-function settle<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
-  })
-}
-
-function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
-  const request = factory.open(DB_NAME, 1)
-  request.onupgradeneeded = () => {
-    request.result.createObjectStore(STORE_NAME)
-  }
-  return settle(request)
-}
 
 function isKeyPair(value: unknown): value is CryptoKeyPair {
   const pair = value as Partial<CryptoKeyPair> | undefined
@@ -38,8 +26,7 @@ function isKeyPair(value: unknown): value is CryptoKeyPair {
 async function readKeyPair(
   db: IDBDatabase,
 ): Promise<CryptoKeyPair | undefined> {
-  const store = db.transaction(STORE_NAME).objectStore(STORE_NAME)
-  const value: unknown = await settle(store.get(DEVICE_KEY_ID))
+  const value = await readRecord(db, DEVICE_KEY_ID)
   if (value === undefined) {
     return undefined
   }
@@ -49,47 +36,17 @@ async function readKeyPair(
   return value
 }
 
-/**
- * Stores the key pair unless one is already there. `add` rather than `put`, so
- * that when two tabs race to create a key, the loser fails instead of
- * overwriting the key the winner may already have used.
- */
-async function addKeyPair(
-  db: IDBDatabase,
-  keyPair: CryptoKeyPair,
-): Promise<boolean> {
-  const transaction = db.transaction(STORE_NAME, 'readwrite')
-  const request = transaction
-    .objectStore(STORE_NAME)
-    .add(keyPair, DEVICE_KEY_ID)
-  // Without this the failed add also aborts the transaction, which reports the
-  // same error a second time.
-  request.onerror = (event) => event.preventDefault()
-  try {
-    await settle(request)
-    return true
-  } catch (error) {
-    if ((error as Error | null)?.name === 'ConstraintError') {
-      return false
-    }
-    throw error
-  }
-}
-
 async function loadOrCreate(
   factory: IDBFactory | undefined,
 ): Promise<CryptoKeyPair> {
-  if (!factory) {
-    throw new Error('Cannot store a device signing key: no IndexedDB')
-  }
-  const db = await openDatabase(factory)
+  const db = await openProvenanceDatabase(factory)
   try {
     const existing = await readKeyPair(db)
     if (existing) {
       return existing
     }
     const created = await generateSigningKeyPair()
-    if (await addKeyPair(db, created)) {
+    if (await addRecord(db, DEVICE_KEY_ID, created)) {
       return created
     }
     const winner = await readKeyPair(db)

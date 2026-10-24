@@ -1,15 +1,19 @@
 import type { Readable } from 'stream'
 import {
+  DEVICE_CERTIFICATE_TYPE,
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
   SESSION_RECORD_TYPE,
   STATEMENT_MIME_TYPE,
+  checkDeviceCertificate,
   checkHostReceipt,
   checkRecordingClaim,
   checkSessionRecord,
   parseSignedStatement,
+  statementAddress,
   statementBytes,
   statementType,
+  type RecordingClaim,
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { BlobTooLargeError, type BlobStore } from './blobStore'
@@ -22,7 +26,8 @@ import { BlobTooLargeError, type BlobStore } from './blobStore'
  * Any peer can make a key and sign, so a valid signature alone filters almost
  * nothing. Each statement must also bind to what this host already holds. A
  * claim needs its audio here. A receipt needs its claim here, and a session
- * record needs at least one of the claims it lists.
+ * record needs at least one of the claims it lists. A device certificate needs
+ * the claim that names it, which the uploader identifies with `?for=`.
  *
  * Do not import `electron` here. The sync server uses this module, and it
  * stays testable in a plain node process.
@@ -46,6 +51,8 @@ export type StatementProblem =
   | 'audio-missing'
   /** The receipt or session record names no claim this host holds. */
   | 'claim-missing'
+  /** The claim named by `?for=` does not name this device certificate. */
+  | 'certificate-mismatch'
 
 export type StatementCheck =
   { ok: true } | { ok: false; problem: StatementProblem }
@@ -89,6 +96,7 @@ export async function readStoredStatement(
 export async function checkUploadedStatement(
   bytes: Uint8Array,
   store: BlobStore,
+  options: { forClaim?: string } = {},
 ): Promise<StatementCheck> {
   const signed = parseSignedStatement(bytes)
   if (!signed) {
@@ -116,6 +124,9 @@ export async function checkUploadedStatement(
   }
   if (type === SESSION_RECORD_TYPE) {
     return checkSession(signed, store)
+  }
+  if (type === DEVICE_CERTIFICATE_TYPE) {
+    return checkCertificate(signed, store, options.forClaim)
   }
   return { ok: false, problem: 'unknown-type' }
 }
@@ -166,8 +177,35 @@ async function checkSession(
   return { ok: false, problem: 'claim-missing' }
 }
 
+async function checkCertificate(
+  signed: Signed<unknown>,
+  store: BlobStore,
+  forClaim: string | undefined,
+): Promise<StatementCheck> {
+  const check = await checkDeviceCertificate(signed)
+  if (!check.ok) {
+    return { ok: false, problem: check.problem }
+  }
+  const claim = forClaim ? await storedClaim(store, forClaim) : null
+  if (!claim) {
+    return { ok: false, problem: 'claim-missing' }
+  }
+  const matches =
+    claim.payload.deviceCert === (await statementAddress(check.certificate)) &&
+    claim.payload.deviceKey === check.certificate.payload.deviceKey
+  return matches ? { ok: true } : { ok: false, problem: 'certificate-mismatch' }
+}
+
 /** Whether a verified claim is stored here under this address. */
 async function holdsClaim(store: BlobStore, address: string): Promise<boolean> {
+  return (await storedClaim(store, address)) !== null
+}
+
+/** The verified claim stored here under this address, if there is one. */
+async function storedClaim(
+  store: BlobStore,
+  address: string,
+): Promise<Signed<RecordingClaim> | null> {
   // Only verified statements are stored under this MIME type. Any bytes can be
   // stored as audio, so the type alone would not show the claim was checked.
   const meta = await store.stat(address)
@@ -176,4 +214,6 @@ async function holdsClaim(store: BlobStore, address: string): Promise<boolean> {
       ? await readStoredStatement(store, address)
       : null
   return claim !== null && statementType(claim) === RECORDING_CLAIM_TYPE
+    ? (claim as Signed<RecordingClaim>)
+    : null
 }

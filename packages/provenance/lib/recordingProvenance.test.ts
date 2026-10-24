@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { canonicalJson } from './canonicalJson'
 import { sha256Hex } from './encoding'
+import { createDeviceCertificate } from './deviceCertificate'
 import { createHostReceipt } from './hostReceipt'
 import { createRecordingClaim, NO_SESSION_ID } from './recordingClaim'
 import {
@@ -22,16 +23,30 @@ const blob = { hash: 'ab'.repeat(32), size: 1024 }
 const deviceKeys = await generateSigningKeyPair()
 const hostKeys = await generateSigningKeyPair()
 const deviceKey = await exportPublicKey(deviceKeys.publicKey)
+const personKeys = await generateSigningKeyPair()
+const personKey = await exportPublicKey(personKeys.publicKey)
 
-function signedClaim(audio = blob) {
+function signedClaim(audio = blob, deviceCert?: string) {
   return createRecordingClaim(
     {
       blob: { ...audio, mimeType: 'audio/mp4' },
       startedAt: '2026-10-05T12:00:00.000Z',
       endedAt: '2026-10-05T12:03:00.000Z',
       sessionId: 'session-1',
+      deviceCert,
     },
     deviceKeys,
+  )
+}
+
+function certificateFor(key = deviceKey) {
+  return createDeviceCertificate(
+    {
+      deviceKey: key,
+      deviceLabel: 'Studio phone',
+      issuedAt: new Date('2026-10-01T09:00:00.000Z'),
+    },
+    personKeys,
   )
 }
 
@@ -396,5 +411,84 @@ describe('verifyRecordingStatements', () => {
         fetched(await receiptFor(claim)),
       ),
     ).toMatchObject({ state: 'verified' })
+  })
+
+  describe('device certificates', () => {
+    it('shows the person a passing certificate names', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(await receiptFor(claim)),
+          fetched(certificate),
+        ),
+      ).toMatchObject({
+        state: 'verified',
+        deviceKey,
+        person: {
+          personKey,
+          deviceLabel: 'Studio phone',
+          issuedAt: '2026-10-01T09:00:00.000Z',
+        },
+      })
+    })
+
+    it('is unavailable when the named certificate is not listed', async () => {
+      const certificate = await certificateFor()
+      const address = await statementAddress(certificate)
+      const claim = await signedClaim(blob, address)
+
+      expect(
+        await verify(fetched(claim), fetched(await receiptFor(claim))),
+      ).toEqual({ state: 'unavailable', missing: [address] })
+    })
+
+    it('fails a certificate for another device', async () => {
+      const other = await exportPublicKey(
+        (await generateSigningKeyPair()).publicKey,
+      )
+      const certificate = await certificateFor(other)
+      const address = await statementAddress(certificate)
+      const claim = await signedClaim(blob, address)
+
+      expect(await verify(fetched(claim), fetched(certificate))).toEqual({
+        state: 'failed',
+        failures: [{ hash: address, problem: 'certificate-device-mismatch' }],
+      })
+    })
+
+    it('fails a certificate no claim names', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim()
+
+      expect(await verify(fetched(claim), fetched(certificate))).toEqual({
+        state: 'failed',
+        failures: [
+          {
+            hash: await statementAddress(certificate),
+            problem: 'certificate-not-claimed',
+          },
+        ],
+      })
+    })
+
+    it('fails a certificate signed by another key', async () => {
+      const certificate = await certificateFor()
+      const forged = {
+        payload: certificate.payload,
+        signature: (
+          await signStatement(certificate.payload, deviceKeys.privateKey)
+        ).signature,
+      }
+      const address = await statementAddress(forged)
+      const claim = await signedClaim(blob, address)
+
+      expect(await verify(fetched(claim), fetched(forged))).toEqual({
+        state: 'failed',
+        failures: [{ hash: address, problem: 'bad-signature' }],
+      })
+    })
   })
 })

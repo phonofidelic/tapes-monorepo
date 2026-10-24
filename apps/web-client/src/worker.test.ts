@@ -15,8 +15,10 @@ import {
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
+import { loadPersonIdentity, type PersonIdentity } from './personKey'
 
 vi.mock('./deviceSigningKey', () => ({ loadDeviceSigningKey: vi.fn() }))
+vi.mock('./personKey', () => ({ loadPersonIdentity: vi.fn() }))
 
 type WorkerReply = {
   type: string
@@ -283,6 +285,7 @@ describe('recorder:claim', () => {
     vi.mocked(loadDeviceSigningKey).mockResolvedValue(
       await generateSigningKeyPair(),
     )
+    vi.mocked(loadPersonIdentity).mockResolvedValue(undefined)
   })
 
   it('signs a claim over the bytes in the file', async () => {
@@ -307,6 +310,35 @@ describe('recorder:claim', () => {
       deviceKey: await exportPublicKey(keyPair.publicKey),
     })
     expect(await verifyStatement(signed, keyPair.publicKey)).toBe(true)
+  })
+
+  it('names the device certificate when there is a person key', async () => {
+    addFile('take.webm', 'recorded audio')
+    vi.mocked(loadPersonIdentity).mockResolvedValue({
+      certificateAddress: 'cd'.repeat(32),
+    } as PersonIdentity)
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      requestId: 'one',
+    })
+
+    expect((await claimFrom('one')).payload.deviceCert).toBe('cd'.repeat(32))
+  })
+
+  it('signs without a certificate when the person key cannot be read', async () => {
+    addFile('take.webm', 'recorded audio')
+    vi.mocked(loadPersonIdentity).mockRejectedValue(new Error('no IndexedDB'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      requestId: 'one',
+    })
+
+    expect('deviceCert' in (await claimFrom('one')).payload).toBe(false)
   })
 
   it('signs the session the take started in', async () => {

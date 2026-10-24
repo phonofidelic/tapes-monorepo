@@ -2,6 +2,7 @@ import type http from 'http'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import {
+  DEVICE_CERTIFICATE_HEADER,
   RECORDING_CLAIM_HEADER,
   STATEMENT_MIME_TYPE,
   type RecordingClaim,
@@ -25,7 +26,8 @@ import { CORS_HEADERS, sendJson, sendStatus } from './httpResponses'
  * it against the bytes it stored and answers with a receipt, or with the
  * reason the claim did not verify. A bad claim never fails the upload. A
  * verified claim and its receipt are stored as JSON objects in the same store,
- * so guests fetch them by hash like audio.
+ * so guests fetch them by hash like audio. The device certificate the claim
+ * names can ride along in a second header and is stored the same way.
  *
  * Uploads are audio, or a signed statement sent as JSON. A client sends
  * statements when it copies a recording to a host that lacked it. A statement
@@ -102,6 +104,14 @@ export function parseRange(
   return { kind: 'ok', start, end }
 }
 
+function headerText(
+  request: http.IncomingMessage,
+  name: string,
+): string | undefined {
+  const value = request.headers[name.toLowerCase()]
+  return Array.isArray(value) ? value.join(',') : value
+}
+
 export function createBlobRequestHandler(options: BlobHandlerOptions) {
   const {
     store,
@@ -146,7 +156,12 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
     }
 
     if (isStatement) {
-      await handleStatementUpload(request, response, docUrl)
+      await handleStatementUpload(
+        request,
+        response,
+        docUrl,
+        url.searchParams.get('for') ?? undefined,
+      )
       return
     }
 
@@ -156,11 +171,16 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
         docUrl,
         maxBytes: maxBlobBytes,
       })
-      const claimHeader = request.headers[RECORDING_CLAIM_HEADER.toLowerCase()]
       const { claim, statements } = await verifyClaimOnIngest(
-        Array.isArray(claimHeader) ? claimHeader.join(',') : claimHeader,
+        headerText(request, RECORDING_CLAIM_HEADER),
         meta,
-        { loadSigningKey, store, docUrl, onVerifiedClaim },
+        {
+          loadSigningKey,
+          store,
+          docUrl,
+          certificate: headerText(request, DEVICE_CERTIFICATE_HEADER),
+          onVerifiedClaim,
+        },
       )
       sendJson(response, deduped ? 200 : 201, {
         hash: meta.hash,
@@ -187,6 +207,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
     request: http.IncomingMessage,
     response: http.ServerResponse,
     docUrl: string,
+    forClaim: string | undefined,
   ) {
     let bytes: Buffer
     try {
@@ -200,7 +221,7 @@ export function createBlobRequestHandler(options: BlobHandlerOptions) {
       throw error
     }
 
-    const check = await checkUploadedStatement(bytes, store)
+    const check = await checkUploadedStatement(bytes, store, { forClaim })
     if (!check.ok) {
       sendJson(response, 422, {
         error: `Statement not stored: ${check.problem}`,

@@ -59,7 +59,8 @@ function isRecordingClaim(payload: unknown): payload is RecordingClaim {
     typeof claim.startedAt === 'string' &&
     typeof claim.endedAt === 'string' &&
     typeof claim.sessionId === 'string' &&
-    typeof claim.deviceKey === 'string'
+    typeof claim.deviceKey === 'string' &&
+    (claim.deviceCert === undefined || typeof claim.deviceCert === 'string')
   )
 }
 
@@ -68,7 +69,7 @@ function isRecordingClaim(payload: unknown): payload is RecordingClaim {
  * compared: it labels the bytes, and the hash already pins them.
  *
  * Verifying against the key the claim names proves the claim is intact, not
- * which person made it. That needs device certificates.
+ * which person made it. The device certificate the claim names says that.
  */
 export async function checkRecordingClaim(
   signed: Signed<unknown>,

@@ -13,7 +13,8 @@
  * hangs its caller for the life of the page.
  *
  * The worker also signs each finished recording, because it holds the files
- * and can read the device key from IndexedDB.
+ * and can read the device key from IndexedDB. It owns the person key for the
+ * same reason, and runs the backup's Argon2id off the page.
  */
 import { sha256 } from '@noble/hashes/sha2'
 import { bytesToHex } from '@noble/hashes/utils'
@@ -23,6 +24,14 @@ import {
   exportPublicKey,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
+import { generatePassphrase } from './passphrase'
+import { loadPersonIdentity } from './personKey'
+import {
+  backUpPersonKey,
+  checkPersonKeyBackup,
+  createPersonKey,
+  personKeyStatus,
+} from './personKeyRequests'
 
 declare global {
   interface DedicatedWorkerGlobalScope {
@@ -68,6 +77,34 @@ type EventData =
   | {
       type: 'provenance:device-key'
       payload: {
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:status' | 'person:passphrase'
+      payload: {
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:create'
+      payload: {
+        deviceLabel: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:backup'
+      payload: {
+        passphrase: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:check-backup'
+      payload: {
+        text: string
+        passphrase: string
         requestId: string
       }
     }
@@ -232,12 +269,17 @@ onmessage = async (event) => {
       case 'recorder:claim': {
         // Hashes the bytes this device captured and signs a claim over them,
         // before anything is uploaded. Fails without a device key, and the
-        // caller then uploads unsigned.
+        // caller then uploads unsigned. Names the device certificate when
+        // this guest has a person key.
         const { filename, mimeType, startedAt, endedAt, sessionId, requestId } =
           payload
         try {
           await pendingWrite
           const keyPair = await loadDeviceSigningKey()
+          const person = await loadPersonIdentity().catch((error: unknown) => {
+            console.warn('Signing without a device certificate:', error)
+            return undefined
+          })
           const root = await navigator.storage.getDirectory()
           const file = await (await root.getFileHandle(filename)).getFile()
           const signed = await createRecordingClaim(
@@ -250,6 +292,7 @@ onmessage = async (event) => {
               startedAt,
               endedAt,
               sessionId,
+              deviceCert: person?.certificateAddress,
             },
             keyPair,
           )
@@ -272,6 +315,55 @@ onmessage = async (event) => {
           })
         } catch (error) {
           respond('provenance:device-key', requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:status': {
+        // The person key on this guest, without making one.
+        const { requestId } = payload
+        try {
+          respond(type, requestId, true, await personKeyStatus())
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:create': {
+        // On first join. Makes the person key and certifies this device.
+        const { deviceLabel, requestId } = payload
+        try {
+          respond(type, requestId, true, await createPersonKey(deviceLabel))
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:passphrase': {
+        const { requestId } = payload
+        respond(type, requestId, true, { passphrase: generatePassphrase() })
+        break
+      }
+      case 'person:backup': {
+        // Runs Argon2id here, which blocks this worker for about a second.
+        const { passphrase, requestId } = payload
+        try {
+          respond(type, requestId, true, await backUpPersonKey(passphrase))
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:check-backup': {
+        const { text, passphrase, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await checkPersonKeyBackup(text, passphrase),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
         }
         break
       }

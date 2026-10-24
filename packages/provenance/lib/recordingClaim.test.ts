@@ -45,6 +45,22 @@ describe('createRecordingClaim', () => {
     )
     expect(signed.payload.sessionId).toBe('session-1')
   })
+
+  it('names the device certificate when given one', async () => {
+    const keyPair = await generateSigningKeyPair()
+    const signed = await createRecordingClaim(
+      { ...details, deviceCert: 'cd'.repeat(32) },
+      keyPair,
+    )
+    expect(signed.payload.deviceCert).toBe('cd'.repeat(32))
+    expect(await verifyStatement(signed, keyPair.publicKey)).toBe(true)
+  })
+
+  it('leaves the certificate out when there is none', async () => {
+    const keyPair = await generateSigningKeyPair()
+    const signed = await createRecordingClaim(details, keyPair)
+    expect('deviceCert' in signed.payload).toBe(false)
+  })
 })
 
 describe('encodeSignedStatement', () => {

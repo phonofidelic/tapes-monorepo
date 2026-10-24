@@ -176,6 +176,40 @@ describe('uploadBlob', () => {
     })
   })
 
+  it('sends the device certificate the claim names', async () => {
+    const fetchMock = stubFetch(
+      jsonResponse(201, { hash: HASH, size: 8, mimeType: 'audio/wav' }),
+    )
+
+    await uploadBlob(ENDPOINT, new Blob(['recorded']), {
+      mimeType: 'audio/wav',
+      docUrl: DOC,
+      claim: 'encoded-claim',
+      certificate: 'encoded-certificate',
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.headers).toMatchObject({
+      'X-Tapes-Device-Certificate': 'encoded-certificate',
+    })
+  })
+
+  it('names the claim a copied certificate belongs to', async () => {
+    const fetchMock = stubFetch(
+      jsonResponse(201, { hash: HASH, size: 8, mimeType: 'application/json' }),
+    )
+
+    await uploadBlob(ENDPOINT, new Blob(['{}']), {
+      mimeType: 'application/json',
+      docUrl: DOC,
+      forClaim: 'c'.repeat(64),
+    })
+
+    const [url] = fetchMock.mock.calls[0]
+    expect(new URL(url).searchParams.get('for')).toBe('c'.repeat(64))
+    expect(new URL(url).searchParams.get('doc')).toBe(DOC)
+  })
+
   it('returns the statement hashes the host stored, dropping anything else', async () => {
     const claimHash = 'c'.repeat(64)
     stubFetch(
@@ -585,9 +619,14 @@ describe('replicateBlob', () => {
     const CLAIM_HASH = 'c'.repeat(64)
     const RECEIPT_HASH = 'b'.repeat(64)
     const SESSION_HASH = 'e'.repeat(64)
+    const CERT_HASH = 'f'.repeat(64)
     const CLAIM = JSON.stringify({
-      payload: { type: 'tapes/recording@1' },
+      payload: { type: 'tapes/recording@1', deviceCert: CERT_HASH },
       signature: 'claim-sig',
+    })
+    const CERT = JSON.stringify({
+      payload: { type: 'tapes/device-cert@1' },
+      signature: 'cert-sig',
     })
     const RECEIPT = JSON.stringify({
       payload: { type: 'tapes/receipt@1', claim: CLAIM_HASH },
@@ -602,6 +641,7 @@ describe('replicateBlob', () => {
       [CLAIM]: CLAIM_HASH,
       [RECEIPT]: RECEIPT_HASH,
       [SESSION]: SESSION_HASH,
+      [CERT]: CERT_HASH,
     }
 
     /**
@@ -611,7 +651,11 @@ describe('replicateBlob', () => {
     function stubReplication(
       options: { audioStatus?: number; missing?: string[] } = {},
     ) {
-      const uploads: { contentType: string; body: string }[] = []
+      const uploads: {
+        contentType: string
+        body: string
+        forClaim?: string
+      }[] = []
       const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
         if (url.startsWith(LOCAL.baseUrl)) {
           const hash = url.slice(`${LOCAL.baseUrl}/blobs/`.length)
@@ -619,6 +663,7 @@ describe('replicateBlob', () => {
             [CLAIM_HASH]: CLAIM,
             [RECEIPT_HASH]: RECEIPT,
             [SESSION_HASH]: SESSION,
+            [CERT_HASH]: CERT,
           }[hash]
           return body && !options.missing?.includes(hash)
             ? new Response(body, { status: 200 })
@@ -628,7 +673,8 @@ describe('replicateBlob', () => {
           'Content-Type'
         ]
         const body = await (init?.body as Blob).text()
-        uploads.push({ contentType, body })
+        const forClaim = new URL(url).searchParams.get('for')
+        uploads.push({ contentType, body, ...(forClaim && { forClaim }) })
         if (contentType === 'audio/wav' && options.audioStatus) {
           return jsonResponse(options.audioStatus, { error: 'Nope' })
         }
@@ -682,6 +728,24 @@ describe('replicateBlob', () => {
         CLAIM,
         SESSION,
         RECEIPT,
+      ])
+    })
+
+    // The host stores a certificate only for a claim it holds that names it.
+    it('sends a device certificate after its claim, naming the claim', async () => {
+      const uploads = stubReplication()
+
+      await replicateBlob([REMOTE], new Blob(['audio bytes']), {
+        mimeType: 'audio/wav',
+        docUrl: DOC,
+        expectedHash: HASH,
+        statements: { hashes: [CERT_HASH, CLAIM_HASH], sources: [LOCAL] },
+      })
+
+      expect(uploads).toEqual([
+        { contentType: 'audio/wav', body: 'audio bytes' },
+        { contentType: 'application/json', body: CLAIM },
+        { contentType: 'application/json', body: CERT, forClaim: CLAIM_HASH },
       ])
     })
 

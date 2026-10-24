@@ -6,6 +6,7 @@ import {
   type BlobEndpoint,
   type StoredBlob,
 } from './blobClient'
+import { certificateForClaim } from './personKey'
 import { callWorker } from './workerClient'
 
 /**
@@ -98,6 +99,9 @@ export async function uploadRecordingBlob({
     mimeType: file.type || mimeType,
     docUrl,
     claim,
+    // Read at upload time. A device's certificate never changes, so a queued
+    // upload still finds the one its claim names.
+    certificate: await certificateForClaim(appContext, claim),
   })
 }
 

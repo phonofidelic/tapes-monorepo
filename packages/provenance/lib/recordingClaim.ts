@@ -23,6 +23,8 @@ export async function createRecordingClaim(
     startedAt: string
     endedAt: string
     sessionId?: string
+    /** Address of this device's certificate, when it has one. */
+    deviceCert?: string
   },
   keyPair: CryptoKeyPair,
 ): Promise<Signed<RecordingClaim>> {
@@ -34,6 +36,9 @@ export async function createRecordingClaim(
       endedAt: details.endedAt,
       sessionId: details.sessionId ?? NO_SESSION_ID,
       deviceKey: await exportPublicKey(keyPair.publicKey),
+      ...(details.deviceCert !== undefined && {
+        deviceCert: details.deviceCert,
+      }),
     },
     keyPair.privateKey,
   )

@@ -23,6 +23,11 @@ vi.mock('@/context/ViewContext', () => ({
   },
 }))
 
+// Needs the app context, and has its own tests.
+vi.mock('./components/PersonKeyBackupPrompt', () => ({
+  PersonKeyBackupPrompt: () => null,
+}))
+
 const renderApp = (view: React.ReactNode = <p>recorder view</p>) => {
   views.map = { [views.current]: view }
   return render(

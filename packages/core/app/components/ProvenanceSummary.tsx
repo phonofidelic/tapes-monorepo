@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   keyFingerprint,
   NO_SESSION_ID,
+  type VerifiedPerson,
   type VerifiedSession,
 } from '@tapes-monorepo/provenance'
 import { useAppContext } from '@/context/AppContext'
@@ -10,6 +11,7 @@ import {
   type ProvenanceState,
 } from '@/hooks/useRecordingProvenance'
 import { readLocalDeviceKey } from '@/localDeviceKey'
+import { readPersonKeyStatus } from '@/personKey'
 import type { ProvenanceInput } from '@/recordingProvenance'
 
 /**
@@ -17,8 +19,10 @@ import type { ProvenanceInput } from '@/recordingProvenance'
  * with the details behind it.
  *
  * Every field shown comes from a statement that passed its checks, never from
- * the editable document. A device is named by a short key fingerprint, or
- * "this device". A key is not a person's name, and nothing here pretends it is.
+ * the editable document. A device is named by a short key fingerprint, "this
+ * device", or the label its person key certified. A person is named by key
+ * fingerprint, or "you" for the person key on this device. A key is not a
+ * person's name, and nothing here pretends it is.
  */
 
 const dateTime = new Intl.DateTimeFormat(undefined, {
@@ -48,6 +52,23 @@ function useLocalDeviceKey(): string | undefined {
   return key
 }
 
+function useLocalPersonKey(): string | undefined {
+  const appContext = useAppContext()
+  const [key, setKey] = useState<string>()
+  useEffect(() => {
+    let current = true
+    readPersonKeyStatus(appContext).then(
+      (status) =>
+        current && setKey(status.exists ? status.publicKey : undefined),
+      () => undefined,
+    )
+    return () => {
+      current = false
+    }
+  }, [appContext])
+  return key
+}
+
 function useFingerprint(key: string | undefined): string | undefined {
   const [held, setHeld] = useState<{ key: string; fingerprint?: string }>()
   useEffect(() => {
@@ -68,12 +89,30 @@ function useFingerprint(key: string | undefined): string | undefined {
 function useDeviceName(
   deviceKey: string | undefined,
   localKey: string | undefined,
+  certifiedLabel?: string,
 ): string {
   const fingerprint = useFingerprint(deviceKey)
   if (deviceKey && deviceKey === localKey) {
     return 'this device'
   }
+  if (certifiedLabel) {
+    return `“${certifiedLabel}”`
+  }
   return fingerprint ? `device ${fingerprint}` : 'another device'
+}
+
+function usePersonName(
+  person: VerifiedPerson | undefined,
+  localPersonKey: string | undefined,
+): string | undefined {
+  const fingerprint = useFingerprint(person?.personKey)
+  if (!person) {
+    return undefined
+  }
+  if (person.personKey === localPersonKey) {
+    return 'you'
+  }
+  return fingerprint ? `person ${fingerprint}` : 'another person'
 }
 
 function plural(count: number, word: string): string {
@@ -90,10 +129,14 @@ export function ProvenanceSummary({
 
 function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
   const localKey = useLocalDeviceKey()
+  const localPersonKey = useLocalPersonKey()
+  const person = 'person' in provenance ? provenance.person : undefined
   const deviceName = useDeviceName(
     'deviceKey' in provenance ? provenance.deviceKey : undefined,
     localKey,
+    person?.deviceLabel,
   )
+  const personName = usePersonName(person, localPersonKey)
 
   switch (provenance.state) {
     case 'checking':
@@ -124,9 +167,14 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
     case 'device-only':
       return (
         <Details
-          summary={`Signed on ${deviceName}. The host did not confirm when it arrived.`}
+          summary={
+            personName
+              ? `Signed by ${personName} on ${deviceName}. The host did not confirm when it arrived.`
+              : `Signed on ${deviceName}. The host did not confirm when it arrived.`
+          }
         >
           <DeviceTimes {...provenance} />
+          {person && personName && <Person {...person} name={personName} />}
           <Session {...provenance} localKey={localKey} />
         </Details>
       )
@@ -138,13 +186,14 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
               <>Recorded by the host, on {deviceName}.</>
             ) : (
               <>
-                Recorded on {deviceName}, received by the host{' '}
-                <Clock iso={provenance.receivedAt} />.
+                Recorded {personName && <>by {personName} </>}on {deviceName},
+                received by the host <Clock iso={provenance.receivedAt} />.
               </>
             )
           }
         >
           <DeviceTimes {...provenance} />
+          {person && personName && <Person {...person} name={personName} />}
           <p>
             Received <Clock iso={provenance.receivedAt} />, by the host&apos;s
             clock.
@@ -174,6 +223,20 @@ function DeviceTimes({
     <p>
       Started <Clock iso={startedAt} /> and ended <Clock iso={endedAt} />, by
       the recording device&apos;s clock.
+    </p>
+  )
+}
+
+function Person({
+  name,
+  deviceLabel,
+  issuedAt,
+}: VerifiedPerson & { name: string }) {
+  return (
+    <p>
+      {name === 'you' ? 'Your person key' : `The key of ${name}`} certified the
+      recording device as “{deviceLabel}” on <Clock iso={issuedAt} />, by that
+      device&apos;s clock.
     </p>
   )
 }

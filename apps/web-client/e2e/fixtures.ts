@@ -70,11 +70,24 @@ const installInstrumentation = () => {
   }
 }
 
+/**
+ * Presses "Not now" whenever the person key backup prompt appears. A guest
+ * shows it on first join, and it covers the bottom dock the specs click.
+ */
+export const dismissBackupPrompt = (page: Page) =>
+  page.addLocatorHandler(
+    page.getByRole('dialog', { name: 'Back up your person key' }),
+    async (dialog) => {
+      await dialog.getByRole('button', { name: 'Not now' }).click()
+    },
+  )
+
 export const test = base.extend({
   // Note the parameter is named `provide`, not Playwright's usual `use`:
   // a bare `use(...)` call reads as a React hook to eslint-plugin-react-hooks.
   page: async ({ page }, provide) => {
     await page.addInitScript(installInstrumentation)
+    await dismissBackupPrompt(page)
     await provide(page)
   },
 })

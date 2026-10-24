@@ -5,10 +5,12 @@ import { mkdtemp, readdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  createDeviceCertificate,
   createHostReceipt,
   createRecordingClaim,
   createSessionRecord,
   decodeSignedStatement,
+  DEVICE_CERTIFICATE_HEADER,
   encodeSignedStatement,
   exportPublicKey,
   generateSigningKeyPair,
@@ -94,16 +96,30 @@ function upload(
     contentType?: string
     doc?: string
     claim?: string
+    certificate?: string
+    forClaim?: string
   } = {},
 ) {
-  const { token = TOKEN, contentType = 'audio/wav', doc = DOC, claim } = init
-  const query = doc ? `?doc=${encodeURIComponent(doc)}` : ''
+  const {
+    token = TOKEN,
+    contentType = 'audio/wav',
+    doc = DOC,
+    claim,
+    certificate,
+    forClaim,
+  } = init
+  const params = new URLSearchParams({
+    ...(doc ? { doc } : {}),
+    ...(forClaim ? { for: forClaim } : {}),
+  })
+  const query = params.size > 0 ? `?${params}` : ''
   return fetch(`${origin}/blobs${query}`, {
     method: 'POST',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'Content-Type': contentType,
       ...(claim ? { [RECORDING_CLAIM_HEADER]: claim } : {}),
+      ...(certificate ? { [DEVICE_CERTIFICATE_HEADER]: certificate } : {}),
     },
     body,
   })
@@ -545,6 +561,101 @@ describe('recording claims on upload', () => {
   })
 })
 
+describe('device certificates on upload', () => {
+  async function certifiedUpload(certifiedKey?: string) {
+    const device = await generateSigningKeyPair()
+    const certificate = await createDeviceCertificate(
+      {
+        deviceKey: certifiedKey ?? (await exportPublicKey(device.publicKey)),
+        deviceLabel: 'Pixel · Chrome',
+      },
+      await generateSigningKeyPair(),
+    )
+    const claim = await createRecordingClaim(
+      {
+        blob: { hash: AUDIO_HASH, size: AUDIO.length, mimeType: 'audio/wav' },
+        startedAt: '2026-10-05T12:00:00.000Z',
+        endedAt: '2026-10-05T12:03:00.000Z',
+        deviceCert: await statementAddress(certificate),
+      },
+      device,
+    )
+    return { claim, certificate }
+  }
+
+  it('stores the certificate the claim names after its receipt', async () => {
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+    const { claim, certificate } = await certifiedUpload()
+
+    const response = await upload(origin, AUDIO, {
+      claim: encodeSignedStatement(claim),
+      certificate: encodeSignedStatement(certificate),
+    })
+    const body = (await response.json()) as { statements: string[] }
+
+    expect(body.statements).toHaveLength(3)
+    expect(body.statements[0]).toBe(await statementAddress(claim))
+    expect(body.statements[2]).toBe(await statementAddress(certificate))
+    const fetched = await fetch(`${origin}/blobs/${body.statements[2]}`, {
+      headers: authed(),
+    })
+    expect(await fetched.json()).toEqual(certificate)
+  })
+
+  it('drops a certificate the claim does not name', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+    const { claim } = await certifiedUpload()
+    const { certificate: other } = await certifiedUpload()
+
+    const response = await upload(origin, AUDIO, {
+      claim: encodeSignedStatement(claim),
+      certificate: encodeSignedStatement(other),
+    })
+    const body = (await response.json()) as {
+      claim: { status: string }
+      statements: string[]
+    }
+
+    expect(body.claim.status).toBe('verified')
+    expect(body.statements).toHaveLength(2)
+    expect(body.statements).not.toContain(await statementAddress(other))
+  })
+
+  it('drops a certificate for another device key', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+    const elsewhere = await exportPublicKey(
+      (await generateSigningKeyPair()).publicKey,
+    )
+    const { claim, certificate } = await certifiedUpload(elsewhere)
+
+    const response = await upload(origin, AUDIO, {
+      claim: encodeSignedStatement(claim),
+      certificate: encodeSignedStatement(certificate),
+    })
+    const body = (await response.json()) as { statements: string[] }
+
+    expect(body.statements).toHaveLength(2)
+  })
+
+  it('accepts the certificate header across origins', async () => {
+    const { origin } = await startHost()
+
+    const response = await fetch(`${origin}/blobs`, { method: 'OPTIONS' })
+
+    expect(response.headers.get('access-control-allow-headers')).toContain(
+      'x-tapes-device-certificate',
+    )
+  })
+})
+
 describe('repeat uploads of one claim', () => {
   type ClaimAnswer = {
     claim: { status: string; receipt: string }
@@ -764,6 +875,62 @@ describe('signed statements on upload', () => {
         await sendStatement(origin, '{"payload":{"type":"x"},"signature":""}'),
       ),
     ).toBe('unknown-type')
+  })
+
+  it('stores a device certificate for the stored claim that names it', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const device = await generateSigningKeyPair()
+    const certificate = await createDeviceCertificate(
+      {
+        deviceKey: await exportPublicKey(device.publicKey),
+        deviceLabel: 'Pixel · Chrome',
+      },
+      await generateSigningKeyPair(),
+    )
+    const claim = await createRecordingClaim(
+      {
+        blob: { hash: AUDIO_HASH, size: AUDIO.length, mimeType: 'audio/wav' },
+        startedAt: '2026-10-05T12:00:00.000Z',
+        endedAt: '2026-10-05T12:03:00.000Z',
+        deviceCert: await statementAddress(certificate),
+      },
+      device,
+    )
+    const forClaim = await statementAddress(claim)
+    const send = (init: { forClaim?: string }) =>
+      upload(origin, asText(certificate), {
+        contentType: 'application/json',
+        ...init,
+      })
+
+    expect(await problemOf(await send({ forClaim }))).toBe('claim-missing')
+    expect(await problemOf(await send({}))).toBe('claim-missing')
+
+    await sendStatement(origin, asText(claim))
+    const stored = await send({ forClaim })
+    expect(stored.status).toBe(201)
+    await expect(stored.json()).resolves.toMatchObject({
+      hash: await statementAddress(certificate),
+    })
+  })
+
+  it('refuses a device certificate the named claim does not name', async () => {
+    const { origin } = await startHost()
+    await upload(origin, AUDIO)
+    const claim = await signedClaim()
+    await sendStatement(origin, asText(claim))
+    const certificate = await createDeviceCertificate(
+      { deviceKey: claim.payload.deviceKey, deviceLabel: 'Phone' },
+      await generateSigningKeyPair(),
+    )
+
+    const response = await upload(origin, asText(certificate), {
+      contentType: 'application/json',
+      forClaim: await statementAddress(claim),
+    })
+
+    expect(await problemOf(response)).toBe('certificate-mismatch')
   })
 
   it('stores a receipt only once its claim is stored', async () => {

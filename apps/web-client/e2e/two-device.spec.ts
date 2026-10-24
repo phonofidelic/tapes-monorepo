@@ -4,6 +4,7 @@ import {
   expect,
   cachedBlobHashes,
   deviceOptions,
+  dismissBackupPrompt,
   opfsFiles,
   recordFor,
   saveRecording,
@@ -164,6 +165,7 @@ test.describe('host and guest', () => {
     const before = await hostObjects()
 
     const other = await context.browser()!.newPage()
+    await dismissBackupPrompt(other)
     await other.goto(
       `/?am=${encodeURIComponent(rootDocumentUrl)}&pt=${PAIRING_TOKEN}`,
     )
@@ -198,12 +200,13 @@ test.describe('host and guest', () => {
     )
     expect(uploaded.size).toBeGreaterThan(0)
     // The guest signed a claim at stop, and the host stored it next to the
-    // audio. This host has no signing key, so there is no receipt.
+    // audio along with the device certificate it names. This host has no
+    // signing key, so there is no receipt.
     expect(
       (await added()).filter(
         (object) => object.mimeType === 'application/json',
       ),
-    ).toHaveLength(1)
+    ).toHaveLength(2)
 
     // And the metadata reached the second device over the sync socket.
     await expect(other.getByText('Guest take one')).toBeVisible({

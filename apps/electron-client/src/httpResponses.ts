@@ -15,7 +15,7 @@ export const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,HEAD,POST,DELETE,OPTIONS',
   'Access-Control-Allow-Headers':
-    'authorization,content-type,range,x-tapes-recording-claim',
+    'authorization,content-type,range,x-tapes-recording-claim,x-tapes-device-certificate',
   'Access-Control-Expose-Headers':
     'content-length,content-range,accept-ranges,etag',
   'Access-Control-Max-Age': '86400',
