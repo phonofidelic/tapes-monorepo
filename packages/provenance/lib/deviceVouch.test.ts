@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { createDeviceCertificate } from './deviceCertificate'
 import {
+  checkDeviceLink,
   checkDeviceVouch,
   checkJoinRequest,
   checkVouchRequest,
@@ -156,6 +158,26 @@ describe('checkDeviceVouch', () => {
     expect(await checkDeviceVouch({ ...signed, payload: unknown })).toEqual({
       ok: false,
       problem: 'malformed',
+    })
+  })
+})
+
+describe('checkDeviceLink', () => {
+  it('accepts a certificate or a vouch, and nothing else', async () => {
+    const certificate = await createDeviceCertificate(
+      { deviceKey, deviceLabel: 'Phone' },
+      personKeys,
+    )
+    const signed = await vouch()
+
+    expect(await checkDeviceLink(certificate)).toEqual({
+      ok: true,
+      link: certificate,
+    })
+    expect(await checkDeviceLink(signed)).toEqual({ ok: true, link: signed })
+    expect(await checkDeviceLink(await request())).toEqual({
+      ok: false,
+      problem: 'unknown-type',
     })
   })
 })

@@ -1,18 +1,22 @@
 /**
  * The statements behind host vouching. A person joins a host's roster with a
  * join request signed by their person key. A guest that later lost its keys
- * signs a vouch request with its new device key. Once the operator or a PIN confirms
- * the person, the host signs a vouch, and the guest's claims name it in place
- * of a device certificate.
+ * signs a vouch request with its new device key. Once the operator or a PIN
+ * confirms the person, the host signs a vouch, and the guest's claims name it
+ * in place of a device certificate.
  *
  * A vouch is only as good as the host that signed it. These checks prove a
  * host key signed it. Whether to trust that host is the caller's decision: a
  * guest compares it with the key its QR link pinned.
  */
 
+import { checkDeviceCertificate } from './deviceCertificate'
+import { statementType } from './recordingClaim'
 import { exportPublicKey, signStatement, verifyStatement } from './signing'
 import {
+  DEVICE_CERTIFICATE_TYPE,
   DEVICE_VOUCH_TYPE,
+  type DeviceCertificate,
   JOIN_REQUEST_TYPE,
   VOUCH_REQUEST_TYPE,
   type DeviceVouch,
@@ -148,6 +152,36 @@ export async function checkDeviceVouch(
     return { ok: false, problem: 'bad-signature' }
   }
   return { ok: true, vouch: { payload, signature: signed.signature } }
+}
+
+/** What a claim's `deviceCert` can name: a certificate or a vouch. */
+export type DeviceLink = DeviceCertificate | DeviceVouch
+
+export type DeviceLinkCheck =
+  | { ok: true; link: Signed<DeviceLink> }
+  | { ok: false; problem: VouchProblem | 'unknown-type' }
+
+/**
+ * Checks a certificate or a vouch, whichever the statement is. The caller must
+ * still check that it is for the claim's device key.
+ */
+export async function checkDeviceLink(
+  signed: Signed<unknown>,
+): Promise<DeviceLinkCheck> {
+  const type = statementType(signed)
+  if (type === DEVICE_CERTIFICATE_TYPE) {
+    const check = await checkDeviceCertificate(signed)
+    return check.ok
+      ? { ok: true, link: check.certificate }
+      : { ok: false, problem: check.problem }
+  }
+  if (type === DEVICE_VOUCH_TYPE) {
+    const check = await checkDeviceVouch(signed)
+    return check.ok
+      ? { ok: true, link: check.vouch }
+      : { ok: false, problem: check.problem }
+  }
+  return { ok: false, problem: 'unknown-type' }
 }
 
 const isString = (value: unknown) => typeof value === 'string'

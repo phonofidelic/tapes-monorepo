@@ -7,6 +7,7 @@ import {
   blobStoragePath,
   eventStoragePath,
   readSyncServerConfig,
+  rosterPath,
   syncServerPort,
   syncStoragePath,
   webClientDevUrl,
@@ -71,6 +72,7 @@ export async function startSyncServerFromConfig(): Promise<SyncServerInfo> {
     pairingToken: config.pairingToken,
     rootCertFingerprint,
     computerName: readComputerName(),
+    rosterPath: rosterPath(),
     loadSigningKey: loadHostSigningKey,
   })
 }
