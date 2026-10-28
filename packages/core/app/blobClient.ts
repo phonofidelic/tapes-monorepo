@@ -1,6 +1,8 @@
 import {
   DEVICE_CERTIFICATE_HEADER,
   DEVICE_CERTIFICATE_TYPE,
+  DEVICE_REVOCATION_TYPE,
+  DEVICE_VOUCH_TYPE,
   RECORDING_CLAIM_HEADER,
   RECORDING_CLAIM_TYPE,
   STATEMENT_MIME_TYPE,
@@ -608,8 +610,9 @@ export type ReplicatedStatements = {
  *
  * The recording's signed statements go too, after the audio. A host stores a
  * claim only once it holds the audio. It stores a receipt or session record
- * only once it holds a claim that statement names, and a device certificate
- * only once it holds the claim that names the certificate.
+ * only once it holds a claim that statement names, a certificate or vouch only
+ * once it holds the claim that names it, and a revocation only once it holds
+ * the certificate or vouch being withdrawn.
  */
 export async function replicateBlob(
   endpoints: readonly BlobEndpoint[],
@@ -637,8 +640,8 @@ export async function replicateBlob(
       if (!copied) {
         return
       }
-      // In order, since a receipt or session record is refused until a claim
-      // it names is stored.
+      // In order, since each statement is refused until the one it depends on
+      // is stored.
       for (const statement of await statements) {
         await copyBlob(endpoint, statement.blob, {
           mimeType: STATEMENT_MIME_TYPE,
@@ -686,9 +689,9 @@ async function copyBlob(
 }
 
 /**
- * The statements that could be fetched, claims before anything else. One that
- * cannot be fetched is skipped. The others are still worth copying. A device
- * certificate carries the address of a claim that names it.
+ * The statements that could be fetched, in the order a host will take them.
+ * One that cannot be fetched is skipped. The others are still worth copying. A
+ * certificate or vouch carries the address of a claim that names it.
  */
 async function fetchStatements(
   statements: ReplicatedStatements | undefined,
@@ -712,21 +715,37 @@ async function fetchStatements(
       }),
     )
   ).filter((statement) => statement !== null)
-  const isClaim = (payload: StatementPayload | undefined) =>
-    payload?.type === RECORDING_CLAIM_TYPE
   const claimNaming = (hash: string) =>
     fetched.find(
-      ({ payload }) => isClaim(payload) && payload?.deviceCert === hash,
+      ({ payload }) =>
+        payload?.type === RECORDING_CLAIM_TYPE && payload.deviceCert === hash,
     )?.hash
   return fetched
-    .sort((a, b) => Number(isClaim(b.payload)) - Number(isClaim(a.payload)))
+    .sort((a, b) => rank(a.payload) - rank(b.payload))
     .map(({ hash, blob, payload }) => ({
       hash,
       blob,
-      ...(payload?.type === DEVICE_CERTIFICATE_TYPE && {
-        forClaim: claimNaming(hash),
-      }),
+      ...(isDeviceLink(payload) && { forClaim: claimNaming(hash) }),
     }))
+}
+
+const isDeviceLink = (payload: StatementPayload | undefined) =>
+  payload?.type === DEVICE_CERTIFICATE_TYPE ||
+  payload?.type === DEVICE_VOUCH_TYPE
+
+/**
+ * What each statement has to follow: a claim before the certificate or vouch
+ * that names it, and that before anything withdrawing it. Receipts and session
+ * records only need a claim, so they sit anywhere after one.
+ */
+function rank(payload: StatementPayload | undefined): number {
+  if (payload?.type === RECORDING_CLAIM_TYPE) {
+    return 0
+  }
+  if (isDeviceLink(payload)) {
+    return 1
+  }
+  return payload?.type === DEVICE_REVOCATION_TYPE ? 3 : 2
 }
 
 type StatementPayload = { type?: unknown; deviceCert?: unknown }

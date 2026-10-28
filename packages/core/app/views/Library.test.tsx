@@ -18,11 +18,13 @@ import type { Recording, RootDocument } from '@/types'
 import { AggregatesProvider } from '@/context/AggregatesContext'
 import {
   createDeviceCertificate,
+  createDeviceRevocation,
   createDeviceVouch,
   createHostReceipt,
   createRecordingClaim,
   createSessionRecord,
   createVouchRequest,
+  encodeSignedStatement,
   exportPublicKey,
   generateSigningKeyPair,
   keyFingerprint,
@@ -125,6 +127,9 @@ const changeDocument = vi.fn()
 
 // One repo doc holding a single recording, and the recording doc itself.
 // Branch on the url so both call sites resolve.
+// Handles for the repo walk that lists a revocation on other recordings.
+// Reassigned per test.
+let repoHandles: Record<string, unknown> = {}
 vi.mock('@automerge/automerge-repo-react-hooks', () => ({
   useDocument: (url?: AutomergeUrl) => {
     if (url === REPO_URL) {
@@ -132,6 +137,14 @@ vi.mock('@automerge/automerge-repo-react-hooks', () => ({
     }
     return [recording, changeDocument]
   },
+  useRepo: () => ({
+    find: (url: string) => {
+      const handle = repoHandles[url]
+      return handle
+        ? Promise.resolve(handle)
+        : Promise.reject(new Error(`No handle for ${url}`))
+    },
+  }),
 }))
 
 // The key this device signs with, as its backend reports it. Undefined unless
@@ -144,8 +157,14 @@ vi.mock('@/localDeviceKey', () => ({
 // The person key on this device, as its worker reports it. None unless a test
 // sets it.
 let localPersonKey: string | undefined
+// The revocation the worker would sign, set by the tests that revoke.
+let signedRevocation: string | undefined
 vi.mock('@/personKey', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/personKey')>()),
+  signDeviceRevocation: () =>
+    signedRevocation
+      ? Promise.resolve(signedRevocation)
+      : Promise.reject(new Error('No person key')),
   readPersonKeyStatus: () =>
     Promise.resolve(
       localPersonKey
@@ -537,6 +556,8 @@ describe('provenance on a row', () => {
     vi.unstubAllGlobals()
     localDeviceKey = undefined
     localPersonKey = undefined
+    signedRevocation = undefined
+    repoHandles = {}
     deviceKeys = await generateSigningKeyPair()
     hostKeys = await generateSigningKeyPair()
   })
@@ -592,7 +613,22 @@ describe('provenance on a row', () => {
     }
     vi.stubGlobal(
       'fetch',
-      vi.fn((url: string) => {
+      vi.fn((url: string, init?: RequestInit) => {
+        // A copied statement. The caller reads the address off its own bytes.
+        if (init?.method === 'POST') {
+          return Promise.resolve(
+            Response.json(
+              {
+                hash: '0'.repeat(64),
+                size: 0,
+                mimeType: 'application/json',
+                ext: '.json',
+                statements: [],
+              },
+              { status: 201 },
+            ),
+          )
+        }
         const hash = String(url).split('/').at(-1) ?? ''
         const bytes = served.get(hash)
         return Promise.resolve(
@@ -912,5 +948,123 @@ describe('provenance on a row', () => {
     expect(details()).toHaveTextContent(
       'No host could send 1 statement for this recording.',
     )
+  })
+
+  describe('revoking a device key', () => {
+    /** A certified claim plus a revocation of that certificate. */
+    const revokedClaim = async (
+      revokedAt = '2026-10-20T08:00:00.000Z',
+      personKeys?: CryptoKeyPair,
+    ) => {
+      const keys = personKeys ?? (await generateSigningKeyPair())
+      const certificate = await createDeviceCertificate(
+        {
+          deviceKey: await exportPublicKey(deviceKeys.publicKey),
+          deviceLabel: 'Pixel · Chrome',
+          issuedAt: new Date('2026-10-01T09:00:00.000Z'),
+        },
+        keys,
+      )
+      const deviceLink = await statementAddress(certificate)
+      const claim = await claimFor(deviceKeys, { deviceCert: deviceLink })
+      const revocation = await createDeviceRevocation(
+        {
+          signedBy: 'person',
+          deviceKey: claim.payload.deviceKey,
+          deviceLink,
+          reason: 'lost',
+          revokedAt: new Date(revokedAt),
+        },
+        keys,
+      )
+      return {
+        claim,
+        certificate,
+        revocation,
+        deviceLink,
+        personKeys: keys,
+        personKey: await exportPublicKey(keys.publicKey),
+      }
+    }
+
+    it('keeps a recording the host had before the key was revoked', async () => {
+      const { claim, certificate, revocation } = await revokedClaim()
+      const receipt = await createHostReceipt(
+        claim,
+        hostKeys,
+        new Date(RECEIVED_AT),
+      )
+
+      await showRow([claim, receipt, certificate, revocation])
+
+      expect(
+        await screen.findByText(/The device key was revoked later\./),
+      ).toBeInTheDocument()
+      expect(details()).toHaveTextContent(
+        'The person key behind the recording device marked it as lost or stolen',
+      )
+      expect(details()).toHaveTextContent(
+        'A host already had this recording by then, so it stands.',
+      )
+    })
+
+    it('doubts a recording the host got after the key was revoked', async () => {
+      const { claim, certificate, revocation } = await revokedClaim(
+        '2026-10-05T11:00:00.000Z',
+      )
+      const receipt = await createHostReceipt(
+        claim,
+        hostKeys,
+        new Date(RECEIVED_AT),
+      )
+
+      await showRow([claim, receipt, certificate, revocation])
+
+      expect(
+        await screen.findByText(
+          /The device key was revoked before this arrived\./,
+        ),
+      ).toBeInTheDocument()
+      expect(details()).toHaveTextContent(
+        'No host had this recording before that, so who made it is in doubt.',
+      )
+    })
+
+    it('offers no revocation for another person key', async () => {
+      const { claim, certificate } = await revokedClaim()
+
+      await showRow([claim, certificate])
+
+      await screen.findByText(/^Signed by person/)
+      expect(details()).not.toHaveTextContent('Stop trusting')
+    })
+
+    it('lists a signed revocation on the recordings that name the certificate', async () => {
+      const { claim, certificate, revocation, deviceLink, personKey } =
+        await revokedClaim()
+      localPersonKey = personKey
+      signedRevocation = encodeSignedStatement(revocation)
+      const change = vi.fn()
+      const listed = [await statementAddress(claim), deviceLink]
+      repoHandles = {
+        [REPO_URL]: { doc: () => ({ recordings: [RECORDING_URL] }) },
+        [RECORDING_URL]: { doc: () => ({ statements: listed }), change },
+      }
+
+      await showRow([claim, certificate])
+      await screen.findByText(/^Signed by you/)
+      details()!.open = true
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Lost or stolen' }),
+      )
+
+      await waitFor(() => expect(change).toHaveBeenCalled())
+      const doc: { statements: string[] } = {
+        statements: [deviceLink],
+      }
+      change.mock.calls[0][0](doc)
+      expect(doc.statements).toContain(await statementAddress(revocation))
+    })
   })
 })
