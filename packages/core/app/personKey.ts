@@ -1,4 +1,7 @@
-import { decodeSignedStatement } from '@tapes-monorepo/provenance'
+import {
+  decodeSignedStatement,
+  type RevocationReason,
+} from '@tapes-monorepo/provenance'
 import type { AppContextValue } from '@/context/AppContext'
 import { callWorker } from '@/workerClient'
 
@@ -133,6 +136,26 @@ export function restorePersonKey(
   deviceLabel: string,
 ): Promise<RestoreResult> {
   return callWorker(worker, 'person:restore', { text, passphrase, deviceLabel })
+}
+
+/**
+ * Signs a statement that one of this person's devices should no longer be
+ * trusted. Only a device holding the person key can do this, so it rejects
+ * elsewhere rather than returning nothing.
+ */
+export async function signDeviceRevocation(
+  appContext: AppContextValue,
+  device: { deviceKey: string; deviceLink: string; reason: RevocationReason },
+): Promise<string> {
+  if (appContext.type !== 'web-client') {
+    throw new Error('Only a guest with a person key can revoke a device')
+  }
+  const { revocation } = await callWorker<{ revocation: string }>(
+    appContext.worker,
+    'person:revoke-device',
+    device,
+  )
+  return revocation
 }
 
 /** Notes that the host already has the restored person on its roster. */

@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@tapes-monorepo/ui'
 import {
   keyFingerprint,
   NO_SESSION_ID,
+  type RevocationReason,
+  type RevokedDeviceLink,
   type VerifiedPerson,
   type VerifiedSession,
 } from '@tapes-monorepo/provenance'
@@ -24,7 +27,18 @@ import type { ProvenanceInput } from '@/recordingProvenance'
  * fingerprint, or "you" for the person key on this device. A key is not a
  * person's name, and nothing here pretends it is. A host's vouch is the one
  * exception: it shows the host's name for the person, always with the host.
+ *
+ * A device key whose certificate or vouch was revoked is still shown. The line
+ * between takes to keep and takes to doubt is whether a host had the recording
+ * before trust in the device ended.
  */
+
+/** Signs a revocation for a device this person's key stands behind. */
+type RevokeDevice = (device: {
+  deviceKey: string
+  deviceLink: string
+  reason: RevocationReason
+}) => Promise<void>
 
 const dateTime = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -130,13 +144,30 @@ function plural(count: number, word: string): string {
 
 export function ProvenanceSummary({
   recording,
+  onRevokeDevice,
 }: {
   recording: ProvenanceInput
+  /**
+   * Offered only when this device holds the person key the recording names.
+   * Left out, the details are read-only.
+   */
+  onRevokeDevice?: RevokeDevice
 }) {
-  return <ProvenanceText provenance={useRecordingProvenance(recording)} />
+  return (
+    <ProvenanceText
+      provenance={useRecordingProvenance(recording)}
+      onRevokeDevice={onRevokeDevice}
+    />
+  )
 }
 
-function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
+function ProvenanceText({
+  provenance,
+  onRevokeDevice,
+}: {
+  provenance: ProvenanceState
+  onRevokeDevice?: RevokeDevice
+}) {
   const localKey = useLocalDeviceKey()
   const localPersonKey = useLocalPersonKey()
   const person = 'person' in provenance ? provenance.person : undefined
@@ -146,6 +177,21 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
     person?.deviceLabel,
   )
   const personName = usePersonName(person, localPersonKey)
+  const revocation =
+    'revocation' in provenance ? provenance.revocation : undefined
+  const deviceLink =
+    'deviceLink' in provenance ? provenance.deviceLink : undefined
+  const deviceKey = 'deviceKey' in provenance ? provenance.deviceKey : undefined
+  // Only the person key behind the statement can withdraw it, and revoking
+  // the device you are using would cast doubt on its next take.
+  const revocable =
+    onRevokeDevice !== undefined &&
+    revocation === undefined &&
+    person !== undefined &&
+    person.personKey === localPersonKey &&
+    deviceLink !== undefined &&
+    deviceKey !== undefined &&
+    deviceKey !== localKey
 
   switch (provenance.state) {
     case 'checking':
@@ -177,13 +223,25 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
       return (
         <Details
           summary={
-            personName
-              ? `Signed by ${personName} on ${deviceName}. The host did not confirm when it arrived.`
-              : `Signed on ${deviceName}. The host did not confirm when it arrived.`
+            <>
+              {personName
+                ? `Signed by ${personName} on ${deviceName}. The host did not confirm when it arrived.`
+                : `Signed on ${deviceName}. The host did not confirm when it arrived.`}
+              {revocation && <RevocationFlag {...revocation} />}
+            </>
           }
         >
           <DeviceTimes {...provenance} />
           {person && personName && <Person {...person} name={personName} />}
+          {revocation && <Revocation {...revocation} />}
+          {revocable && (
+            <RevokeDeviceControls
+              deviceName={deviceName}
+              onRevoke={(reason) =>
+                onRevokeDevice({ deviceKey, deviceLink, reason })
+              }
+            />
+          )}
           <Session {...provenance} localKey={localKey} />
         </Details>
       )
@@ -191,18 +249,30 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
       return (
         <Details
           summary={
-            provenance.recordedByHost ? (
-              <>Recorded by the host, on {deviceName}.</>
-            ) : (
-              <>
-                Recorded {personName && <>by {personName} </>}on {deviceName},
-                received by the host <Clock iso={provenance.receivedAt} />.
-              </>
-            )
+            <>
+              {provenance.recordedByHost ? (
+                <>Recorded by the host, on {deviceName}.</>
+              ) : (
+                <>
+                  Recorded {personName && <>by {personName} </>}on {deviceName},
+                  received by the host <Clock iso={provenance.receivedAt} />.
+                </>
+              )}
+              {revocation && <RevocationFlag {...revocation} />}
+            </>
           }
         >
           <DeviceTimes {...provenance} />
           {person && personName && <Person {...person} name={personName} />}
+          {revocation && <Revocation {...revocation} />}
+          {revocable && (
+            <RevokeDeviceControls
+              deviceName={deviceName}
+              onRevoke={(reason) =>
+                onRevokeDevice({ deviceKey, deviceLink, reason })
+              }
+            />
+          )}
           <p>
             Received <Clock iso={provenance.receivedAt} />, by the host&apos;s
             clock.
@@ -233,6 +303,91 @@ function DeviceTimes({
       Started <Clock iso={startedAt} /> and ended <Clock iso={endedAt} />, by
       the recording device&apos;s clock.
     </p>
+  )
+}
+
+/** The word for a reason, as the signer meant it. */
+const REVOCATION_REASONS: Record<RevocationReason, string> = {
+  lost: 'as lost or stolen',
+  retired: 'as no longer in use',
+  'wrong-person': 'as vouched for the wrong person',
+}
+
+/** The short warning on the summary line, where the take is in doubt. */
+function RevocationFlag({ receivedBeforeRevocation }: RevokedDeviceLink) {
+  return receivedBeforeRevocation ? (
+    <> The device key was revoked later.</>
+  ) : (
+    <> The device key was revoked before this arrived.</>
+  )
+}
+
+function Revocation({
+  signedBy,
+  reason,
+  revokedAt,
+  receivedBeforeRevocation,
+}: RevokedDeviceLink) {
+  const who =
+    signedBy === 'person'
+      ? 'The person key behind the recording device'
+      : 'The host that vouched for the recording device'
+  return (
+    <p>
+      {who} marked it {REVOCATION_REASONS[reason]} on <Clock iso={revokedAt} />,
+      by the signer&apos;s clock.{' '}
+      {receivedBeforeRevocation
+        ? 'A host already had this recording by then, so it stands.'
+        : 'No host had this recording before that, so who made it is in doubt.'}
+    </p>
+  )
+}
+
+/**
+ * Withdraws trust in the device a recording names. The lost device's own clock
+ * is no help, so the reason is all the person has to say.
+ */
+function RevokeDeviceControls({
+  deviceName,
+  onRevoke,
+}: {
+  deviceName: string
+  onRevoke: (reason: RevocationReason) => Promise<void>
+}) {
+  const [state, setState] = useState<'ready' | 'signing' | 'failed'>('ready')
+
+  const revoke = (reason: RevocationReason) => {
+    setState('signing')
+    onRevoke(reason).then(
+      () => setState('ready'),
+      (error: unknown) => {
+        console.warn('Could not revoke the device key:', error)
+        setState('failed')
+      },
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p>Stop trusting {deviceName} for recordings from now on:</p>
+      <div className="flex gap-1">
+        <Button
+          className="w-fit p-1"
+          disabled={state === 'signing'}
+          onClick={() => revoke('lost')}
+        >
+          Lost or stolen
+        </Button>
+        <Button
+          className="w-fit p-1"
+          disabled={state === 'signing'}
+          onClick={() => revoke('retired')}
+        >
+          No longer in use
+        </Button>
+      </div>
+      {state === 'failed' && <p>That did not go through. Try again.</p>}
+    </div>
   )
 }
 

@@ -11,6 +11,11 @@ import {
   checkDeviceCertificate,
   type DeviceCertificateProblem,
 } from './deviceCertificate'
+import {
+  checkDeviceRevocation,
+  revocationCovers,
+  type RevocationProblem,
+} from './deviceRevocation'
 import { checkDeviceVouch, type VouchProblem } from './deviceVouch'
 import { sha256Hex } from './encoding'
 import {
@@ -24,16 +29,20 @@ import { checkSessionRecord, type SessionRecordProblem } from './sessionRecord'
 import { statementBytes } from './signing'
 import {
   DEVICE_CERTIFICATE_TYPE,
+  DEVICE_REVOCATION_TYPE,
   DEVICE_VOUCH_TYPE,
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
   SESSION_RECORD_TYPE,
   type DeviceCertificate,
+  type DeviceRevocation,
   type DeviceVouch,
   type HostReceipt,
   type RecordingClaim,
   type SessionRecord,
   type SessionSpan,
+  type RevocationReason,
+  type RevocationSigner,
   type Signed,
   type VouchMethod,
 } from './types'
@@ -63,9 +72,14 @@ export type StatementProblem =
   | 'certificate-not-claimed'
   /** The certificate or vouch is for a different device key from the claim's. */
   | 'certificate-device-mismatch'
+  /** The revocation names no certificate or vouch that passed. */
+  | 'revocation-not-claimed'
+  /** The signer of the revocation could not withdraw that statement. */
+  | 'revocation-not-permitted'
   | ClaimProblem
   | DeviceCertificateProblem
   | VouchProblem
+  | RevocationProblem
   | ReceiptProblem
   | SessionRecordProblem
 
@@ -80,6 +94,34 @@ export type ClaimedRecording = {
   session?: VerifiedSession
   /** From the passing certificate or vouch the claim names, if it names one. */
   person?: VerifiedPerson
+  /**
+   * Address of that certificate or vouch. A reader who wants to withdraw it
+   * signs a revocation naming this.
+   */
+  deviceLink?: string
+  /** Set when a passing revocation withdraws that certificate or vouch. */
+  revocation?: RevokedDeviceLink
+}
+
+/**
+ * A passing revocation of the certificate or vouch a claim names. The
+ * recording still has whatever signatures it had. What changed is that the
+ * signer no longer stands behind the device key.
+ */
+export type RevokedDeviceLink = {
+  /** Whether the person key or the vouching host withdrew its trust. */
+  signedBy: RevocationSigner
+  /** The signer's base64url Ed25519 public key. */
+  signerKey: string
+  reason: RevocationReason
+  /** The signer's clock. */
+  revokedAt: string
+  /**
+   * Whether a host had this recording before trust in the device ended. A lost
+   * device's own clock says nothing here, so this is true only when a passing
+   * receipt is earlier than the revocation.
+   */
+  receivedBeforeRevocation: boolean
 }
 
 /** Who a passing device certificate or vouch ties the device to. */
@@ -152,6 +194,7 @@ type Checked =
   | { kind: 'receipt'; receipt: HostReceipt }
   | { kind: 'session'; record: SessionRecord }
   | { kind: 'link'; link: DeviceCertificate | DeviceVouch }
+  | { kind: 'revocation'; revocation: DeviceRevocation }
   | { kind: 'unknown' }
   | { kind: 'failed'; problem: StatementProblem }
 
@@ -203,6 +246,12 @@ async function checkStatement(
       ? { kind: 'link', link: check.vouch.payload }
       : { kind: 'failed', problem: check.problem }
   }
+  if (type === DEVICE_REVOCATION_TYPE) {
+    const check = await checkDeviceRevocation(signed)
+    return check.ok
+      ? { kind: 'revocation', revocation: check.revocation.payload }
+      : { kind: 'failed', problem: check.problem }
+  }
   // Later statement types must not break this version.
   return { kind: 'unknown' }
 }
@@ -221,8 +270,8 @@ function isCanonical(bytes: Uint8Array, signed: Signed<unknown>): boolean {
 }
 
 /** Sorts unparseable times last, so they never win "earliest". */
-function timeOf(receipt: HostReceipt): number {
-  const time = Date.parse(receipt.receivedAt)
+function timeOf(iso: string): number {
+  const time = Date.parse(iso)
   return Number.isNaN(time) ? Infinity : time
 }
 
@@ -242,6 +291,7 @@ export async function verifyRecordingStatements(
   const sessions: { hash: string; record: SessionRecord }[] = []
   // Device certificates and vouches, which tie a claim's device to a person.
   const links = new Map<string, DeviceCertificate | DeviceVouch>()
+  const revocations = new Map<string, DeviceRevocation>()
 
   const unique = new Map(statements.map((s) => [s.hash, s.bytes]))
   for (const [hash, bytes] of unique) {
@@ -258,6 +308,8 @@ export async function verifyRecordingStatements(
       sessions.push({ hash, record: checked.record })
     } else if (checked.kind === 'link') {
       links.set(hash, checked.link)
+    } else if (checked.kind === 'revocation') {
+      revocations.set(hash, checked.revocation)
     } else if (checked.kind === 'failed') {
       failures.push({ hash, problem: checked.problem })
     }
@@ -296,6 +348,18 @@ export async function verifyRecordingStatements(
       failures.push({ hash, problem: 'certificate-device-mismatch' })
     }
   }
+  // A revocation has to withdraw a certificate or vouch that passed here, and
+  // its signer has to have been able to withdraw that one. Otherwise any peer
+  // could cast doubt on a recording by listing a statement about its device.
+  for (const [hash, revocation] of revocations) {
+    const link = links.get(revocation.deviceLink)
+    if (!link) {
+      failures.push({ hash, problem: 'revocation-not-claimed' })
+    } else if (!revocationCovers(revocation, link, revocation.deviceLink)) {
+      failures.push({ hash, problem: 'revocation-not-permitted' })
+    }
+  }
+
   // A claim's certificate that is not listed cannot be checked. Showing the
   // claim without it would hide that the device named a person.
   for (const address of named.keys()) {
@@ -314,21 +378,29 @@ export async function verifyRecordingStatements(
   // Every session record now covers a passing claim. A recording belongs to
   // one session, so the first listed is the one to show.
   const session = sessions[0]?.record
-  const claimed = (claim: RecordingClaim) => {
-    const link =
-      claim.deviceCert !== undefined ? links.get(claim.deviceCert) : undefined
-    return {
-      ...claimedRecording(claim),
-      ...(session && { session: verifiedSession(session) }),
-      ...(link && { person: verifiedPerson(link) }),
-    }
-  }
-
   // Every receipt now names a passing claim. Several receipts for one claim
   // can come from a retried upload, so show the earliest arrival.
   const earliest = receipts
     .map(({ receipt }) => receipt)
-    .sort((a, b) => timeOf(a) - timeOf(b))[0]
+    .sort((a, b) => timeOf(a.receivedAt) - timeOf(b.receivedAt))[0]
+
+  const claimed = (claim: RecordingClaim) => {
+    const address = claim.deviceCert
+    const link = address !== undefined ? links.get(address) : undefined
+    const revocation =
+      link && address !== undefined
+        ? firstRevocation(address, link, revocations)
+        : undefined
+    return {
+      ...claimedRecording(claim),
+      ...(session && { session: verifiedSession(session) }),
+      ...(link && { person: verifiedPerson(link), deviceLink: address }),
+      ...(revocation && {
+        revocation: revokedDeviceLink(revocation, earliest?.receivedAt),
+      }),
+    }
+  }
+
   if (earliest) {
     const claim = claims.get(earliest.claim)!
     return {
@@ -344,6 +416,39 @@ export async function verifyRecordingStatements(
     return { state: 'device-only', ...claimed(claim) }
   }
   return { state: 'unverified' }
+}
+
+/**
+ * The first revocation of this certificate or vouch. Trust ended when that one
+ * was signed, whatever came after it.
+ */
+function firstRevocation(
+  linkAddress: string,
+  link: DeviceCertificate | DeviceVouch,
+  revocations: Map<string, DeviceRevocation>,
+): DeviceRevocation | undefined {
+  return [...revocations.values()]
+    .filter((revocation) => revocationCovers(revocation, link, linkAddress))
+    .sort((a, b) => timeOf(a.revokedAt) - timeOf(b.revokedAt))[0]
+}
+
+function revokedDeviceLink(
+  revocation: DeviceRevocation,
+  receivedAt: string | undefined,
+): RevokedDeviceLink {
+  const received = receivedAt === undefined ? NaN : Date.parse(receivedAt)
+  const revoked = Date.parse(revocation.revokedAt)
+  return {
+    signedBy: revocation.signedBy,
+    signerKey: revocation.signerKey,
+    reason: revocation.reason,
+    revokedAt: revocation.revokedAt,
+    // A time that will not parse leaves the recording on the doubtful side.
+    receivedBeforeRevocation:
+      Number.isFinite(received) && Number.isFinite(revoked)
+        ? received < revoked
+        : false,
+  }
 }
 
 function claimedRecording(claim: RecordingClaim): ClaimedRecording {

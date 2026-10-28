@@ -1,19 +1,23 @@
 import type { Readable } from 'stream'
 import {
   DEVICE_CERTIFICATE_TYPE,
+  DEVICE_REVOCATION_TYPE,
   DEVICE_VOUCH_TYPE,
   HOST_RECEIPT_TYPE,
   RECORDING_CLAIM_TYPE,
   SESSION_RECORD_TYPE,
   STATEMENT_MIME_TYPE,
   checkDeviceLink,
+  checkDeviceRevocation,
   checkHostReceipt,
   checkRecordingClaim,
   checkSessionRecord,
   parseSignedStatement,
+  revocationCovers,
   statementAddress,
   statementBytes,
   statementType,
+  type DeviceLink,
   type RecordingClaim,
   type Signed,
 } from '@tapes-monorepo/provenance'
@@ -29,8 +33,10 @@ import { BlobTooLargeError, type BlobStore } from './blobStore'
  * claim needs its audio here. A receipt needs its claim here, and a session
  * record needs at least one of the claims it lists. A device certificate or
  * vouch needs the claim that names it, which the uploader identifies with
- * `?for=`. A vouch from another host is kept. Whether to trust that host is
- * for readers to judge, as with receipts.
+ * `?for=`. A revocation needs the certificate or vouch it withdraws, and its
+ * signer must have been able to withdraw that one. A vouch from another host
+ * is kept. Whether to trust that host is for readers to judge, as with
+ * receipts.
  *
  * Do not import `electron` here. The sync server uses this module, and it
  * stays testable in a plain node process.
@@ -56,6 +62,10 @@ export type StatementProblem =
   | 'claim-missing'
   /** The claim named by `?for=` does not name this certificate or vouch. */
   | 'certificate-mismatch'
+  /** The revocation withdraws a certificate or vouch this host does not hold. */
+  | 'certificate-missing'
+  /** The signer of the revocation could not withdraw that statement. */
+  | 'revocation-not-permitted'
 
 export type StatementCheck =
   { ok: true } | { ok: false; problem: StatementProblem }
@@ -131,6 +141,9 @@ export async function checkUploadedStatement(
   if (type === DEVICE_CERTIFICATE_TYPE || type === DEVICE_VOUCH_TYPE) {
     return checkDeviceLinkUpload(signed, store, options.forClaim)
   }
+  if (type === DEVICE_REVOCATION_TYPE) {
+    return checkRevocationUpload(signed, store)
+  }
   return { ok: false, problem: 'unknown-type' }
 }
 
@@ -197,6 +210,47 @@ async function checkDeviceLinkUpload(
     claim.payload.deviceCert === (await statementAddress(check.link)) &&
     claim.payload.deviceKey === check.link.payload.deviceKey
   return matches ? { ok: true } : { ok: false, problem: 'certificate-mismatch' }
+}
+
+/**
+ * A revocation is stored only once the statement it withdraws is here. That
+ * also keeps out revocations about devices this host has never seen. Which
+ * person or host signed it is not this host's judgement to make, so the only
+ * question is whether they could withdraw that statement at all.
+ */
+async function checkRevocationUpload(
+  signed: Signed<unknown>,
+  store: BlobStore,
+): Promise<StatementCheck> {
+  const check = await checkDeviceRevocation(signed)
+  if (!check.ok) {
+    return { ok: false, problem: check.problem }
+  }
+  const { deviceLink } = check.revocation.payload
+  const link = await storedLink(store, deviceLink)
+  if (!link) {
+    return { ok: false, problem: 'certificate-missing' }
+  }
+  return revocationCovers(check.revocation.payload, link.payload, deviceLink)
+    ? { ok: true }
+    : { ok: false, problem: 'revocation-not-permitted' }
+}
+
+/** The verified certificate or vouch stored here under this address. */
+async function storedLink(
+  store: BlobStore,
+  address: string,
+): Promise<Signed<DeviceLink> | null> {
+  const meta = await store.stat(address)
+  if (meta?.mimeType !== STATEMENT_MIME_TYPE) {
+    return null
+  }
+  const stored = await readStoredStatement(store, address)
+  if (!stored) {
+    return null
+  }
+  const check = await checkDeviceLink(stored)
+  return check.ok ? check.link : null
 }
 
 /** Whether a verified claim is stored here under this address. */

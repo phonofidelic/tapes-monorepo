@@ -6,6 +6,7 @@ import { tmpdir } from 'os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createDeviceCertificate,
+  createDeviceRevocation,
   createDeviceVouch,
   createHostReceipt,
   createRecordingClaim,
@@ -977,6 +978,74 @@ describe('signed statements on upload', () => {
     })
 
     expect(await problemOf(response)).toBe('certificate-mismatch')
+  })
+
+  describe('revocations', () => {
+    /** A stored claim naming a stored certificate, ready to be withdrawn. */
+    async function certifiedClaim(origin: string) {
+      const device = await generateSigningKeyPair()
+      const person = await generateSigningKeyPair()
+      const deviceKey = await exportPublicKey(device.publicKey)
+      const certificate = await createDeviceCertificate(
+        { deviceKey, deviceLabel: 'Lost phone' },
+        person,
+      )
+      const address = await statementAddress(certificate)
+      const claim = await createRecordingClaim(
+        {
+          blob: { hash: AUDIO_HASH, size: AUDIO.length, mimeType: 'audio/wav' },
+          startedAt: '2026-10-05T12:00:00.000Z',
+          endedAt: '2026-10-05T12:03:00.000Z',
+          deviceCert: address,
+        },
+        device,
+      )
+      await sendStatement(origin, asText(claim))
+      return { person, deviceKey, certificate, address, claim }
+    }
+
+    it('stores a revocation only once the certificate is stored', async () => {
+      const { origin } = await startHost()
+      await upload(origin, AUDIO)
+      const { person, deviceKey, certificate, address, claim } =
+        await certifiedClaim(origin)
+      const revocation = await createDeviceRevocation(
+        { signedBy: 'person', deviceKey, deviceLink: address, reason: 'lost' },
+        person,
+      )
+
+      const early = await sendStatement(origin, asText(revocation))
+      expect(await problemOf(early)).toBe('certificate-missing')
+
+      await upload(origin, asText(certificate), {
+        contentType: 'application/json',
+        forClaim: await statementAddress(claim),
+      })
+      const late = await sendStatement(origin, asText(revocation))
+      expect(late.status).toBe(201)
+      await expect(late.json()).resolves.toMatchObject({
+        hash: await statementAddress(revocation),
+      })
+    })
+
+    it('refuses a revocation signed by a key the certificate does not name', async () => {
+      const { origin } = await startHost()
+      await upload(origin, AUDIO)
+      const { deviceKey, certificate, address, claim } =
+        await certifiedClaim(origin)
+      await upload(origin, asText(certificate), {
+        contentType: 'application/json',
+        forClaim: await statementAddress(claim),
+      })
+      const revocation = await createDeviceRevocation(
+        { signedBy: 'person', deviceKey, deviceLink: address, reason: 'lost' },
+        await generateSigningKeyPair(),
+      )
+
+      const response = await sendStatement(origin, asText(revocation))
+
+      expect(await problemOf(response)).toBe('revocation-not-permitted')
+    })
   })
 
   it('stores a receipt only once its claim is stored', async () => {

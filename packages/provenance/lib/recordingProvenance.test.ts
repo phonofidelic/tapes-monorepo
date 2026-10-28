@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalJson } from './canonicalJson'
 import { sha256Hex } from './encoding'
 import { createDeviceCertificate } from './deviceCertificate'
+import { createDeviceRevocation } from './deviceRevocation'
 import { createDeviceVouch, createVouchRequest } from './deviceVouch'
 import { createHostReceipt } from './hostReceipt'
 import { createRecordingClaim, NO_SESSION_ID } from './recordingClaim'
@@ -102,6 +103,27 @@ async function vouchFor(keys = deviceKeys) {
       vouchedAt: new Date('2026-10-05T11:50:00.000Z'),
     },
     hostKeys,
+  )
+}
+
+async function revocationFor(
+  link: Signed<unknown>,
+  details: {
+    signedBy?: 'person' | 'host'
+    reason?: 'lost' | 'retired' | 'wrong-person'
+    revokedAt?: string
+  } = {},
+  keys = personKeys,
+) {
+  return createDeviceRevocation(
+    {
+      signedBy: details.signedBy ?? 'person',
+      deviceKey,
+      deviceLink: await statementAddress(link),
+      reason: details.reason ?? 'lost',
+      revokedAt: new Date(details.revokedAt ?? '2026-10-20T08:00:00.000Z'),
+    },
+    keys,
   )
 }
 
@@ -577,6 +599,196 @@ describe('verifyRecordingStatements', () => {
       expect(await verify(fetched(claim), fetched(changed))).toEqual({
         state: 'failed',
         failures: [{ hash: address, problem: 'bad-signature' }],
+      })
+    })
+  })
+
+  describe('device revocations', () => {
+    it('keeps a recording the host had before trust ended', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(await receiptFor(claim)),
+          fetched(certificate),
+          fetched(await revocationFor(certificate)),
+        ),
+      ).toMatchObject({
+        state: 'verified',
+        person: { via: 'certificate', personKey },
+        revocation: {
+          signedBy: 'person',
+          signerKey: personKey,
+          reason: 'lost',
+          revokedAt: '2026-10-20T08:00:00.000Z',
+          receivedBeforeRevocation: true,
+        },
+      })
+    })
+
+    it('doubts a recording the host got after trust ended', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(await receiptFor(claim, '2026-10-25T10:00:00.000Z')),
+          fetched(certificate),
+          fetched(await revocationFor(certificate)),
+        ),
+      ).toMatchObject({
+        state: 'verified',
+        revocation: { receivedBeforeRevocation: false },
+      })
+    })
+
+    it('doubts a recording no host ever received', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(certificate),
+          fetched(await revocationFor(certificate)),
+        ),
+      ).toMatchObject({
+        state: 'device-only',
+        revocation: { receivedBeforeRevocation: false },
+      })
+    })
+
+    it('treats a revoked vouch the same as a revoked certificate', async () => {
+      const vouch = await vouchFor()
+      const claim = await signedClaim(blob, await statementAddress(vouch))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(await receiptFor(claim)),
+          fetched(vouch),
+          fetched(
+            await revocationFor(
+              vouch,
+              { signedBy: 'host', reason: 'wrong-person' },
+              hostKeys,
+            ),
+          ),
+        ),
+      ).toMatchObject({
+        state: 'verified',
+        person: { via: 'vouch' },
+        revocation: {
+          signedBy: 'host',
+          reason: 'wrong-person',
+          receivedBeforeRevocation: true,
+        },
+      })
+    })
+
+    it('shows the first of several revocations', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(certificate),
+          fetched(
+            await revocationFor(certificate, {
+              reason: 'retired',
+              revokedAt: '2026-10-22T08:00:00.000Z',
+            }),
+          ),
+          fetched(await revocationFor(certificate)),
+        ),
+      ).toMatchObject({
+        revocation: { reason: 'lost', revokedAt: '2026-10-20T08:00:00.000Z' },
+      })
+    })
+
+    it('fails a revocation signed by a key the statement does not name', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+      const forged = await revocationFor(
+        certificate,
+        {},
+        await generateSigningKeyPair(),
+      )
+
+      expect(
+        await verify(fetched(claim), fetched(certificate), fetched(forged)),
+      ).toEqual({
+        state: 'failed',
+        failures: [
+          {
+            hash: await statementAddress(forged),
+            problem: 'revocation-not-permitted',
+          },
+        ],
+      })
+    })
+
+    it('fails a host revoking a certificate the person key signed', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+      const overreach = await revocationFor(
+        certificate,
+        { signedBy: 'host' },
+        hostKeys,
+      )
+
+      expect(
+        await verify(fetched(claim), fetched(certificate), fetched(overreach)),
+      ).toEqual({
+        state: 'failed',
+        failures: [
+          {
+            hash: await statementAddress(overreach),
+            problem: 'revocation-not-permitted',
+          },
+        ],
+      })
+    })
+
+    it('fails a revocation of a statement no claim names', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim()
+      const revocation = await revocationFor(certificate)
+
+      expect(await verify(fetched(claim), fetched(revocation))).toEqual({
+        state: 'failed',
+        failures: [
+          {
+            hash: await statementAddress(revocation),
+            problem: 'revocation-not-claimed',
+          },
+        ],
+      })
+    })
+
+    it('fails a revocation whose signature does not verify', async () => {
+      const certificate = await certificateFor()
+      const claim = await signedClaim(blob, await statementAddress(certificate))
+      const revocation = await revocationFor(certificate)
+      const changed = {
+        ...revocation,
+        payload: { ...revocation.payload, reason: 'retired' as const },
+      }
+
+      expect(
+        await verify(fetched(claim), fetched(certificate), fetched(changed)),
+      ).toEqual({
+        state: 'failed',
+        failures: [
+          {
+            hash: await statementAddress(changed),
+            problem: 'bad-signature',
+          },
+        ],
       })
     })
   })
