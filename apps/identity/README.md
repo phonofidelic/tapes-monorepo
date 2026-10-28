@@ -95,8 +95,13 @@ readable.
 
 A Cloudflare Worker named `tapes-identity` serves the files in `public` as
 static assets. There is no Worker script, so nothing runs on a request beyond
-Cloudflare's own asset serving. `wrangler.jsonc` holds the configuration, and
+Cloudflare's own asset serving. `wrangler.jsonc` holds the configuration.
 `yarn workspace identity deploy` applies it.
+
+The Worker was created in the Cloudflare dashboard, before that file existed.
+So the first deploy from here is also the first time the file is applied. Read
+it against the Worker's own settings first, because it asserts the custom
+domain, the two URL settings and the behaviour for an unknown path.
 
 The headers in `public/_headers` are applied, including
 `Cross-Origin-Opener-Policy: unsafe-none`. That is the one to re-check after
