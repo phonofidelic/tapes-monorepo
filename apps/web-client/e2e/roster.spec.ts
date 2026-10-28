@@ -2,11 +2,19 @@ import { test, expect, type Page } from '@playwright/test'
 import {
   confirmHostVouch,
   disposeHost,
+  hostObjects,
   hostPendingVouches,
   hostRoster,
+  hostSignedVouches,
+  hostStatements,
+  listHostStatement,
+  peerStatements,
+  revokeHostVouch,
+  seedRecording,
   startHost,
   PAIRING_TOKEN,
 } from './host'
+import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 
 /**
  * A guest's first join puts the person on the host's roster and backs up
@@ -14,6 +22,9 @@ import {
  * changed, picks that person and the host vouches for it. The person can then
  * restore their person key from the backup, which replaces the vouch. The
  * host signs, because vouching needs its key.
+ *
+ * The last test is the operator's side: withdrawing a vouch the host gave the
+ * wrong person. It runs after the others so it has a signed vouch to withdraw.
  *
  * Each test gets a fresh browser context, which is a device with no keys.
  * Later tests need the person and the backup the first one made, so they run
@@ -192,5 +203,51 @@ test('a vouched guest restores its person key from a photo of the backup', async
         deviceKey: vouch.payload.deviceKey,
       },
     },
+  })
+})
+
+test('the operator withdraws a vouch the host gave the wrong person', async () => {
+  // The vouch from the operator-confirm test above. The host kept it on the
+  // roster, long after the request itself was dropped.
+  const vouches = await hostSignedVouches()
+  const vouch = vouches.find((each) => each.method === 'operator')
+  expect(vouch).toMatchObject({ personName: 'Sam' })
+  expect(vouch?.revokedAt).toBeUndefined()
+  const address = vouch!.address
+
+  // A recording of that device's, naming the vouch its claim was signed under.
+  const tape = await seedRecording({ name: 'Wrong Sam', seconds: 1 })
+  await listHostStatement(tape.url, address)
+  // The peer's change travels over the socket. The host can only list a
+  // revocation on a recording it has already seen name the vouch.
+  await expect.poll(() => hostStatements(tape.url)).toContain(address)
+
+  const result = await revokeHostVouch(address)
+  if (!result.ok) {
+    throw new Error(`Withdrawing the vouch failed: ${result.error}`)
+  }
+  expect(result.listedOn).toEqual([tape.url])
+
+  // The revocation is on the recording, and the host holds its bytes, so a
+  // reader fetching that recording's statements finds it.
+  await expect.poll(() => peerStatements(tape.url)).toContain(result.address)
+  expect(await hostObjects()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        hash: result.address,
+        mimeType: STATEMENT_MIME_TYPE,
+      }),
+    ]),
+  )
+
+  // The roster says so too, and the same vouch cannot be withdrawn twice.
+  expect(await hostSignedVouches()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ address, revokedAt: expect.any(String) }),
+    ]),
+  )
+  expect(await revokeHostVouch(address)).toEqual({
+    ok: false,
+    error: 'already-revoked',
   })
 })
