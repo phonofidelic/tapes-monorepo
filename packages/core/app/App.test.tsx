@@ -27,6 +27,9 @@ vi.mock('@/context/ViewContext', () => ({
 vi.mock('./components/PersonKeyBackupPrompt', () => ({
   PersonKeyBackupPrompt: () => null,
 }))
+vi.mock('./components/PendingVouches', () => ({
+  PendingVouches: () => null,
+}))
 
 const renderApp = (view: React.ReactNode = <p>recorder view</p>) => {
   views.map = { [views.current]: view }

@@ -50,6 +50,9 @@ export type ValidIpcChanel =
   | 'session:start'
   | 'session:stop'
   | 'session:get-current'
+  | 'vouch:get-pending'
+  | 'vouch:confirm'
+  | 'vouch:reject'
 
 /**
  * Events the main process sends to the renderer.
@@ -57,7 +60,27 @@ export type ValidIpcChanel =
  * The channels above cover everything the renderer asks for. These are only
  * for state that changes on its own.
  */
-export type ValidIpcEvent = 'sync:connected-devices' | 'session:settled'
+export type ValidIpcEvent =
+  'sync:connected-devices' | 'session:settled' | 'vouch:pending'
+
+/**
+ * A guest's new device, waiting for the operator to say whose it is. Mirrors
+ * the host's `PendingVouch`.
+ */
+export type PendingVouch = {
+  id: string
+  /** The roster's name for the person the device says it belongs to. */
+  personName: string
+  /** The device's own name for itself. Unverified. */
+  deviceLabel: string
+  /** For telling two phones with the same label apart. */
+  deviceFingerprint: string
+  /** The host's clock. */
+  receivedAt: string
+}
+
+/** The waiting list, as the snapshot channel answers and the event carries. */
+export type PendingVouchesEvent = { pending: PendingVouch[] }
 
 export type IpcRequest = {
   params?: string[]
@@ -251,6 +274,9 @@ export type IpcSendArgs =
   | ['session:start', IpcRequest & { data: { docUrl: string } }]
   | ['session:stop']
   | ['session:get-current']
+  | ['vouch:get-pending']
+  | ['vouch:confirm', IpcRequest & { data: { id: string } }]
+  | ['vouch:reject', IpcRequest & { data: { id: string } }]
   | [
       'blob:cache-put',
       IpcRequest & {

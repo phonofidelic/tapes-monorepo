@@ -22,7 +22,8 @@ import type { ProvenanceInput } from '@/recordingProvenance'
  * the editable document. A device is named by a short key fingerprint, "this
  * device", or the label its person key certified. A person is named by key
  * fingerprint, or "you" for the person key on this device. A key is not a
- * person's name, and nothing here pretends it is.
+ * person's name, and nothing here pretends it is. A host's vouch is the one
+ * exception: it shows the host's name for the person, always with the host.
  */
 
 const dateTime = new Intl.DateTimeFormat(undefined, {
@@ -109,10 +110,18 @@ function usePersonName(
   if (!person) {
     return undefined
   }
-  if (person.personKey === localPersonKey) {
-    return 'you'
-  }
-  return fingerprint ? `person ${fingerprint}` : 'another person'
+  const name =
+    person.personKey === localPersonKey
+      ? 'you'
+      : person.via === 'vouch'
+        ? person.personName
+        : fingerprint
+          ? `person ${fingerprint}`
+          : 'another person'
+  // The person key signed nothing, so the name is only as good as the host.
+  return person.via === 'vouch'
+    ? `${name}, vouched by ${person.hostLabel}`
+    : name
 }
 
 function plural(count: number, word: string): string {
@@ -227,16 +236,24 @@ function DeviceTimes({
   )
 }
 
-function Person({
-  name,
-  deviceLabel,
-  issuedAt,
-}: VerifiedPerson & { name: string }) {
+function Person({ name, ...person }: VerifiedPerson & { name: string }) {
+  if (person.via === 'vouch') {
+    const confirmed =
+      person.method === 'pin' ? 'who entered their PIN' : 'confirmed in person'
+    return (
+      <p>
+        The host “{person.hostLabel}” vouched for the recording device “
+        {person.deviceLabel}” as {person.personName}, {confirmed}, on{' '}
+        <Clock iso={person.vouchedAt} />, by the host&apos;s clock. The
+        person&apos;s own key has not certified this device.
+      </p>
+    )
+  }
   return (
     <p>
       {name === 'you' ? 'Your person key' : `The key of ${name}`} certified the
-      recording device as “{deviceLabel}” on <Clock iso={issuedAt} />, by that
-      device&apos;s clock.
+      recording device as “{person.deviceLabel}” on{' '}
+      <Clock iso={person.issuedAt} />, by that device&apos;s clock.
     </p>
   )
 }

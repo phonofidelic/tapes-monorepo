@@ -2,9 +2,11 @@
  * The pairing link behind the host's QR code, and the fingerprint that rides
  * in it.
  *
- * Three parameters go over: `am` names the Automerge document to open, `pt`
- * carries the pairing token, and `fp` carries the SHA-256 fingerprint of the
- * host's root certificate. Only `pt` is a secret. `fp` is published on
+ * Four parameters go over: `am` names the Automerge document to open, `pt`
+ * carries the pairing token, `fp` carries the SHA-256 fingerprint of the
+ * host's root certificate, and `hk` carries the host's public signing key.
+ * Only `pt` is a secret. A guest pins `hk` and checks each vouch the host
+ * signs for it against that key. `fp` is published on
  * purpose: a browser cannot pin a certificate, so nothing checks the root
  * automatically, but a value scanned in the same room as the host is one the
  * person can trust, and comparing it against the root they are about to
@@ -16,6 +18,9 @@
 
 /** Query parameter carrying the host root's fingerprint. */
 export const PAIRING_FINGERPRINT_PARAM = 'fp'
+
+/** Query parameter carrying the host's public signing key, base64url. */
+export const PAIRING_HOST_KEY_PARAM = 'hk'
 
 /**
  * The fingerprint travels base64url rather than hex. Hex would add 64
@@ -133,6 +138,8 @@ export type GuestUrlOptions = {
    * pairs. Absent unless the host runs over TLS.
    */
   rootCertFingerprint?: string
+  /** The host's public signing key. Absent when the host signs nothing. */
+  hostKey?: string
 }
 
 /**
@@ -150,6 +157,7 @@ export function buildGuestUrl({
   automergeUrl,
   pairingToken,
   rootCertFingerprint,
+  hostKey,
 }: GuestUrlOptions): string | null {
   if (!lanWebAppUrl || !automergeUrl) {
     return null
@@ -165,6 +173,10 @@ export function buildGuestUrl({
     url += `&${PAIRING_FINGERPRINT_PARAM}=${encodeFingerprint(
       rootCertFingerprint,
     )}`
+  }
+  if (hostKey) {
+    // Already base64url, so it needs no escaping.
+    url += `&${PAIRING_HOST_KEY_PARAM}=${hostKey}`
   }
   return url
 }

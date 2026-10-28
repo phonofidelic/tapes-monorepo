@@ -18,6 +18,7 @@ import {
   writeAutomergeUrl,
   GenericErrorFallbackScreen,
   createHostConnection,
+  PAIRING_HOST_KEY_PARAM,
   type HostConnection,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
@@ -58,6 +59,27 @@ function capturePairingToken(): string | undefined {
 // Read before the sync URL is resolved: a host-served bundle has to present
 // this token on the socket upgrade, not just on `/blobs`.
 const pairingToken = capturePairingToken()
+
+// The link also carries the host's public key as `hk`. The guest pins it and
+// accepts a vouch only from that key. Scanning a new link replaces it.
+function captureHostKey() {
+  const fromQuery = new URLSearchParams(window.location.search).get(
+    PAIRING_HOST_KEY_PARAM,
+  )
+  if (!fromQuery) {
+    return
+  }
+  const settings = JSON.parse(window.localStorage.getItem('settings') ?? '{}')
+  window.localStorage.setItem(
+    'settings',
+    JSON.stringify({ ...settings, pinnedHostKey: fromQuery }),
+  )
+  const url = new URL(window.location.href)
+  url.searchParams.delete(PAIRING_HOST_KEY_PARAM)
+  window.history.replaceState({}, '', url)
+}
+
+captureHostKey()
 
 // Read here for the same reason as the token. The name has to be on the
 // socket's upgrade request. It is the user's own name when they set one, and a

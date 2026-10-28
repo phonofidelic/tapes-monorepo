@@ -73,3 +73,8 @@ export async function putRecord(
   const transaction = db.transaction(STORE_NAME, 'readwrite')
   await settle(transaction.objectStore(STORE_NAME).put(value, id))
 }
+
+export async function deleteRecord(db: IDBDatabase, id: string): Promise<void> {
+  const transaction = db.transaction(STORE_NAME, 'readwrite')
+  await settle(transaction.objectStore(STORE_NAME).delete(id))
+}

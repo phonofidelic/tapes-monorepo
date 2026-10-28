@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_DEVICE_LABEL_LENGTH } from '@tapes-monorepo/sync-protocol'
+import { MAX_LABEL_LENGTH } from '@tapes-monorepo/sync-protocol'
 import { readDeviceLabel } from './deviceLabel'
 
 function upgradeRequest(headers: Record<string, string | string[]> = {}) {
@@ -38,7 +38,7 @@ describe('readDeviceLabel', () => {
     )
 
     expect(readDeviceLabel(upgradeRequest(), url)).toHaveLength(
-      MAX_DEVICE_LABEL_LENGTH,
+      MAX_LABEL_LENGTH,
     )
   })
 

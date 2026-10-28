@@ -19,6 +19,16 @@ export type Settings = {
    * What this phone calls itself is not a fact about the root document.
    */
   deviceLabel: string | undefined
+  /**
+   * What this guest's person is called on a host's roster. Unset until the
+   * person names themselves. Self-reported, like the device label.
+   */
+  personName: string | undefined
+  /**
+   * The host key from the pairing link this guest last opened. A vouch counts
+   * only when that key signed it.
+   */
+  pinnedHostKey: string | undefined
   syncServerLanEnabled: 'true' | 'false' | undefined
   syncServerHttpsEnabled: 'true' | 'false' | undefined
 }

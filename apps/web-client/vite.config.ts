@@ -212,6 +212,17 @@ export default defineConfig(({ command }) => ({
         secure: false,
         changeOrigin: true,
       },
+      // The host's roster of people, and its vouches for their new devices.
+      '/people': {
+        target: `http://127.0.0.1:${syncServerPort}`,
+        secure: false,
+        changeOrigin: true,
+      },
+      '/vouches': {
+        target: `http://127.0.0.1:${syncServerPort}`,
+        secure: false,
+        changeOrigin: true,
+      },
     },
   },
   build: {

@@ -261,3 +261,36 @@ describe('Settings: naming this device', () => {
     expect(readSettings().deviceLabel).toBe('Studio iPad')
   })
 })
+
+describe('Settings: naming the person and the host', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/')
+  })
+
+  afterEach(cleanup)
+
+  it("stores a guest's own name for the host's roster", async () => {
+    renderSettings()
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Your name'), '  Sam ')
+    await user.click(screen.getByTitle('Save your name'))
+
+    expect(readSettings().personName).toBe('Sam')
+  })
+
+  it('names the host after the Mac until it is renamed', async () => {
+    renderHostSettings({
+      running: true,
+      url: 'ws://127.0.0.1:433',
+      port: 433,
+      host: '127.0.0.1',
+      computerName: 'Studio Mac',
+    })
+
+    expect(screen.getByLabelText("This host's name")).toBeInTheDocument()
+    expect(await screen.findByText('Studio Mac')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument()
+  })
+})
