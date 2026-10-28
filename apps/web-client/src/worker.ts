@@ -34,6 +34,7 @@ import {
   markJoined,
   personKeyStatus,
   restorePersonKey,
+  signDeviceRevocation,
   signJoinRequest,
   signVouchRequest,
 } from './personKeyRequests'
@@ -126,6 +127,15 @@ type EventData =
       payload: {
         vouch: string
         pinnedHostKey?: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:revoke-device'
+      payload: {
+        deviceKey: string
+        deviceLink: string
+        reason: 'lost' | 'retired' | 'wrong-person'
         requestId: string
       }
     }
@@ -436,6 +446,20 @@ onmessage = async (event) => {
             requestId,
             true,
             await acceptVouch(vouch, pinnedHostKey),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:revoke-device': {
+        const { deviceKey, deviceLink, reason, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await signDeviceRevocation({ deviceKey, deviceLink, reason }),
           )
         } catch (error) {
           respond(type, requestId, false, undefined, error)

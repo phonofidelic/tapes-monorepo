@@ -1,6 +1,7 @@
 import {
   backupToFileText,
   backupToText,
+  createDeviceRevocation,
   createJoinRequest,
   createVouchRequest,
   decodeSignedStatement,
@@ -9,6 +10,7 @@ import {
   parseBackupText,
   unwrapPersonKey,
   wrapPersonKey,
+  type RevocationReason,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
 import {
@@ -94,6 +96,27 @@ export async function personKeyStatus(): Promise<PersonKeyStatus> {
 export async function deviceLinkAddress(): Promise<string | undefined> {
   const identity = await loadPersonIdentity()
   return identity?.certificateAddress ?? (await loadDeviceVouch())?.address
+}
+
+/**
+ * Signs a statement that one of this person's devices should no longer be
+ * trusted. Only the person key can sign this for a certificate it issued, or
+ * for a vouch made in its name, so a device without one cannot.
+ */
+export async function signDeviceRevocation(details: {
+  deviceKey: string
+  deviceLink: string
+  reason: RevocationReason
+}): Promise<{ revocation: string }> {
+  const identity = await loadPersonIdentity()
+  if (!identity) {
+    throw new Error('There is no person key to revoke a device with')
+  }
+  const revocation = await createDeviceRevocation(
+    { signedBy: 'person', ...details },
+    identity.keyPair,
+  )
+  return { revocation: encodeSignedStatement(revocation) }
 }
 
 /** Signs a request for the host to vouch for this device as `personKey`. */

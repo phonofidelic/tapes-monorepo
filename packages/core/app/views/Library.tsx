@@ -7,7 +7,7 @@ import React, {
 } from 'react'
 import { clsx } from 'clsx'
 import { AutomergeUrl } from '@automerge/automerge-repo'
-import { useDocument } from '@automerge/automerge-repo-react-hooks'
+import { useDocument, useRepo } from '@automerge/automerge-repo-react-hooks'
 import {
   MdEdit,
   MdOutlineMoreVert,
@@ -25,6 +25,7 @@ import { useAudioPlayer } from '@/context/AudioPlayerContext'
 import { useBlobEndpoints } from '@/context/BlobContext'
 import { usePins } from '@/context/PinContext'
 import { deleteBlobEverywhere } from '@/blobClient'
+import { revokeDevice, type RevokedDevice } from '@/deviceRevocation'
 import { FormattedTime } from '@/components/FormattedTime'
 import { PlaybackSummary } from '@/components/PlaybackSummary'
 import { ProvenanceSummary } from '@/components/ProvenanceSummary'
@@ -110,6 +111,21 @@ function LibraryListItem({
   })
   const { setCurrentSource, setCurrentUrl, setIsPlaying } = useAudioPlayer()
   const blobEndpoints = useBlobEndpoints()
+  const repo = useRepo()
+  const { automergeUrl: rootUrl } = useRequiredAutomergeUrl()
+  // A revocation covers a device, not one take, so it goes on every recording
+  // that names the certificate or vouch it withdraws. Only a guest holding the
+  // person key can sign one.
+  const revokeDeviceKey =
+    appContext.type === 'web-client'
+      ? async (device: RevokedDevice) => {
+          await revokeDevice(appContext, repo, {
+            endpoints: blobEndpoints,
+            docUrl: rootUrl,
+            device,
+          })
+        }
+      : undefined
   // Pinning is only meaningful for bytes that live somewhere other than this
   // device's own disk. On the desktop app that is usually nowhere, since its
   // embedded host already keeps every fetchable blob permanently. A desktop
@@ -152,7 +168,10 @@ function LibraryListItem({
             <span aria-hidden="true">·</span>
             <PlaybackSummary recordingUrl={recording.url} />
           </p>
-          <ProvenanceSummary recording={recording} />
+          <ProvenanceSummary
+            recording={recording}
+            onRevokeDevice={revokeDeviceKey}
+          />
         </div>
         <div className="flex gap-2">
           <div className="relative flex items-center gap-2">

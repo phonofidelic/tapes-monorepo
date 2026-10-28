@@ -129,6 +129,42 @@ export type DeviceVouch = {
   vouchedAt: string
 }
 
+export const DEVICE_REVOCATION_TYPE = 'tapes/revocation@1'
+
+/** Who withdrew their trust in a device key, and so what the statement says. */
+export type RevocationSigner = 'person' | 'host'
+
+/** Why a device key should no longer be trusted. */
+export type RevocationReason = 'lost' | 'retired' | 'wrong-person'
+
+/**
+ * Signed to say a device key should no longer be trusted, for a lost or
+ * stolen phone. A person key revokes any certificate it signed, and any vouch
+ * made in its name. A host revokes a vouch it signed itself, such as after the
+ * operator confirmed the wrong person. Neither can revoke the other's
+ * statement, so `signedBy` says which rule applies.
+ *
+ * A revocation does not undo a recording. It says when trust in the device
+ * ended, and a reader compares that with the host's receipt time.
+ */
+export type DeviceRevocation = {
+  type: typeof DEVICE_REVOCATION_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  signerKey: string
+  signedBy: RevocationSigner
+  /** The device key that should no longer be trusted. */
+  deviceKey: string
+  /**
+   * Address of the Signed<DeviceCertificate> or Signed<DeviceVouch> this
+   * withdraws. One statement is revoked at a time, so a person who certified
+   * a device twice revokes both certificates.
+   */
+  deviceLink: string
+  reason: RevocationReason
+  /** The signer's clock. */
+  revokedAt: string
+}
+
 export const HOST_RECEIPT_TYPE = 'tapes/receipt@1'
 
 /** Signed by the host once it has checked a claim against the bytes it got. */
@@ -189,4 +225,9 @@ export type SyncProof = {
 }
 
 export type Statement =
-  RecordingClaim | HostReceipt | SessionRecord | DeviceCertificate | DeviceVouch
+  | RecordingClaim
+  | HostReceipt
+  | SessionRecord
+  | DeviceCertificate
+  | DeviceVouch
+  | DeviceRevocation
