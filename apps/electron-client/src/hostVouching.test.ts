@@ -81,7 +81,7 @@ async function join(
   host: ReturnType<typeof vouching>,
   someone: Awaited<ReturnType<typeof person>>,
   name: string,
-  pin?: string,
+  pin?: string | null,
 ) {
   const request = await createJoinRequest(
     {
@@ -128,12 +128,12 @@ describe('joining the roster', () => {
     expect(await vouching().roster()).toMatchObject([{ name: 'Sam' }])
   })
 
-  it('renames a person who joins again, and keeps their first PIN', async () => {
+  it('renames a person who joins again, and keeps their PIN', async () => {
     const host = vouching()
     const sam = await person()
     await join(host, sam, 'Sam', '4821')
 
-    await join(host, sam, 'Samantha', '9999')
+    await join(host, sam, 'Samantha')
 
     expect(await host.roster()).toEqual([
       expect.objectContaining({ name: 'Samantha', hasPin: true }),
@@ -353,5 +353,185 @@ describe('vouching for a new device', () => {
 
     expect(host.status(id)).toEqual({ status: 'rejected' })
     expect(changes).toBe(before + 1)
+  })
+})
+
+/** Guesses wrong PINs until the person is locked out. */
+async function lockOut(host: ReturnType<typeof vouching>, personKey: string) {
+  for (let i = 0; i < MAX_PIN_FAILURES; i++) {
+    await host.enterPin(await requestId(host, personKey), '0000')
+  }
+}
+
+describe('managing PINs', () => {
+  it('keeps the wrong-PIN count across a restart', async () => {
+    const sam = await person()
+    let host = vouching()
+    await join(host, sam, 'Sam', '4821')
+    for (let i = 0; i < MAX_PIN_FAILURES - 1; i++) {
+      await host.enterPin(await requestId(host, sam.personKey), '0000')
+    }
+
+    roster = createPersonRoster(path.join(dir, 'people.json'))
+    host = vouching()
+
+    expect(
+      await host.enterPin(await requestId(host, sam.personKey), '0000'),
+    ).toEqual({ ok: false, error: 'locked' })
+    roster = createPersonRoster(path.join(dir, 'people.json'))
+    expect(await vouching().roster()).toMatchObject([{ pinLocked: true }])
+  })
+
+  it('counts parallel guesses one at a time', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+    const ids = await Promise.all(
+      Array.from({ length: MAX_PIN_FAILURES + 3 }, () =>
+        requestId(host, sam.personKey),
+      ),
+    )
+
+    const answers = await Promise.all(
+      ids.map((id) => host.enterPin(id, '0000')),
+    )
+
+    const wrong = answers.filter(
+      (answer) => !answer.ok && answer.error === 'wrong-pin',
+    )
+    expect(wrong).toHaveLength(MAX_PIN_FAILURES - 1)
+  })
+
+  it('resets the count after a right PIN', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+    await host.enterPin(await requestId(host, sam.personKey), '0000')
+
+    await host.enterPin(await requestId(host, sam.personKey), '4821')
+
+    expect(
+      await host.enterPin(await requestId(host, sam.personKey), '0000'),
+    ).toMatchObject({ attemptsLeft: MAX_PIN_FAILURES - 1 })
+  })
+
+  it('lets the operator unlock a locked PIN', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+    await lockOut(host, sam.personKey)
+
+    expect(await host.unlockPin(sam.personKey)).toBe(true)
+
+    expect(await host.roster()).toMatchObject([{ pinLocked: false }])
+    const id = await requestId(host, sam.personKey)
+    expect((await host.enterPin(id, '4821')).ok).toBe(true)
+  })
+
+  it('does not unlock a person not on the roster', async () => {
+    const sam = await person()
+    expect(await vouching().unlockPin(sam.personKey)).toBe(false)
+  })
+
+  it('lets the operator set and remove a PIN', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+
+    expect(await host.setPin(sam.personKey, '1357')).toEqual({ ok: true })
+    expect(
+      (await host.enterPin(await requestId(host, sam.personKey), '1357')).ok,
+    ).toBe(true)
+
+    expect(await host.setPin(sam.personKey, null)).toEqual({ ok: true })
+    expect(await host.roster()).toMatchObject([{ hasPin: false }])
+    expect(await host.setPin(sam.personKey, '12')).toEqual({
+      ok: false,
+      error: 'bad-pin',
+    })
+  })
+
+  it('clears a lockout when the operator sets a new PIN', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+    await lockOut(host, sam.personKey)
+
+    await host.setPin(sam.personKey, '1357')
+
+    expect(await host.roster()).toMatchObject([{ pinLocked: false }])
+  })
+
+  it('lets the person key replace or remove the PIN by joining again', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+    await lockOut(host, sam.personKey)
+
+    expect(await join(host, sam, 'Sam', '9999')).toEqual({ ok: true })
+    expect(await host.roster()).toMatchObject([{ pinLocked: false }])
+    const id = await requestId(host, sam.personKey)
+    expect((await host.enterPin(id, '9999')).ok).toBe(true)
+
+    await join(host, sam, 'Sam', null)
+    expect(await host.roster()).toMatchObject([{ hasPin: false }])
+  })
+
+  it('changes the PIN given the old one', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+
+    expect(await host.changePin(sam.personKey, '4821', '2468')).toEqual({
+      ok: true,
+    })
+
+    const id = await requestId(host, sam.personKey)
+    expect(await host.enterPin(id, '4821')).toMatchObject({
+      error: 'wrong-pin',
+    })
+    expect((await host.enterPin(id, '2468')).ok).toBe(true)
+  })
+
+  it('removes the PIN given the old one', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+
+    expect(await host.changePin(sam.personKey, '4821', null)).toEqual({
+      ok: true,
+    })
+    expect(await host.roster()).toMatchObject([{ hasPin: false }])
+  })
+
+  it('counts a wrong old PIN against the same limit', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam', '4821')
+
+    for (let i = 0; i < MAX_PIN_FAILURES - 1; i++) {
+      await host.changePin(sam.personKey, '0000', '2468')
+    }
+    expect(
+      await host.enterPin(await requestId(host, sam.personKey), '0000'),
+    ).toEqual({ ok: false, error: 'locked' })
+    expect(await host.changePin(sam.personKey, '4821', '2468')).toEqual({
+      ok: false,
+      error: 'locked',
+    })
+  })
+
+  it('refuses a PIN change for a bad PIN or an unknown person', async () => {
+    const host = vouching()
+    const sam = await person()
+    expect(await host.changePin(sam.personKey, '4821', '2468')).toEqual({
+      ok: false,
+      error: 'unknown-person',
+    })
+    await join(host, sam, 'Sam', '4821')
+    expect(await host.changePin(sam.personKey, '4821', '12')).toEqual({
+      ok: false,
+      error: 'bad-pin',
+    })
   })
 })

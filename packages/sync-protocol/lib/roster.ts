@@ -13,6 +13,12 @@
 export const ROSTER_PATH = '/people'
 
 /**
+ * `POST` with a `PinChangeBody` changes or removes a person's PIN, proven by
+ * the old PIN. A device with the person key re-joins instead.
+ */
+export const PIN_CHANGE_PATH = `${ROSTER_PATH}/pin`
+
+/**
  * `POST` with a `VouchRequestBody` asks for a vouch. `GET` on `/vouches/<id>`
  * reads its status, and `POST` on `/vouches/<id>/pin` with a `PinBody` tries a
  * PIN instead of waiting for the operator.
@@ -35,8 +41,11 @@ export type JoinBody = {
   join: string
   /** The encoded Signed<DeviceCertificate> the join request names. */
   certificate: string
-  /** Only used when the person first joins. A later join keeps that PIN. */
-  pin?: string
+  /**
+   * A new PIN, or `null` to remove it. Left out, the host keeps the PIN it
+   * has. The join is signed by the person key, so this needs no old PIN.
+   */
+  pin?: string | null
 }
 
 export type VouchRequestBody = {
@@ -58,6 +67,21 @@ export type PinResponse =
   | { ok: true; vouch: string }
   | { ok: false; error: 'wrong-pin'; attemptsLeft: number }
   | { ok: false; error: 'locked' | 'no-pin' | 'not-pending' }
+
+export type PinChangeBody = {
+  personKey: string
+  oldPin: string
+  /** The new PIN, or `null` to remove it. */
+  pin: string | null
+}
+
+export type PinChangeResponse =
+  | { ok: true }
+  | { ok: false; error: 'wrong-pin'; attemptsLeft: number }
+  | {
+      ok: false
+      error: 'locked' | 'no-pin' | 'unknown-person' | 'bad-pin' | 'malformed'
+    }
 
 /** Four to six digits: quick to type on a phone and easy to remember. */
 export function isValidPin(pin: unknown): pin is string {

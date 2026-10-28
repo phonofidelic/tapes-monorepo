@@ -1,8 +1,11 @@
 import {
+  PIN_CHANGE_PATH,
   ROSTER_PATH,
   SYNC_CHALLENGE_PATH,
   VOUCHES_PATH,
   type JoinBody,
+  type PinChangeBody,
+  type PinChangeResponse,
   type PinResponse,
   type RosterPerson,
   type RosterResponse,
@@ -32,7 +35,8 @@ export type JoinResult =
 export async function joinHostRoster(
   worker: Worker,
   endpoint: BlobEndpoint,
-  details: { personName: string; pin?: string },
+  /** `pin` is a new PIN, `null` to remove it, or left out to keep it. */
+  details: { personName: string; pin?: string | null },
   fetchImpl: typeof fetch = fetch,
 ): Promise<JoinResult> {
   let challenge: string
@@ -163,6 +167,23 @@ export async function tryPin(
     },
   )
   return (await response.json()) as PinResponse
+}
+
+/**
+ * Changes or removes this person's PIN, proven by the old one. For a device
+ * without the person key. A wrong old PIN counts against the person's limit.
+ */
+export async function changePin(
+  endpoint: BlobEndpoint,
+  body: PinChangeBody,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PinChangeResponse> {
+  const response = await fetchImpl(`${endpoint.baseUrl}${PIN_CHANGE_PATH}`, {
+    method: 'POST',
+    headers: { ...authHeaders(endpoint), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return (await response.json()) as PinChangeResponse
 }
 
 export type VouchAcceptance =

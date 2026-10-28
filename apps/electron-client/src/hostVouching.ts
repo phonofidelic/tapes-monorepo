@@ -16,7 +16,7 @@ import {
   sanitizeLabel,
   type RosterPerson,
 } from '@tapes-monorepo/sync-protocol'
-import type { PersonRoster } from './personRoster'
+import type { PersonRoster, RosterEntry } from './personRoster'
 import { hashPin, pinMatches } from './pinHash'
 
 /**
@@ -26,8 +26,8 @@ import { hashPin, pinMatches } from './pinHash'
  * person or they type their PIN.
  *
  * Wrong PINs are counted per person, not per device, because a guesser can
- * make a new device key for every try. The counts and the waiting requests
- * are kept in memory, so a restart clears them.
+ * make a new device key for every try. The counts are saved in the roster, so
+ * a restart keeps them. The waiting requests are kept in memory only.
  *
  * Do not import `electron` here. The sync server uses this module.
  */
@@ -61,10 +61,21 @@ export type RequestResult =
         'malformed' | 'bad-signature' | 'unknown-person' | 'too-many-pending'
     }
 
+type PinCheck =
+  | { ok: true }
+  | { ok: false; error: 'wrong-pin'; attemptsLeft: number }
+  | { ok: false; error: 'locked' | 'no-pin' }
+
 export type PinResult =
   | { ok: true; vouch: Signed<DeviceVouch> }
   | { ok: false; error: 'wrong-pin'; attemptsLeft: number }
   | { ok: false; error: 'locked' | 'no-pin' | 'not-pending' }
+
+export type PinChangeResult =
+  PinCheck | { ok: false; error: 'unknown-person' | 'bad-pin' }
+
+export type SetPinResult =
+  { ok: true } | { ok: false; error: 'unknown-person' | 'bad-pin' }
 
 /** A new device waiting for the operator or a PIN. */
 export type PendingVouch = {
@@ -87,6 +98,10 @@ type Entry = {
   vouch?: Signed<DeviceVouch>
 }
 
+const failuresOf = (entry: RosterEntry) => entry.pinFailures ?? 0
+
+const isLocked = (entry: RosterEntry) => failuresOf(entry) >= MAX_PIN_FAILURES
+
 export function createHostVouching({
   roster,
   loadSigningKey,
@@ -105,10 +120,6 @@ export function createHostVouching({
   onChange?: () => void
 }) {
   const entries = new Map<string, Entry>()
-  const pinFailures = new Map<string, number>()
-
-  const isLocked = (personKey: string) =>
-    (pinFailures.get(personKey) ?? 0) >= MAX_PIN_FAILURES
 
   function dropStale() {
     const cutoff = now() - PENDING_TTL_MS
@@ -128,6 +139,50 @@ export function createHostVouching({
     dropStale()
     const entry = entries.get(id)
     return entry?.status === 'pending' ? entry : undefined
+  }
+
+  /** Checks a PIN against the person's, and counts it if it is wrong. */
+  async function checkPin(personKey: string, pin: string): Promise<PinCheck> {
+    // Counted and saved before the slow hash, one guess at a time. Parallel
+    // guesses cannot slip in under the limit, and a restart forgets none.
+    const counted = await roster.update(personKey, (entry) =>
+      entry.pin && !isLocked(entry)
+        ? { ...entry, pinFailures: failuresOf(entry) + 1 }
+        : undefined,
+    )
+    if (!counted?.pin) {
+      const person = await roster.find(personKey)
+      return { ok: false, error: person?.pin ? 'locked' : 'no-pin' }
+    }
+    if (await pinMatches(pin, counted.pin)) {
+      await roster.update(personKey, (entry) => ({
+        ...entry,
+        pinFailures: undefined,
+      }))
+      return { ok: true }
+    }
+    const failures = failuresOf(counted)
+    return failures >= MAX_PIN_FAILURES
+      ? { ok: false, error: 'locked' }
+      : {
+          ok: false,
+          error: 'wrong-pin',
+          attemptsLeft: MAX_PIN_FAILURES - failures,
+        }
+  }
+
+  /** Replaces or removes the PIN. A new PIN starts with a clean count. */
+  async function savePin(
+    personKey: string,
+    pin: string | null,
+  ): Promise<boolean> {
+    const hash = pin === null ? undefined : await hashPin(pin)
+    const saved = await roster.update(personKey, (entry) => ({
+      ...entry,
+      pin: hash,
+      pinFailures: undefined,
+    }))
+    return saved !== undefined
   }
 
   async function vouchFor(
@@ -158,17 +213,19 @@ export function createHostVouching({
   return {
     /** People a new device can pick from. Never includes PIN hashes. */
     async roster(): Promise<RosterPerson[]> {
-      return (await roster.list()).map(({ personKey, name, pin }) => ({
-        personKey,
-        name,
-        hasPin: pin !== undefined,
-        pinLocked: isLocked(personKey),
+      return (await roster.list()).map((entry) => ({
+        personKey: entry.personKey,
+        name: entry.name,
+        hasPin: entry.pin !== undefined,
+        pinLocked: entry.pin !== undefined && isLocked(entry),
       }))
     },
 
     /**
      * Adds the signer to the roster, or renames them. A later join keeps the
-     * first certificate and the first PIN.
+     * first certificate. It keeps the PIN too, unless `pin` is a new PIN or
+     * `null` to remove it. The person key signed the join, so no old PIN is
+     * needed, and a lockout is cleared.
      */
     async join(
       join: Signed<unknown>,
@@ -197,25 +254,28 @@ export function createHostVouching({
       if (!name) {
         return { ok: false, error: 'bad-name' }
       }
-      if (pin !== undefined && !isValidPin(pin)) {
+      if (pin !== undefined && pin !== null && !isValidPin(pin)) {
         return { ok: false, error: 'bad-pin' }
       }
+      const pinHash = typeof pin === 'string' ? await hashPin(pin) : undefined
 
-      const existing = await roster.find(request.personKey)
-      await roster.put(
-        existing
-          ? { ...existing, name }
-          : {
-              personKey: request.personKey,
-              name,
-              firstCertificate: {
-                address: request.certificate,
-                signed: certificateCheck.certificate,
-              },
-              ...(pin !== undefined && { pin: await hashPin(pin) }),
-              joinedAt: new Date(now()).toISOString(),
-            },
-      )
+      const renamed = await roster.update(request.personKey, (entry) => ({
+        ...entry,
+        name,
+        ...(pin !== undefined && { pin: pinHash, pinFailures: undefined }),
+      }))
+      if (!renamed) {
+        await roster.put({
+          personKey: request.personKey,
+          name,
+          firstCertificate: {
+            address: request.certificate,
+            signed: certificateCheck.certificate,
+          },
+          ...(pinHash && { pin: pinHash }),
+          joinedAt: new Date(now()).toISOString(),
+        })
+      }
       return { ok: true }
     },
 
@@ -308,29 +368,61 @@ export function createHostVouching({
       if (!entry) {
         return { ok: false, error: 'not-pending' }
       }
-      const { personKey } = entry.request
+      const check = await checkPin(entry.request.personKey, pin)
+      return check.ok
+        ? { ok: true, vouch: await vouchFor(entry, 'pin') }
+        : check
+    },
+
+    /**
+     * A person changes or removes their PIN from a device without the person
+     * key. The old PIN proves it is them, and a wrong one counts as a guess.
+     */
+    async changePin(
+      personKey: string,
+      oldPin: string,
+      pin: unknown,
+    ): Promise<PinChangeResult> {
+      if (pin !== null && !isValidPin(pin)) {
+        return { ok: false, error: 'bad-pin' }
+      }
+      if (!(await roster.find(personKey))) {
+        return { ok: false, error: 'unknown-person' }
+      }
+      const check = await checkPin(personKey, oldPin)
+      if (!check.ok) {
+        return check
+      }
+      return (await savePin(personKey, pin))
+        ? { ok: true }
+        : { ok: false, error: 'unknown-person' }
+    },
+
+    /**
+     * The operator sets or removes a person's PIN at the host, after checking
+     * who is asking. The person types the new PIN on the host.
+     */
+    async setPin(personKey: string, pin: unknown): Promise<SetPinResult> {
+      if (pin !== null && !isValidPin(pin)) {
+        return { ok: false, error: 'bad-pin' }
+      }
+      return (await savePin(personKey, pin))
+        ? { ok: true }
+        : { ok: false, error: 'unknown-person' }
+    },
+
+    /** The operator reopens a locked PIN after checking who is asking. */
+    async unlockPin(personKey: string): Promise<boolean> {
       const person = await roster.find(personKey)
-      if (!person?.pin) {
-        return { ok: false, error: 'no-pin' }
+      if (!person) {
+        return false
       }
-      if (isLocked(personKey)) {
-        return { ok: false, error: 'locked' }
-      }
-      // Counted before the slow hash, so parallel guesses cannot all slip in
-      // under the limit.
-      const failures = (pinFailures.get(personKey) ?? 0) + 1
-      pinFailures.set(personKey, failures)
-      if (await pinMatches(pin, person.pin)) {
-        pinFailures.delete(personKey)
-        return { ok: true, vouch: await vouchFor(entry, 'pin') }
-      }
-      return failures >= MAX_PIN_FAILURES
-        ? { ok: false, error: 'locked' }
-        : {
-            ok: false,
-            error: 'wrong-pin',
-            attemptsLeft: MAX_PIN_FAILURES - failures,
-          }
+      await roster.update(personKey, (entry) =>
+        entry.pinFailures === undefined
+          ? undefined
+          : { ...entry, pinFailures: undefined },
+      )
+      return true
     },
   }
 }

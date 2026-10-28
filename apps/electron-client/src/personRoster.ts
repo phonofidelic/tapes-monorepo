@@ -18,6 +18,11 @@ export type RosterEntry = {
   /** The certificate the person joined with, and its statement address. */
   firstCertificate: { address: string; signed: Signed<DeviceCertificate> }
   pin?: PinHash
+  /**
+   * Wrong PINs since the last right one. Kept here so a restart does not hand
+   * a guesser a fresh set of tries.
+   */
+  pinFailures?: number
   /** The host's clock. */
   joinedAt: string
 }
@@ -27,6 +32,15 @@ export type PersonRoster = {
   find(personKey: string): Promise<RosterEntry | undefined>
   /** Adds the person, or replaces the entry with the same person key. */
   put(entry: RosterEntry): Promise<void>
+  /**
+   * Changes one person's entry, after every write before it. `change` returns
+   * the new entry, or undefined to leave it. Resolves with what was written,
+   * or undefined if nothing was.
+   */
+  update(
+    personKey: string,
+    change: (entry: RosterEntry) => RosterEntry | undefined,
+  ): Promise<RosterEntry | undefined>
 }
 
 export function createPersonRoster(filePath: string): PersonRoster {
@@ -36,22 +50,39 @@ export function createPersonRoster(filePath: string): PersonRoster {
 
   const load = () => (cached ??= readRoster(filePath))
 
+  const queue = <T>(task: () => Promise<T>): Promise<T> => {
+    const write = writing.then(task)
+    writing = write.catch(() => undefined)
+    return write
+  }
+
+  const replace = async (entries: RosterEntry[], entry: RosterEntry) => {
+    const next = entries.filter(
+      (existing) => existing.personKey !== entry.personKey,
+    )
+    next.push(entry)
+    await writeRoster(filePath, next)
+    cached = Promise.resolve(next)
+  }
+
   return {
     list: load,
     async find(personKey) {
       return (await load()).find((entry) => entry.personKey === personKey)
     },
     put(entry) {
-      const write = writing.then(async () => {
-        const entries = (await load()).filter(
-          (existing) => existing.personKey !== entry.personKey,
-        )
-        entries.push(entry)
-        await writeRoster(filePath, entries)
-        cached = Promise.resolve(entries)
+      return queue(async () => replace(await load(), entry))
+    },
+    update(personKey, change) {
+      return queue(async () => {
+        const entries = await load()
+        const entry = entries.find((each) => each.personKey === personKey)
+        const next = entry && change(entry)
+        if (next) {
+          await replace(entries, next)
+        }
+        return next
       })
-      writing = write.catch(() => undefined)
-      return write
     },
   }
 }
@@ -97,6 +128,7 @@ function isRosterEntry(value: unknown): value is RosterEntry {
     typeof entry.firstCertificate?.address === 'string' &&
     typeof entry.firstCertificate.signed?.signature === 'string' &&
     (entry.pin === undefined || isPinHash(entry.pin)) &&
+    (entry.pinFailures === undefined || Number.isInteger(entry.pinFailures)) &&
     typeof entry.joinedAt === 'string'
   )
 }

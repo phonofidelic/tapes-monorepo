@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@tapes-monorepo/ui'
 import { useAppContext } from '@/context/AppContext'
+import { useUploadEndpoint } from '@/context/BlobContext'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
+import { PinSettings } from './PinSettings'
 import { RestoreFlow } from './RestoreFlow'
 
 /**
  * A web guest's person key in Settings: whether this device has it, and a way
  * to restore it from the backup. A device the host vouched for has no person
- * key, and restoring is how it gets one back.
+ * key, and restoring is how it gets one back. Below it, the person's PIN on
+ * the host, once the host has them on its roster.
  */
 export function PersonKeySettings() {
   const appContext = useAppContext()
   const [status, setStatus] = useState<PersonKeyStatus>()
   const [restoring, setRestoring] = useState(false)
+  const endpoint = useUploadEndpoint()
 
   useEffect(() => {
     let current = true
@@ -47,6 +51,13 @@ export function PersonKeySettings() {
         <Button className="w-fit p-2" onClick={() => setRestoring(true)}>
           Restore from a backup
         </Button>
+      )}
+      {status.exists && endpoint && (
+        <PinSettings
+          worker={appContext.worker}
+          endpoint={endpoint}
+          status={status}
+        />
       )}
       {restoring && (
         <RestoreFlow
