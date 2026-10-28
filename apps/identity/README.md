@@ -20,6 +20,7 @@ backup still restores a person key on its own.
 | `public/style.css`      | Enough CSS to read it on a phone.                             |
 | `public/_headers`       | Response headers, applied by Workers static assets.           |
 | `wrangler.jsonc`        | How the Worker serves it, and on which name.                  |
+| `verify.sh`             | Compares the live origin with these files.                    |
 
 There is no bundler and no server code. What is in `public` is what is served.
 
@@ -85,6 +86,11 @@ readable.
 - **Keep the zone near empty and free of stale CNAMEs.** A subdomain someone
   else takes over can create and use Tapes passkeys.
 
+Those keep the repository honest. They say nothing about the origin, because a
+deploy is manual and the dashboard can change the Worker without a commit. So
+`yarn workspace identity verify` compares the two, and it is the only check
+here that would notice an upload nobody wrote down.
+
 ## Changing it
 
 - Keep it small and dependency free.
@@ -111,9 +117,14 @@ it is a reviewed commit. A Renovate rule keeps it out of the automerge that
 every other development dependency gets.
 
 The headers in `public/_headers` are applied, including
-`Cross-Origin-Opener-Policy: unsafe-none`. That is the one to re-check after
-any change to the Worker. A stricter value severs `window.opener`, and the
-result can then never return to the guest.
+`Cross-Origin-Opener-Policy: unsafe-none`. A stricter value severs
+`window.opener`, and the result can then never return to the guest. Nothing in
+the page fails visibly when that happens, which is why it is checked.
+
+`yarn workspace identity verify` fetches the live origin and compares it with
+this directory. It checks each served file byte for byte, every header in the
+`/*` block by value, and that an unknown path is a plain 404. Run it after a
+deploy, and after any change made to the Worker in the dashboard.
 
 The `workers.dev` route and the version preview URLs are both turned off in the
 configuration. Turning either off in the dashboard alone is not enough. A
