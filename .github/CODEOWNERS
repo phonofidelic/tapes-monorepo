@@ -5,6 +5,11 @@
 # This file does nothing unless branch protection on `main` requires a review
 # from code owners. Check that setting before relying on it.
 
+# This file, and the workflows beside it. A pull request is judged against the
+# version of this file on `main`. So a change here still needs the review it
+# would remove. A workflow can be given a deploy step, which is the same risk.
+/.github/ @phonofidelic
+
 # The passkey origin. Anything served from identity.tapes.network can ask a
 # person to unlock their person key behind a Face ID prompt. It has no
 # dependencies and no build step. Keep it that way.
