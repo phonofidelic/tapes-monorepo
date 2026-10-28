@@ -18,9 +18,10 @@ backup still restores a person key on its own.
 | `public/index.html`     | The page. No inline script or style, so the CSP stays strict. |
 | `public/ceremony.v1.js` | The ceremony. Plain browser JavaScript, no build step.        |
 | `public/style.css`      | Enough CSS to read it on a phone.                             |
-| `public/_headers`       | Response headers for Cloudflare Pages.                        |
+| `public/_headers`       | Response headers, applied by Workers static assets.           |
+| `wrangler.jsonc`        | How the Worker serves it, and on which name.                  |
 
-There is no bundler and no server. What is in `public` is what is served.
+There is no bundler and no server code. What is in `public` is what is served.
 
 ## The relying party id is `tapes.network`
 
@@ -75,6 +76,8 @@ readable.
   update therefore cannot change what this origin serves.
 - **A code owners file covers this directory.** It has no effect unless branch
   protection on `main` requires those reviews.
+- **The deploy configuration is in the repository.** A change to the origin's
+  name or its routing is reviewed like a change to the page.
 - **Preview deployments stay off the custom domain.** A preview on a
   `tapes.network` name can use the relying party id.
 - **Keep the zone near empty and free of stale CNAMEs.** A subdomain someone
@@ -90,12 +93,20 @@ readable.
 
 ## Serving it
 
-The page is live from a Cloudflare Pages project with no build command.
-`apps/identity/public` is its output directory. The headers in `public/_headers`
-are applied, including `Cross-Origin-Opener-Policy: unsafe-none`.
+A Cloudflare Worker named `tapes-identity` serves the files in `public` as
+static assets. There is no Worker script, so nothing runs on a request beyond
+Cloudflare's own asset serving. `wrangler.jsonc` holds the configuration, and
+`yarn workspace identity deploy` applies it.
 
-That header is the one to re-check after any change to the project. A stricter
-value severs `window.opener`. The result can then never return to the guest.
+The headers in `public/_headers` are applied, including
+`Cross-Origin-Opener-Policy: unsafe-none`. That is the one to re-check after
+any change to the Worker. A stricter value severs `window.opener`, and the
+result can then never return to the guest.
+
+The `workers.dev` route and the version preview URLs are both turned off in the
+configuration. Turning either off in the dashboard alone is not enough. A
+deploy re-enables a `workers.dev` route that the configuration does not
+mention.
 
 Set up by hand, outside this repo, and worth knowing if the domain ever moves:
 

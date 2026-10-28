@@ -7,7 +7,8 @@
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "dev": "yarn dlx serve@14 public --listen 3003",
-    "preview": "yarn dlx serve@14 public --listen 3003"
+    "preview": "yarn dlx serve@14 public --listen 3003",
+    "deploy": "yarn dlx wrangler@4 deploy"
   },
   "devDependencies": {
     "@tapes-monorepo/eslint-config": "*",

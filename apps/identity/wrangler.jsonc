@@ -1,0 +1,31 @@
+{
+  // How the passkey page is served. It is in the repository so the origin's
+  // configuration is reviewed like the code it serves, under the same code
+  // owners. Deploy with `yarn workspace identity deploy`.
+  "name": "tapes-identity",
+  "compatibility_date": "2026-10-28",
+
+  // No `main`: there is no Worker script, only the files in `public`. An
+  // assets binding is valid only alongside a script, so there is none.
+  // `not_found_handling` is left at its default, so an unknown path is a plain
+  // 404 rather than the page.
+  "assets": {
+    "directory": "./public"
+  },
+
+  // One origin, named here rather than left to whatever the dashboard holds.
+  // WebAuthn lets every tapes.network subdomain use the relying party id, so
+  // which names reach this Worker is a security decision.
+  "routes": [
+    {
+      "pattern": "identity.tapes.network",
+      "custom_domain": true
+    }
+  ],
+
+  // Both off on purpose. A second origin serving this page has no use. They
+  // are set here because a deploy re-enables a workers.dev route that was
+  // turned off in the dashboard alone.
+  "workers_dev": false,
+  "preview_urls": false
+}
