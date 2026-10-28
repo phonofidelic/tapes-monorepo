@@ -1,9 +1,15 @@
 /**
- * The signed statements Tapes stores next to the audio.
+ * The signed statements Tapes stores next to the audio, and the signed
+ * messages a guest sends a host.
  *
  * Each statement's `type` names its format and version. Never change the
  * fields of a published version: old signatures must keep verifying. Add a new
  * version such as `tapes/recording@2` instead.
+ *
+ * Sync proofs, join requests and vouch requests are checked once and never
+ * stored, so that rule does not bind them. They still carry a versioned
+ * `type`. It keeps a signature over one kind of message from verifying as
+ * another made by the same key, and lets a host refuse an old shape.
  */
 
 /**
@@ -25,8 +31,9 @@ export type RecordingClaim = {
   /** The signer's base64url Ed25519 public key. */
   deviceKey: string
   /**
-   * Address of the Signed<DeviceCertificate> vouching for the device key.
-   * Absent when the device has no person key, such as the host.
+   * Address of the Signed<DeviceCertificate> or Signed<DeviceVouch> that ties
+   * the device key to a person. Absent when the device has no person key, such
+   * as the host.
    */
   deviceCert?: string
 }
@@ -48,6 +55,78 @@ export type DeviceCertificate = {
   deviceLabel: string
   /** The device's clock. */
   issuedAt: string
+}
+
+export const JOIN_REQUEST_TYPE = 'tapes/join@1'
+
+/**
+ * Signed by a person key to join a host's roster, or to update the name or PIN
+ * it has there. It is signed over a challenge from that host, so it cannot be
+ * replayed. A certificate alone cannot do this job, because any paired peer
+ * can read one from the blob store. Never stored.
+ */
+export type JoinRequest = {
+  type: typeof JOIN_REQUEST_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  personKey: string
+  /** What the person wants the host to call them. */
+  personName: string
+  /** Address of the Signed<DeviceCertificate> sent with the request. */
+  certificate: string
+  /** The one-time value the host issued for this request. */
+  challenge: string
+}
+
+export const VOUCH_REQUEST_TYPE = 'tapes/vouch-request@1'
+
+/**
+ * Signed by a new device key to ask a host to vouch for it as a person the
+ * host already knows. It proves the requester holds the key. The person it
+ * names is only a claim until the operator or a PIN confirms it. Never stored.
+ */
+export type VouchRequest = {
+  type: typeof VOUCH_REQUEST_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  deviceKey: string
+  /** The person key the requester says is theirs. */
+  personKey: string
+  deviceLabel: string
+  /** The device's clock. */
+  requestedAt: string
+}
+
+export const DEVICE_VOUCH_TYPE = 'tapes/device-vouch@1'
+
+/** How the person showed the host it was them. */
+export type VouchMethod = 'operator' | 'pin'
+
+/**
+ * Signed by a host to say it saw the person who holds `personKey` take up
+ * `deviceKey`. The host never holds the person key, so this is a witness
+ * statement, weaker than a device certificate. A device uses it in place of a
+ * certificate until the person restores their person key.
+ */
+export type DeviceVouch = {
+  type: typeof DEVICE_VOUCH_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  hostKey: string
+  /** The host's own name for itself. Unverified, like a device label. */
+  hostLabel: string
+  personKey: string
+  /** The name the host's roster gives the person. The person did not sign it. */
+  personName: string
+  /** The new device's base64url Ed25519 public key. */
+  deviceKey: string
+  /** The new device's name, from its vouch request. */
+  deviceLabel: string
+  method: VouchMethod
+  /**
+   * Address of the Signed<DeviceCertificate> the person key signed when the
+   * person first joined this host. It ties the vouch to the person key.
+   */
+  firstCertificate: string
+  /** The host's clock. */
+  vouchedAt: string
 }
 
 export const HOST_RECEIPT_TYPE = 'tapes/receipt@1'
@@ -110,4 +189,4 @@ export type SyncProof = {
 }
 
 export type Statement =
-  RecordingClaim | HostReceipt | SessionRecord | DeviceCertificate
+  RecordingClaim | HostReceipt | SessionRecord | DeviceCertificate | DeviceVouch

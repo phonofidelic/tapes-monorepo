@@ -4,8 +4,8 @@ import { useSetting } from '@/context/SettingsContext'
 import {
   deriveDeviceLabel,
   FALLBACK_DEVICE_LABEL,
-  MAX_DEVICE_LABEL_LENGTH,
-  sanitizeDeviceLabel,
+  MAX_LABEL_LENGTH,
+  sanitizeLabel,
 } from '@/deviceLabel'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
 import { useConnectedDevices } from '@/hooks/useConnectedDevices'
@@ -112,6 +112,7 @@ function HostSettings() {
           automergeUrl,
           pairingToken: serverInfo?.pairingToken,
           rootCertFingerprint: serverInfo?.rootCertFingerprint,
+          hostKey: serverInfo?.hostKey,
         })
       : null
 
@@ -528,56 +529,133 @@ function GuestSettings() {
           Library to see it.
         </p>
       )}
-      <DeviceLabelSetting />
+      <NameSettings />
     </div>
   )
 }
 
 /**
- * Names this device for the hosts it syncs with. The name is sent on the socket
- * handshake (see `deviceLabel.ts`), so a host can list its guests by something
- * a person recognizes. It is stored per device, not in the Automerge document.
+ * The names this device gives the hosts it syncs with. Both are stored per
+ * device, not in the Automerge document, and both are self-reported.
+ *
+ * The device name rides the socket handshake (see `deviceLabel.ts`), so a host
+ * can list its guests. On the desktop app it names the host itself, in session
+ * records and in the vouches it signs. A guest's person name is what the host's
+ * roster calls the person when they join.
  */
-function DeviceLabelSetting() {
+function NameSettings() {
+  const appContext = useAppContext()
   const [deviceLabel, setDeviceLabel] = useSetting('deviceLabel')
-  const [labelDraft, setLabelDraft] = useState(deviceLabel ?? '')
+  const [personName, setPersonName] = useSetting('personName')
+  const [computerName, setComputerName] = useState<string>()
+
+  useEffect(() => {
+    if (appContext.type !== 'electron-client') {
+      return
+    }
+    let current = true
+    appContext.ipc
+      .send<SyncServerInfo>('sync:get-server-info')
+      .then((info) => current && setComputerName(info.computerName))
+    return () => {
+      current = false
+    }
+  }, [appContext])
 
   // Shown, not written. A device that has never been renamed keeps tracking
-  // the derived name instead of freezing the first one it saw.
-  const derivedLabel = deriveDeviceLabel(
-    typeof navigator === 'undefined' ? undefined : navigator,
+  // the default instead of freezing the first one it saw.
+  const defaultLabel =
+    appContext.type === 'electron-client'
+      ? (computerName ?? FALLBACK_DEVICE_LABEL)
+      : deriveDeviceLabel(
+          typeof navigator === 'undefined' ? undefined : navigator,
+        )
+
+  return (
+    <>
+      {appContext.type === 'web-client' && (
+        <NameSetting
+          id="person-name"
+          label="Your name"
+          title="Save your name"
+          value={personName}
+          onSave={setPersonName}
+        >
+          What a host calls you when you join it. It shows next to your
+          recordings when the host vouches for a new device of yours.
+        </NameSetting>
+      )}
+      {appContext.type === 'electron-client' ? (
+        <NameSetting
+          id="device-label"
+          label="This host's name"
+          title="Save host name"
+          value={deviceLabel}
+          onSave={setDeviceLabel}
+        >
+          How this host names itself to guests and in what it signs. Leave it
+          empty to use <span className="text-zinc-400">{defaultLabel}</span>.
+        </NameSetting>
+      ) : (
+        <NameSetting
+          id="device-label"
+          label="This device's name"
+          title="Save device name"
+          value={deviceLabel}
+          onSave={setDeviceLabel}
+        >
+          How this device names itself to a host it syncs with. Leave it empty
+          to use <span className="text-zinc-400">{defaultLabel}</span>. The host
+          sees a new name the next time this device connects.
+        </NameSetting>
+      )}
+    </>
   )
+}
+
+function NameSetting({
+  id,
+  label,
+  title,
+  value,
+  onSave,
+  children,
+}: {
+  id: string
+  label: string
+  title: string
+  value: string | undefined
+  onSave: (value: string | undefined) => void
+  children: React.ReactNode
+}) {
+  const [draft, setDraft] = useState(value ?? '')
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex w-full items-center justify-between gap-5 text-sm">
         <TextInput
-          label="This device's name"
+          label={label}
           type="text"
-          name="device-label"
-          id="device-label"
-          value={labelDraft}
+          name={id}
+          id={id}
+          value={draft}
           onChange={(event) =>
-            setLabelDraft(event.target.value.slice(0, MAX_DEVICE_LABEL_LENGTH))
+            setDraft(event.target.value.slice(0, MAX_LABEL_LENGTH))
           }
         />
         <Button
           className="w-fit p-2"
-          title="Save device name"
+          title={title}
           onClick={() => {
             // An empty field means "use the default". That is an absent key,
             // not a stored empty string.
-            setDeviceLabel(sanitizeDeviceLabel(labelDraft))
+            onSave(sanitizeLabel(draft))
           }}
         >
           Save
         </Button>
       </div>
-      <p className="pl-2 text-xs text-zinc-500">
-        How this device names itself to a host it syncs with. Leave it empty to
-        use <span className="text-zinc-400">{derivedLabel}</span>. The host sees
-        a new name the next time this device connects.
-      </p>
+      <p className="pl-2 text-xs text-zinc-500">{children}</p>
     </div>
   )
 }

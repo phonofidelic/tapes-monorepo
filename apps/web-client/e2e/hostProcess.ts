@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline'
 import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import {
+  getHostVouching,
   hostSession,
   startSyncServer,
   stopSyncServer,
@@ -56,6 +57,8 @@ type Command =
   | { id: number; type: 'restart' }
   | { id: number; type: 'session-start' }
   | { id: number; type: 'session-stop' }
+  | { id: number; type: 'vouches-pending' }
+  | { id: number; type: 'vouch-confirm'; requestId: string }
   | { id: number; type: 'dispose' }
 
 type Paths = {
@@ -63,6 +66,7 @@ type Paths = {
   blobRoot: string
   storageRoot: string
   eventRoot: string
+  rosterPath: string
 }
 
 let disposing = false
@@ -116,6 +120,8 @@ async function listen(where: Paths) {
     // blob-auth service worker registers under.
     webClientPath,
     loadSigningKey: signingKey ? () => signingKey! : undefined,
+    // The roster and vouch routes mount only with a signing key as well.
+    rosterPath: where.rosterPath,
   })
   if (info.port !== port) {
     // `startSyncServer` falls back to an OS-assigned port on EADDRINUSE, which
@@ -139,6 +145,7 @@ async function start(command: Extract<Command, { type: 'start' }>) {
     blobRoot: path.join(root, 'blobs'),
     storageRoot: path.join(root, 'automerge'),
     eventRoot: path.join(root, 'events'),
+    rosterPath: path.join(root, 'people.json'),
   }
   await mkdir(paths.blobRoot, { recursive: true })
   await mkdir(paths.storageRoot, { recursive: true })
@@ -155,7 +162,12 @@ async function start(command: Extract<Command, { type: 'start' }>) {
   rootDocumentUrl = rootDocument.url
   await waitForStoredDoc(rootDocument.url)
 
-  return { rootDocumentUrl, blobRoot: paths.blobRoot, port: info.port }
+  return {
+    rootDocumentUrl,
+    blobRoot: paths.blobRoot,
+    port: info.port,
+    hostKey: info.hostKey,
+  }
 }
 
 /**
@@ -398,6 +410,11 @@ async function run(command: Command): Promise<unknown> {
       return hostSession.start(rootDocumentUrl!)
     case 'session-stop':
       return hostSession.stop()
+    // What the operator's panel lists and its "Yes" button calls.
+    case 'vouches-pending':
+      return getHostVouching()?.pending() ?? []
+    case 'vouch-confirm':
+      return (await getHostVouching()?.confirm(command.requestId)) !== undefined
     case 'dispose':
       disposing = true
       peer?.disconnect()

@@ -4,7 +4,7 @@
  * backup format for person keys.
  *
  * The device that records signs the claim, guest or host. A person key
- * certifies a guest's device key. The host, in the Electron main process,
+ * certifies a guest's device key, or a host vouches for it after a lost key. The host, in the Electron main process,
  * verifies claims and signs receipts and session records. The main process
  * cannot import core, so the shared rules live here.
  * Keep this package free of React and Node APIs. WebCrypto is the one platform
@@ -13,6 +13,7 @@
 
 export * from './canonicalJson'
 export * from './deviceCertificate'
+export * from './deviceVouch'
 export * from './encoding'
 export * from './hostReceipt'
 export * from './personKeyBackup'

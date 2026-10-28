@@ -15,9 +15,11 @@ import {
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
+import { loadDeviceVouch, type StoredVouch } from './deviceVouch'
 import { loadPersonIdentity, type PersonIdentity } from './personKey'
 
 vi.mock('./deviceSigningKey', () => ({ loadDeviceSigningKey: vi.fn() }))
+vi.mock('./deviceVouch', () => ({ loadDeviceVouch: vi.fn() }))
 vi.mock('./personKey', () => ({ loadPersonIdentity: vi.fn() }))
 
 type WorkerReply = {
@@ -286,6 +288,7 @@ describe('recorder:claim', () => {
       await generateSigningKeyPair(),
     )
     vi.mocked(loadPersonIdentity).mockResolvedValue(undefined)
+    vi.mocked(loadDeviceVouch).mockResolvedValue(undefined)
   })
 
   it('signs a claim over the bytes in the file', async () => {
@@ -325,6 +328,21 @@ describe('recorder:claim', () => {
     })
 
     expect((await claimFrom('one')).payload.deviceCert).toBe('cd'.repeat(32))
+  })
+
+  it("names the host's vouch on a device that re-joined without a person key", async () => {
+    addFile('take.webm', 'recorded audio')
+    vi.mocked(loadDeviceVouch).mockResolvedValue({
+      address: 'ef'.repeat(32),
+    } as StoredVouch)
+
+    send('recorder:claim', {
+      filename: 'take.webm',
+      ...claimDetails,
+      requestId: 'one',
+    })
+
+    expect((await claimFrom('one')).payload.deviceCert).toBe('ef'.repeat(32))
   })
 
   it('signs without a certificate when the person key cannot be read', async () => {

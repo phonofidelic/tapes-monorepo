@@ -15,13 +15,13 @@
 
 export {
   DEVICE_LABEL_PARAM,
-  MAX_DEVICE_LABEL_LENGTH,
-  sanitizeDeviceLabel,
+  MAX_LABEL_LENGTH,
+  sanitizeLabel,
 } from '@tapes-monorepo/sync-protocol'
 
 import {
   DEVICE_LABEL_PARAM,
-  sanitizeDeviceLabel,
+  sanitizeLabel,
 } from '@tapes-monorepo/sync-protocol'
 
 /** Used when nothing can be derived and the user has set nothing. */
@@ -103,19 +103,23 @@ function deriveBrowser(userAgent: string): string | undefined {
 
 /**
  * The name to present on the socket. The user's own name wins, otherwise the
- * derived default. It takes storage as an argument because both shells need
- * this before React mounts, while they are still building the repo.
+ * default. It takes storage as an argument because both shells need this
+ * before React mounts, while they are still building the repo.
  */
 export function resolveDeviceLabel({
   storage,
   navigator,
+  defaultLabel,
 }: {
   storage?: Pick<Storage, 'getItem'>
   navigator?: DeviceLabelNavigator
+  /** Replaces the name derived from the browser, such as the Mac's name. */
+  defaultLabel?: string
 }): string {
   return (
     readStoredDeviceLabel(storage) ??
-    sanitizeDeviceLabel(deriveDeviceLabel(navigator)) ??
+    sanitizeLabel(defaultLabel) ??
+    sanitizeLabel(deriveDeviceLabel(navigator)) ??
     FALLBACK_DEVICE_LABEL
   )
 }
@@ -137,7 +141,7 @@ export function readStoredDeviceLabel(
   if (typeof parsed !== 'object' || parsed === null) {
     return undefined
   }
-  return sanitizeDeviceLabel((parsed as { deviceLabel?: unknown }).deviceLabel)
+  return sanitizeLabel((parsed as { deviceLabel?: unknown }).deviceLabel)
 }
 
 /**
@@ -145,7 +149,7 @@ export function readStoredDeviceLabel(
  * callers do not have to branch.
  */
 export function withDeviceLabel(url: string, label?: string): string {
-  const sanitized = sanitizeDeviceLabel(label)
+  const sanitized = sanitizeLabel(label)
   if (!sanitized) {
     return url
   }

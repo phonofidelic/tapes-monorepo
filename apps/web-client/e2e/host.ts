@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import type { BlobDescriptor, RecordingAggregate } from '@tapes-monorepo/core'
+import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
 /**
@@ -102,7 +103,7 @@ export class Host {
    */
   async start(
     options: HostOptions = {},
-  ): Promise<{ rootDocumentUrl: AutomergeUrl }> {
+  ): Promise<{ rootDocumentUrl: AutomergeUrl; hostKey?: string }> {
     const here = path.dirname(fileURLToPath(import.meta.url))
     const child = spawn(
       process.execPath,
@@ -160,7 +161,7 @@ export class Host {
       this.pending.clear()
     })
 
-    return this.send<{ rootDocumentUrl: AutomergeUrl }>({
+    return this.send<{ rootDocumentUrl: AutomergeUrl; hostKey?: string }>({
       type: 'start',
       webClientPath: options.webClientPath,
       signs: options.signs ?? false,
@@ -212,6 +213,16 @@ export class Host {
     return this.send<void>({ type: 'session-stop' })
   }
 
+  /** The devices waiting for the operator, as the host's panel lists them. */
+  pendingVouches(): Promise<{ id: string; personName: string }[]> {
+    return this.send({ type: 'vouches-pending' })
+  }
+
+  /** Confirms a waiting device, as the operator's "Yes" button does. */
+  confirmVouch(requestId: string): Promise<boolean> {
+    return this.send({ type: 'vouch-confirm', requestId })
+  }
+
   async dispose(): Promise<void> {
     if (!this.child) {
       return
@@ -234,7 +245,7 @@ const defaultHost = new Host()
 
 export function startHost(
   options: HostOptions = {},
-): Promise<{ rootDocumentUrl: AutomergeUrl }> {
+): Promise<{ rootDocumentUrl: AutomergeUrl; hostKey?: string }> {
   return defaultHost.start(options)
 }
 
@@ -277,6 +288,15 @@ export async function hostPlays(
   )
 }
 
+/** The people on the host's roster, read over the route guests read. */
+export async function hostRoster(): Promise<RosterPerson[]> {
+  const response = await fetch(`${HOST_ORIGIN}/people?t=${PAIRING_TOKEN}`)
+  if (!response.ok) {
+    throw new Error(`Reading the roster failed: ${response.status}`)
+  }
+  return ((await response.json()) as { people: RosterPerson[] }).people
+}
+
 export function stopHost(): Promise<void> {
   return defaultHost.stop()
 }
@@ -294,6 +314,16 @@ export function startHostSession(): Promise<{
 
 export function stopHostSession(): Promise<void> {
   return defaultHost.stopSession()
+}
+
+export function hostPendingVouches(): Promise<
+  { id: string; personName: string }[]
+> {
+  return defaultHost.pendingVouches()
+}
+
+export function confirmHostVouch(requestId: string): Promise<boolean> {
+  return defaultHost.confirmVouch(requestId)
 }
 
 export function disposeHost(): Promise<void> {

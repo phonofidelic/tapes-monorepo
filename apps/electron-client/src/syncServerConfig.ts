@@ -33,6 +33,10 @@ export const syncStoragePath = () =>
 /** Root of the content-addressed audio store served over `/blobs`. */
 export const blobStoragePath = () => path.join(app.getPath('userData'), 'blobs')
 
+/** The people this host has met, whose new devices it can vouch for. */
+export const rosterPath = () =>
+  path.join(app.getPath('userData'), 'people.json')
+
 /**
  * Root of the append-only playback-event log. A sibling of the blob store, not
  * a directory inside it. Audio lives as long as its recording and events for

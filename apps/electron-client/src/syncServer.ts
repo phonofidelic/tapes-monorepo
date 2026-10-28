@@ -39,6 +39,14 @@ import {
 import { createSessionRecorder, type OpenSession } from './sessionRecorder'
 import { listSessionRecord } from './sessionDelivery'
 import { createHostSession } from './hostSession'
+import { FALLBACK_HOST_LABEL } from './computerName'
+import {
+  createHostVouching,
+  type HostVouching,
+  type PendingVouch,
+} from './hostVouching'
+import { createPersonRoster } from './personRoster'
+import { createVouchRequestHandler } from './vouchHttp'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
 import {
   exportPublicKey,
@@ -109,6 +117,16 @@ type SyncServerOptions = {
    */
   rootCertFingerprint?: string
   /**
+   * The Mac's own name. Passed in so this module does not shell out. It is the
+   * host's name until the user sets one.
+   */
+  computerName?: string
+  /**
+   * Where the roster of people is kept. Without it, or without a signing key,
+   * the roster and vouch routes are not mounted.
+   */
+  rosterPath?: string
+  /**
    * The host's provenance signing key, for receipts on uploaded recordings.
    * Passed in because loading it needs electron, which this module avoids.
    */
@@ -125,6 +143,7 @@ type RunningSyncServer = {
   eventStore?: EventStore
   aggregateStore?: AggregateStore
   loadSigningKey?: () => Promise<CryptoKeyPair>
+  vouching?: HostVouching
 }
 
 let current: RunningSyncServer | null = null
@@ -156,6 +175,36 @@ function emitConnections(connections: SyncConnection[]) {
       console.error('Sync connection listener failed:', error)
     }
   }
+}
+
+/**
+ * Listeners on the requests waiting for the operator. At module scope for the
+ * same reason as the connection listeners above.
+ */
+const pendingVouchListeners = new Set<(pending: PendingVouch[]) => void>()
+
+function emitPendingVouches(pending: PendingVouch[]) {
+  for (const listener of pendingVouchListeners) {
+    try {
+      listener(pending)
+    } catch (error) {
+      console.error('Pending vouch listener failed:', error)
+    }
+  }
+}
+
+export function subscribeToPendingVouches(
+  listener: (pending: PendingVouch[]) => void,
+): () => void {
+  pendingVouchListeners.add(listener)
+  return () => {
+    pendingVouchListeners.delete(listener)
+  }
+}
+
+/** The running host's vouching, for the operator's IPC channels. */
+export function getHostVouching(): HostVouching | undefined {
+  return current?.vouching
 }
 
 /** Who is connected to the running host right now, oldest first. */
@@ -545,6 +594,8 @@ export async function startSyncServer(
     eventStorePath,
     pairingToken,
     rootCertFingerprint,
+    computerName,
+    rosterPath,
     loadSigningKey,
   } = options
   const requestedPort = options.port ?? DEFAULT_SYNC_SERVER_PORT
@@ -624,6 +675,21 @@ export async function startSyncServer(
 
   const challenges = createSyncChallengeStore()
 
+  const vouching =
+    rosterPath && loadSigningKey
+      ? createHostVouching({
+          roster: createPersonRoster(rosterPath),
+          loadSigningKey,
+          // The host's own window presents the name the user gave the host.
+          hostLabel: () =>
+            connections.list().find((connection) => connection.self)?.label ??
+            computerName ??
+            FALLBACK_HOST_LABEL,
+          consumeChallenge: (challenge) => challenges.consume(challenge),
+          onChange: () => emitPendingVouches(vouching?.pending() ?? []),
+        })
+      : undefined
+
   const handleEventRequest = eventStore
     ? createEventRequestHandler({
         store: eventStore,
@@ -639,6 +705,9 @@ export async function startSyncServer(
     handleBlobRequest,
     handleEventRequest,
     createSyncChallengeRequestHandler({ challenges, token: pairingToken }),
+    ...(vouching
+      ? [createVouchRequestHandler({ vouching, token: pairingToken })]
+      : []),
     createCaRequestHandler({ rootCertPem }),
   ])
   const server = tls
@@ -751,6 +820,8 @@ export async function startSyncServer(
   const lanIp = host === '0.0.0.0' ? getLocalNetworkIp() : undefined
   const wsScheme = tls ? 'wss' : 'ws'
   const httpScheme = tls ? 'https' : 'http'
+  // Guests pin this key from the QR link and check every vouch against it.
+  const publicHostKey = await loadHostKey()
 
   current = {
     info: {
@@ -784,6 +855,8 @@ export async function startSyncServer(
       // Only meaningful with TLS on: without it there is no root for a guest
       // to install, so there is nothing to compare.
       rootCertFingerprint: tls ? rootCertFingerprint : undefined,
+      computerName,
+      hostKey: publicHostKey,
       port,
       host,
     },
@@ -795,6 +868,7 @@ export async function startSyncServer(
     eventStore,
     aggregateStore,
     loadSigningKey,
+    vouching,
   }
 
   console.log(`Sync server listening on ${wsScheme}://${host}:${port}`)
@@ -812,6 +886,8 @@ export async function stopSyncServer(): Promise<void> {
   // Before the sockets are torn down, so the list empties once rather than
   // draining socket by socket as each `close` fires.
   connections.close()
+  // Waiting requests live with the server, so a restart starts with none.
+  emitPendingVouches([])
 
   await repo.flush()
   for (const client of wss.clients) {

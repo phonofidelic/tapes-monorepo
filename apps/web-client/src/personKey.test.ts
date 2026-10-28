@@ -10,6 +10,8 @@ import {
   createPersonIdentity,
   loadPersonIdentity,
   markPersonKeyBackedUp,
+  markPersonKeyJoined,
+  restorePersonIdentity,
 } from './personKey'
 
 /** The guest's person key against an in-memory IndexedDB. */
@@ -101,5 +103,90 @@ describe('markPersonKeyBackedUp', () => {
     await expect(
       markPersonKeyBackedUp(other, new Date(), factory),
     ).rejects.toThrow(/different person key/)
+  })
+})
+
+describe('markPersonKeyJoined', () => {
+  it('records when the host added the person, next to the backup time', async () => {
+    const { publicKey } = await createPersonIdentity(device, factory)
+    await markPersonKeyBackedUp(
+      publicKey,
+      new Date('2026-10-22T10:00:00Z'),
+      factory,
+    )
+    await markPersonKeyJoined(
+      publicKey,
+      new Date('2026-10-22T09:00:00Z'),
+      factory,
+    )
+
+    expect(await loadPersonIdentity(factory)).toMatchObject({
+      backedUpAt: '2026-10-22T10:00:00.000Z',
+      joinedAt: '2026-10-22T09:00:00.000Z',
+    })
+  })
+})
+
+describe('restorePersonIdentity', () => {
+  const restoredAt = new Date('2026-10-24T12:00:00Z')
+
+  it('stores the restored key with a new certificate for this device', async () => {
+    const personKeys = await generateSigningKeyPair(true)
+
+    const result = await restorePersonIdentity(
+      device,
+      { keyPair: personKeys, backedUpAt: restoredAt, joinedAt: 'earlier' },
+      factory,
+    )
+
+    expect(result.ok).toBe(true)
+    const identity = await loadPersonIdentity(factory)
+    expect(identity).toMatchObject({
+      publicKey: await exportPublicKey(personKeys.publicKey),
+      backedUpAt: restoredAt.toISOString(),
+      joinedAt: 'earlier',
+    })
+    expect(await checkDeviceCertificate(identity!.certificate)).toMatchObject({
+      ok: true,
+      certificate: {
+        payload: {
+          deviceKey: await exportPublicKey(device.keyPair.publicKey),
+          deviceLabel: 'Pixel · Chrome',
+        },
+      },
+    })
+  })
+
+  it('keeps the certificate of a device that already holds the key', async () => {
+    const existing = await createPersonIdentity(device, factory)
+
+    await restorePersonIdentity(
+      device,
+      { keyPair: existing.keyPair, backedUpAt: restoredAt },
+      factory,
+    )
+
+    expect(await loadPersonIdentity(factory)).toMatchObject({
+      certificateAddress: existing.certificateAddress,
+      backedUpAt: restoredAt.toISOString(),
+    })
+  })
+
+  it('refuses a backup of another person key', async () => {
+    const existing = await createPersonIdentity(device, factory)
+
+    expect(
+      await restorePersonIdentity(
+        device,
+        {
+          keyPair: await generateSigningKeyPair(true),
+          backedUpAt: restoredAt,
+        },
+        factory,
+      ),
+    ).toEqual({ ok: false, problem: 'other-person-key' })
+    expect((await loadPersonIdentity(factory))?.publicKey).toBe(
+      existing.publicKey,
+    )
   })
 })
