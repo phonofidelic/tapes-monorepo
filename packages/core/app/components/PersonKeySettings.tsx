@@ -3,16 +3,19 @@ import { Button } from '@tapes-monorepo/ui'
 import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import { useUploadEndpoint } from '@/context/BlobContext'
+import { useRosterSelf } from '@/hooks/useRosterSelf'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
 import { PasskeyCheck, passkeyCheckEnabled } from './PasskeyCheck'
 import { PinSettings } from './PinSettings'
+import { RejoinFlow } from './RejoinFlow'
 import { RestoreFlow } from './RestoreFlow'
 
 /**
- * A web guest's person key in Settings: whether this device has it, and a way
- * to restore it from the backup. A device the host vouched for has no person
- * key, and restoring is how it gets one back. Below it, the person's PIN on
- * the host, once the host has them on its roster.
+ * A web guest's person key in Settings: whether this device has it, and the
+ * two ways back for a device the host vouched for instead. Restoring the
+ * person key from its backup gives this device a certificate of its own.
+ * Asking the host again gets a fresh vouch, which this device needs once the
+ * operator withdrew the one it holds. Below both, the person's PIN on the host.
  *
  * `?passkey=1` adds a check that the passkey page answers this origin. It is
  * for testing that handoff on a phone, not a thing to offer people.
@@ -21,8 +24,18 @@ export function PersonKeySettings() {
   const appContext = useAppContext()
   const [status, setStatus] = useState<PersonKeyStatus>()
   const [restoring, setRestoring] = useState(false)
+  const [asking, setAsking] = useState(false)
+  const [message, setMessage] = useState<{ text: string; error: boolean }>()
   const [pairedHostName] = useSetting('pairedHostName')
   const endpoint = useUploadEndpoint()
+
+  const identified = status?.exists ? status : undefined
+  const vouchedBy = identified?.vouchedBy
+  // Only a device without a person key of its own asks to be vouched for.
+  const { self } = useRosterSelf(
+    vouchedBy ? endpoint : undefined,
+    identified?.publicKey,
+  )
 
   useEffect(() => {
     let current = true
@@ -58,6 +71,33 @@ export function PersonKeySettings() {
           Restore from a backup
         </Button>
       )}
+      {vouchedBy && self === null && (
+        <p className="pl-2 text-sm">
+          {vouchedBy} no longer has you on its roster, so it cannot vouch for
+          this device. Ask the host in person.
+        </p>
+      )}
+      {vouchedBy && self && (
+        <Button
+          className="w-fit p-2"
+          onClick={() => {
+            setMessage(undefined)
+            setAsking(true)
+          }}
+        >
+          {`Ask ${vouchedBy} to vouch again`}
+        </Button>
+      )}
+      {message && (
+        <p
+          className={
+            message.error ? 'pl-2 text-sm text-rose-500' : 'pl-2 text-sm'
+          }
+          role={message.error ? 'alert' : 'status'}
+        >
+          {message.text}
+        </p>
+      )}
       {passkeyCheckEnabled(window.location.search) && (
         <PasskeyCheck
           hostName={
@@ -81,6 +121,29 @@ export function PersonKeySettings() {
           onRestored={(next) => {
             setStatus(next)
             setRestoring(false)
+          }}
+        />
+      )}
+      {asking && self && endpoint && (
+        <RejoinFlow
+          worker={appContext.worker}
+          endpoint={endpoint}
+          person={self}
+          title={`Ask ${vouchedBy} to vouch again`}
+          cancelLabel="Not now"
+          onVouched={(next) => {
+            setStatus(next)
+            setAsking(false)
+            setMessage({
+              text: 'This device has a new vouch. The old one still stands for the takes it signed.',
+              error: false,
+            })
+          }}
+          onBack={(error) => {
+            setAsking(false)
+            if (error) {
+              setMessage({ text: error, error: true })
+            }
           }}
         />
       )}

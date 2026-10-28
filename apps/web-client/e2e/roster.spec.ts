@@ -23,8 +23,10 @@ import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
  * restore their person key from the backup, which replaces the vouch. The
  * host signs, because vouching needs its key.
  *
- * The last test is the operator's side: withdrawing a vouch the host gave the
- * wrong person. It runs after the others so it has a signed vouch to withdraw.
+ * Then the operator's side: withdrawing a vouch the host gave the wrong
+ * person. It runs after the others so it has a signed vouch to withdraw. The
+ * last test is a device that already holds a vouch asking for another one from
+ * Settings, which is the way back once the operator withdrew it.
  *
  * Each test gets a fresh browser context, which is a device with no keys.
  * Later tests need the person and the backup the first one made, so they run
@@ -249,5 +251,40 @@ test('the operator withdraws a vouch the host gave the wrong person', async () =
   expect(await revokeHostVouch(address)).toEqual({
     ok: false,
     error: 'already-revoked',
+  })
+})
+
+test('a vouched guest asks for another vouch from Settings', async ({
+  page,
+}) => {
+  await page.goto(pairingUrl())
+  await page
+    .getByRole('dialog', { name: 'Have you been here before?' })
+    .getByRole('button', { name: 'Sam' })
+    .click()
+  const rejoin = page.getByRole('dialog', { name: 'Welcome back, Sam' })
+  await rejoin.getByLabel('Your PIN').fill('4821')
+  await rejoin.getByRole('button', { name: 'Use PIN' }).click()
+  await expect(rejoin).toHaveCount(0)
+
+  // Nothing on the device says whether its vouch still stands, so Settings
+  // offers the ask whenever the host knows the person.
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: /vouch again/ }).click()
+  const asking = page.getByRole('dialog', { name: /vouch again/ })
+  await expect(asking).toBeVisible()
+
+  // The same request the welcome flow sends, answered the same way.
+  await expect
+    .poll(async () => (await hostPendingVouches()).map((p) => p.personName))
+    .toEqual(['Sam'])
+  const [request] = await hostPendingVouches()
+  expect(await confirmHostVouch(request.id)).toBe(true)
+
+  await expect(asking).toHaveCount(0)
+  await expect(page.getByText(/This device has a new vouch/)).toBeVisible()
+  // The operator's vouch replaced the one the PIN got this device.
+  expect(await readKeyRecord(page, 'vouch')).toMatchObject({
+    payload: { personName: 'Sam', method: 'operator', hostKey },
   })
 })
