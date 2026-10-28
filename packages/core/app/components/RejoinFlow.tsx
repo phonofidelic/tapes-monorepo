@@ -24,6 +24,10 @@ import { RestoreFlow } from './RestoreFlow'
  * them, or types their PIN, and the host vouches for this device.
  *
  * The vouch is kept only if the host key pinned from the QR link signed it.
+ *
+ * Settings renders `RejoinFlow` on its own, where a device that already holds
+ * a vouch asks the host for another one. It knows which person it is, so it
+ * needs no list of names.
  */
 
 /** How often a waiting device asks whether the operator has answered. */
@@ -173,6 +177,8 @@ export function RejoinFlow({
   person,
   onVouched,
   onBack,
+  title = `Welcome back, ${person.name}`,
+  cancelLabel = "That's not me",
 }: {
   worker: Worker
   endpoint: BlobEndpoint
@@ -180,6 +186,10 @@ export function RejoinFlow({
   onVouched: (status: PersonKeyStatus) => void
   /** Back to the list of names, with what went wrong if anything did. */
   onBack: (error?: string) => void
+  /** The heading, for a caller that is not the welcome flow. */
+  title?: string
+  /** The label on the way out, which is not always "not me". */
+  cancelLabel?: string
 }) {
   const [pinnedHostKey] = useSetting('pinnedHostKey')
   const [id, setId] = useState<string>()
@@ -288,7 +298,7 @@ export function RejoinFlow({
   }
 
   return (
-    <PromptFrame title={`Welcome back, ${person.name}`}>
+    <PromptFrame title={title}>
       {pinOpen ? (
         <form
           className="flex flex-col gap-3"
@@ -342,7 +352,7 @@ export function RejoinFlow({
           className="rounded-md px-3 py-1.5 text-zinc-400 hover:text-zinc-50"
           onClick={() => onBack()}
         >
-          That&apos;s not me
+          {cancelLabel}
         </button>
       </div>
     </PromptFrame>

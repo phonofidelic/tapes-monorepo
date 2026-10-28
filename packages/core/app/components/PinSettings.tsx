@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { isValidPin, type RosterPerson } from '@tapes-monorepo/sync-protocol'
+import { useState } from 'react'
+import { isValidPin } from '@tapes-monorepo/sync-protocol'
 import type { BlobEndpoint } from '@/blobClient'
+import { useRosterSelf } from '@/hooks/useRosterSelf'
 import type { PersonKeyStatus } from '@/personKey'
-import { changePin, fetchRoster, joinHostRoster } from '@/rosterClient'
+import { changePin, joinHostRoster } from '@/rosterClient'
 
 /**
  * A web guest sets, changes or removes their PIN on the host. A device with
@@ -24,33 +25,13 @@ const buttonClass =
 const digits = (value: string) => value.replace(/\D/g, '')
 
 export function PinSettings({ worker, endpoint, status }: Props) {
-  const [self, setSelf] = useState<RosterPerson | null>()
+  const { self, refresh } = useRosterSelf(endpoint, status.publicKey)
   const [oldPin, setOldPin] = useState('')
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ text: string; error: boolean }>()
 
-  // Bumped after each change to read the roster again.
-  const [version, setVersion] = useState(0)
-
   const holdsPersonKey = status.vouchedBy === undefined
-
-  useEffect(() => {
-    let current = true
-    fetchRoster(endpoint).then(
-      (people) =>
-        current &&
-        setSelf(
-          people.find((each) => each.personKey === status.publicKey) ?? null,
-        ),
-      (error: unknown) =>
-        console.warn('Could not read the host roster:', error),
-    )
-    return () => {
-      current = false
-    }
-  }, [endpoint, status.publicKey, version])
-  const refresh = () => setVersion((each) => each + 1)
 
   if (!self) {
     return null
