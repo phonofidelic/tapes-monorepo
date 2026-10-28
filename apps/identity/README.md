@@ -72,8 +72,10 @@ a person to unlock their person key behind a Face ID prompt. The repository is
 public, so the write path to the origin matters more than the code being
 readable.
 
-- **The page has no dependencies and no build step.** An automerged dependency
-  update therefore cannot change what this origin serves.
+- **The page has no dependencies and no build step.** Nothing a dependency
+  update touches reaches the files that are served.
+- **The deploy tool is pinned, and never automerged.** Wrangler is what uploads
+  these files, so its version is reviewed by hand like the page.
 - **A code owners file covers this directory.** It has no effect unless branch
   protection on `main` requires those reviews.
 - **The deploy configuration is in the repository.** A change to the origin's
@@ -102,6 +104,11 @@ The Worker was created in the Cloudflare dashboard, before that file existed.
 So the first deploy from here is also the first time the file is applied. Read
 it against the Worker's own settings first, because it asserts the custom
 domain, the two URL settings and the behaviour for an unknown path.
+
+Wrangler is a pinned development dependency of this workspace, at one exact
+version. The deploy therefore runs the version in the lockfile, and a bump to
+it is a reviewed commit. A Renovate rule keeps it out of the automerge that
+every other development dependency gets.
 
 The headers in `public/_headers` are applied, including
 `Cross-Origin-Opener-Policy: unsafe-none`. That is the one to re-check after
