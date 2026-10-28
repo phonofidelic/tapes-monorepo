@@ -53,6 +53,9 @@ export type ValidIpcChanel =
   | 'vouch:get-pending'
   | 'vouch:confirm'
   | 'vouch:reject'
+  | 'roster:get-people'
+  | 'roster:unlock-pin'
+  | 'roster:set-pin'
 
 /**
  * Events the main process sends to the renderer.
@@ -277,6 +280,12 @@ export type IpcSendArgs =
   | ['vouch:get-pending']
   | ['vouch:confirm', IpcRequest & { data: { id: string } }]
   | ['vouch:reject', IpcRequest & { data: { id: string } }]
+  | ['roster:get-people']
+  | ['roster:unlock-pin', IpcRequest & { data: { personKey: string } }]
+  | [
+      'roster:set-pin',
+      IpcRequest & { data: { personKey: string; pin: string | null } },
+    ]
   | [
       'blob:cache-put',
       IpcRequest & {

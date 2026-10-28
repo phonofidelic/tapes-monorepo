@@ -14,6 +14,7 @@ import {
   statementAddress,
 } from '@tapes-monorepo/provenance'
 import {
+  PIN_CHANGE_PATH,
   ROSTER_PATH,
   SYNC_CHALLENGE_PATH,
   VOUCHES_PATH,
@@ -24,6 +25,11 @@ import {
   GetPendingVouchesChannel,
   RejectVouchChannel,
 } from './channels/VouchChannels'
+import {
+  GetRosterPeopleChannel,
+  SetPinChannel,
+  UnlockPinChannel,
+} from './channels/RosterChannels'
 import type { PendingVouch } from './hostVouching'
 import {
   getHostVouching,
@@ -248,5 +254,86 @@ describe("the operator's channels", () => {
     expect(
       await new ConfirmVouchChannel().handle({ data: { id: 'gone' } }),
     ).toMatchObject({ success: false })
+  })
+})
+
+describe('PIN management', () => {
+  it('changes a PIN given the old one', async () => {
+    const personKey = await joinAs('Sam', '4821')
+
+    const response = await send(PIN_CHANGE_PATH, {
+      personKey,
+      oldPin: '4821',
+      pin: '2468',
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true })
+    const id = await askForVouch(personKey)
+    const pin = await send(`${VOUCHES_PATH}/${id}/pin`, { pin: '2468' })
+    expect(pin.status).toBe(200)
+  })
+
+  it('refuses a wrong old PIN and says how many tries are left', async () => {
+    const personKey = await joinAs('Sam', '4821')
+
+    const response = await send(PIN_CHANGE_PATH, {
+      personKey,
+      oldPin: '0000',
+      pin: null,
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'wrong-pin',
+      attemptsLeft: 4,
+    })
+  })
+
+  it('refuses a PIN change that names no new PIN', async () => {
+    const personKey = await joinAs('Sam', '4821')
+    const response = await send(PIN_CHANGE_PATH, { personKey, oldPin: '4821' })
+    expect(response.status).toBe(400)
+  })
+
+  it('refuses a PIN change without the pairing token', async () => {
+    const response = await send(PIN_CHANGE_PATH, {}, null)
+    expect(response.status).toBe(401)
+  })
+
+  it('lets the operator unlock and set a PIN over IPC', async () => {
+    const personKey = await joinAs('Sam', '4821')
+    for (let i = 0; i < 5; i++) {
+      const id = await askForVouch(personKey)
+      await send(`${VOUCHES_PATH}/${id}/pin`, { pin: '0000' })
+    }
+    const people = await new GetRosterPeopleChannel().handle()
+    expect(people).toMatchObject({
+      success: true,
+      data: { people: [{ name: 'Sam', pinLocked: true }] },
+    })
+
+    expect(
+      await new UnlockPinChannel().handle({ data: { personKey } }),
+    ).toEqual({ success: true })
+    expect(await getHostVouching()?.roster()).toMatchObject([
+      { pinLocked: false },
+    ])
+
+    expect(
+      await new SetPinChannel().handle({ data: { personKey, pin: '1357' } }),
+    ).toEqual({ success: true })
+    const id = await askForVouch(personKey)
+    const pin = await send(`${VOUCHES_PATH}/${id}/pin`, { pin: '1357' })
+    expect(pin.status).toBe(200)
+  })
+
+  it('refuses a malformed PIN from the operator', async () => {
+    const personKey = await joinAs('Sam')
+    const answer = await new SetPinChannel().handle({
+      data: { personKey, pin: 'abcd' },
+    })
+    expect(answer.success).toBe(false)
   })
 })

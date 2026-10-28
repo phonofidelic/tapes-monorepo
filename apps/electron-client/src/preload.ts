@@ -34,6 +34,9 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'vouch:get-pending': true,
   'vouch:confirm': true,
   'vouch:reject': true,
+  'roster:get-people': true,
+  'roster:unlock-pin': true,
+  'roster:set-pin': true,
 }
 
 // Main-process events the renderer may listen for. Nothing asked for these and

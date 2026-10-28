@@ -10,6 +10,11 @@ import {
   GetPendingVouchesChannel,
   RejectVouchChannel,
 } from './channels/VouchChannels'
+import {
+  GetRosterPeopleChannel,
+  SetPinChannel,
+  UnlockPinChannel,
+} from './channels/RosterChannels'
 import { GetDeviceKeyChannel } from './channels/GetDeviceKeyChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { HasBlobChannel } from './channels/HasBlobChannel'
@@ -44,6 +49,9 @@ new MainWindow().init([
   new GetPendingVouchesChannel(),
   new ConfirmVouchChannel(),
   new RejectVouchChannel(),
+  new GetRosterPeopleChannel(),
+  new UnlockPinChannel(),
+  new SetPinChannel(),
   new SetSyncServerLanChannel(),
   new SetSyncServerHttpsChannel(),
   new PutBlobChannel(),

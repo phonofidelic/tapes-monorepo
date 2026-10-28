@@ -4,10 +4,13 @@ import {
   encodeSignedStatement,
 } from '@tapes-monorepo/provenance'
 import {
+  PIN_CHANGE_PATH,
   ROSTER_PATH,
   VOUCHES_PATH,
   type JoinBody,
   type PinBody,
+  type PinChangeBody,
+  type PinChangeResponse,
   type PinResponse,
   type RosterResponse,
   type VouchRequestBody,
@@ -21,12 +24,12 @@ import { readStatementBody } from './statementUpload'
 import { isAuthorized } from './tokenAuth'
 
 /**
- * The roster and vouch routes: joining the roster, asking for a vouch, and
- * reading or answering that request. Guarded by the pairing token like every
- * other route on this origin.
+ * The roster and vouch routes: joining the roster, changing a PIN, asking for
+ * a vouch, and reading or answering that request. Guarded by the pairing token
+ * like every other route on this origin.
  *
- * The operator's side, confirming or rejecting a request, is not here. It runs
- * in the host's own window over IPC, never over the LAN.
+ * The operator's side, such as confirming a request or unlocking a PIN, is not
+ * here. It runs in the host's own window over IPC, never over the LAN.
  */
 
 /** A join body holds a statement and a certificate. A few KB at most. */
@@ -87,7 +90,12 @@ export function createVouchRequestHandler({
       request.resume()
       response.writeHead(405, {
         ...CORS_HEADERS,
-        Allow: route.kind === 'roster' ? 'GET,POST,OPTIONS' : 'GET,OPTIONS',
+        Allow:
+          route.kind === 'roster'
+            ? 'GET,POST,OPTIONS'
+            : route.kind === 'status'
+              ? 'GET,OPTIONS'
+              : 'POST,OPTIONS',
       })
       response.end()
       return true
@@ -100,6 +108,8 @@ export function createVouchRequestHandler({
     }
     if (route.kind === 'roster') {
       await join(body as Partial<JoinBody>, response)
+    } else if (route.kind === 'pin-change') {
+      await changePin(body as Partial<PinChangeBody>, response)
     } else if (route.kind === 'requests') {
       await requestVouch(body as Partial<VouchRequestBody>, response)
     } else {
@@ -154,6 +164,34 @@ export function createVouchRequestHandler({
     sendJson(response, status, { error: result.error })
   }
 
+  async function changePin(
+    body: Partial<PinChangeBody>,
+    response: http.ServerResponse,
+  ) {
+    if (
+      typeof body.personKey !== 'string' ||
+      typeof body.oldPin !== 'string' ||
+      body.pin === undefined
+    ) {
+      const answer: PinChangeResponse = { ok: false, error: 'malformed' }
+      sendJson(response, 400, answer)
+      return
+    }
+    const result: PinChangeResponse = await vouching.changePin(
+      body.personKey,
+      body.oldPin,
+      body.pin,
+    )
+    const status = result.ok
+      ? 200
+      : result.error === 'unknown-person'
+        ? 404
+        : result.error === 'wrong-pin' || result.error === 'locked'
+          ? 403
+          : 400
+    sendJson(response, status, result)
+  }
+
   async function enterPin(
     id: string,
     body: Partial<PinBody>,
@@ -179,6 +217,7 @@ export function createVouchRequestHandler({
 
 type Route =
   | { kind: 'roster' }
+  | { kind: 'pin-change' }
   | { kind: 'requests' }
   | { kind: 'status'; id: string }
   | { kind: 'pin'; id: string }
@@ -186,6 +225,9 @@ type Route =
 function matchRoute(pathname: string): Route | undefined {
   if (pathname === ROSTER_PATH) {
     return { kind: 'roster' }
+  }
+  if (pathname === PIN_CHANGE_PATH) {
+    return { kind: 'pin-change' }
   }
   if (pathname === VOUCHES_PATH) {
     return { kind: 'requests' }
