@@ -9,7 +9,7 @@ export * from './app/blobCache'
 export * from './app/blobUpload'
 export * from './app/deviceLabel'
 export * from './app/hostConnection'
-export { PAIRING_HOST_KEY_PARAM } from './app/pairing'
+export { PAIRING_HOST_KEY_PARAM, PAIRING_HOST_NAME_PARAM } from './app/pairing'
 export {
   InvalidAutomergeUrlError,
   readAutomergeUrl,

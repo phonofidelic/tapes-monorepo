@@ -23,6 +23,11 @@
       "automerge": false
     },
     {
+      "description": "Never automerge wrangler. It uploads the passkey page to identity.tapes.network, so the version that deploys is reviewed by hand",
+      "matchPackageNames": ["wrangler"],
+      "automerge": false
+    },
+    {
       "description": "Hold TypeScript 7 (tsgo) until Nest, typescript-eslint, and api-extractor support it",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<7"

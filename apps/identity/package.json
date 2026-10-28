@@ -1,0 +1,21 @@
+{
+  "name": "identity",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "dev": "yarn dlx serve@14 public --listen 3003",
+    "preview": "yarn dlx serve@14 public --listen 3003",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@tapes-monorepo/eslint-config": "*",
+    "@tapes-monorepo/typescript-config": "*",
+    "eslint": "^10.0.0",
+    "globals": "^16.0.0",
+    "typescript": "6.0.3",
+    "wrangler": "4.154.0"
+  }
+}

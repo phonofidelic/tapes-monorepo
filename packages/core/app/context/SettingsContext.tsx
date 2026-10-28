@@ -29,6 +29,12 @@ export type Settings = {
    * only when that key signed it.
    */
   pinnedHostKey: string | undefined
+  /**
+   * The host's own name from the pairing link this guest last opened. Shown
+   * when this guest has to say which host it is acting for. Self-reported, so
+   * it is never what a decision rests on.
+   */
+  pairedHostName: string | undefined
   syncServerLanEnabled: 'true' | 'false' | undefined
   syncServerHttpsEnabled: 'true' | 'false' | undefined
 }

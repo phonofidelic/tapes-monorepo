@@ -62,6 +62,7 @@ function HostSettings() {
     'syncServerHttpsEnabled',
   )
   const [pairingToken, setPairingToken] = useSetting('pairingToken')
+  const [deviceLabel] = useSetting('deviceLabel')
   const { automergeUrl } = useAutomergeUrl()
   const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null)
   const [remoteUrlDraft, setRemoteUrlDraft] = useState(
@@ -113,6 +114,9 @@ function HostSettings() {
           pairingToken: serverInfo?.pairingToken,
           rootCertFingerprint: serverInfo?.rootCertFingerprint,
           hostKey: serverInfo?.hostKey,
+          // The name the host signs vouches under: what the user set, else
+          // the Mac's own name.
+          hostName: deviceLabel ?? serverInfo?.computerName,
         })
       : null
 

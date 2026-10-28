@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>Tapes passkey</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Tapes passkey</h1>
+
+      <section id="asking" hidden>
+        <p>
+          <strong id="origin"></strong> is asking to use your passkey for your
+          Tapes person key.
+        </p>
+        <p>
+          It says it is <strong id="host-name"></strong>. Tapes cannot check
+          that name. Only continue if you recognise the address above as the
+          Tapes you are using right now.
+        </p>
+        <p id="action-note"></p>
+        <div class="buttons">
+          <button id="confirm" type="button">Continue</button>
+          <button id="cancel" type="button" class="quiet">Cancel</button>
+        </div>
+      </section>
+
+      <p id="status" role="status" aria-live="polite">Waiting for Tapes.</p>
+
+      <div class="buttons">
+        <button id="close" type="button" class="quiet" hidden>
+          Close this tab
+        </button>
+      </div>
+
+      <footer>
+        <p>
+          This page exists so passkeys have a domain name. It stores nothing and
+          never sees your recordings. Your passphrase backup restores your
+          person key without it.
+        </p>
+        <p id="page-version"></p>
+      </footer>
+    </main>
+    <script type="module" src="ceremony.v1.js"></script>
+  </body>
+</html>

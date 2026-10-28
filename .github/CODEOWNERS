@@ -1,0 +1,26 @@
+# Reviewers for the code that handles person keys, and for the page that
+# unlocks them. A change needs the owner's review. Automerged dependency
+# updates and outside pull requests cannot change it unseen.
+#
+# This file does nothing unless branch protection on `main` requires a review
+# from code owners. Check that setting before relying on it.
+
+# This file, and the workflows beside it. A pull request is judged against the
+# version of this file on `main`. So a change here still needs the review it
+# would remove. A workflow can be given a deploy step, which is the same risk.
+/.github/ @phonofidelic
+
+# The passkey origin. Anything served from identity.tapes.network can ask a
+# person to unlock their person key behind a Face ID prompt. It has no
+# dependencies and no build step. Keep it that way.
+/apps/identity/ @phonofidelic
+
+# The guest side of the ceremony. It decides which origin may answer, and it
+# receives the PRF output.
+/packages/core/app/personKeyCeremony.ts @phonofidelic
+/packages/core/app/components/PasskeyCheck.tsx @phonofidelic
+
+# The wrapping format for a person key, and the signing it uses. Backups live
+# in people's files for years, so the byte layout cannot change.
+/packages/provenance/lib/personKeyBackup.ts @phonofidelic
+/packages/provenance/lib/signing.ts @phonofidelic

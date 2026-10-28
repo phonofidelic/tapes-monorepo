@@ -31,6 +31,8 @@ agent needs on top of that:
   and its own nightly Playwright suite.
 - `apps/api` — standalone NestJS sync server. Its auth module is commented out.
 - `apps/web`, `apps/docs` — Next.js sites, not part of the recording runtime.
+- `apps/identity` — the static passkey page at `identity.tapes.network`. Hand
+  written HTML and JavaScript, no build step, loaded only for a passkey.
 
 ## Key commands
 

@@ -2,10 +2,10 @@
  * The pairing link behind the host's QR code, and the fingerprint that rides
  * in it.
  *
- * Four parameters go over: `am` names the Automerge document to open, `pt`
+ * Five parameters go over: `am` names the Automerge document to open, `pt`
  * carries the pairing token, `fp` carries the SHA-256 fingerprint of the
- * host's root certificate, and `hk` carries the host's public signing key.
- * Only `pt` is a secret. A guest pins `hk` and checks each vouch the host
+ * host's root certificate, `hk` carries the host's public signing key, and
+ * `hn` carries the host's own name for itself. Only `pt` is a secret. A guest pins `hk` and checks each vouch the host
  * signs for it against that key. `fp` is published on
  * purpose: a browser cannot pin a certificate, so nothing checks the root
  * automatically, but a value scanned in the same room as the host is one the
@@ -16,11 +16,21 @@
  * whenever the LAN IP changes, and a link pinned to it would go stale.
  */
 
+import { sanitizeLabel } from '@tapes-monorepo/sync-protocol'
+
 /** Query parameter carrying the host root's fingerprint. */
 export const PAIRING_FINGERPRINT_PARAM = 'fp'
 
 /** Query parameter carrying the host's public signing key, base64url. */
 export const PAIRING_HOST_KEY_PARAM = 'hk'
+
+/**
+ * Query parameter carrying the host's own name for itself. Self-reported and
+ * unverified, like the name a guest sends on the socket. It is there so a
+ * guest can say which host it is acting for, on the passkey page above all,
+ * where the person is asked to recognise who is asking.
+ */
+export const PAIRING_HOST_NAME_PARAM = 'hn'
 
 /**
  * The fingerprint travels base64url rather than hex. Hex would add 64
@@ -140,6 +150,8 @@ export type GuestUrlOptions = {
   rootCertFingerprint?: string
   /** The host's public signing key. Absent when the host signs nothing. */
   hostKey?: string
+  /** The host's own name for itself, as it signs vouches under. */
+  hostName?: string
 }
 
 /**
@@ -158,6 +170,7 @@ export function buildGuestUrl({
   pairingToken,
   rootCertFingerprint,
   hostKey,
+  hostName,
 }: GuestUrlOptions): string | null {
   if (!lanWebAppUrl || !automergeUrl) {
     return null
@@ -177,6 +190,12 @@ export function buildGuestUrl({
   if (hostKey) {
     // Already base64url, so it needs no escaping.
     url += `&${PAIRING_HOST_KEY_PARAM}=${hostKey}`
+  }
+  // The same cap and sanitizer as a device name on the socket, so one set of
+  // rules covers every name that travels.
+  const name = sanitizeLabel(hostName)
+  if (name) {
+    url += `&${PAIRING_HOST_NAME_PARAM}=${encodeURIComponent(name)}`
   }
   return url
 }
