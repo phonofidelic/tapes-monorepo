@@ -24,12 +24,16 @@ There is no bundler and no server. What is in `public` is what is served.
 ## The relying party id is `tapes.network`
 
 Not `identity.tapes.network`. It is the registrable domain, so another
-subdomain can serve this page later without invalidating a single passkey. The
-page refuses to run anywhere outside `tapes.network` and `localhost`, which
-keeps a copy served elsewhere from binding passkeys under the wrong id.
-
+subdomain could serve this page later without invalidating a single passkey.
 The relying party id can never change. Losing the domain means passkeys stop
 unlocking, which is why the passphrase backup stays an equal path.
+
+The page itself runs only on `identity.tapes.network`, or on `localhost` for a
+dev server, where it uses that name as the id instead. The two are deliberately
+different. Every subdomain of `tapes.network` is allowed by WebAuthn to use
+`tapes.network` as its relying party id, so naming one host here means this
+file does nothing if it is ever served somewhere else under the domain. Moving
+the page is a one-line change made on purpose.
 
 ## The message protocol
 
@@ -57,6 +61,26 @@ guest does the HKDF and the AES-GCM work with the person key it already holds.
 
 The page keeps no state of its own. One request per page load, so a confirmed
 tap cannot be reused.
+
+## Who can change what is served
+
+Anything served from this origin can ask a person to unlock their person key
+behind a Face ID prompt. The repository is public, so the path to the origin
+matters more than the code being readable.
+
+- **The page has no dependencies and no build step.** Nothing an automerged
+  dependency update touches can change the bytes served here. Adding a bundler
+  would put the whole dependency tree inside this origin's trust boundary, so
+  don't.
+- **`.github/CODEOWNERS` covers this directory**, which only takes effect while
+  branch protection on `main` requires a review from code owners.
+- **Preview deployments must not be aliased onto a `tapes.network` subdomain.**
+  A preview on `*.pages.dev` cannot use the relying party id and is harmless. A
+  preview on the custom domain can, and in a public repository anyone's pull
+  request can trigger a build.
+- **Keep the zone near empty, with no stale CNAMEs.** A subdomain taken over by
+  someone else is an origin that can create and use Tapes passkeys. This is the
+  control that matters most, and it has nothing to do with this repository.
 
 ## Changing it
 

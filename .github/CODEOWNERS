@@ -1,0 +1,21 @@
+# Code that handles person keys, or that a person key's safety rests on.
+# A change here needs the owner's review, so it cannot land unseen through an
+# automerged dependency update or a drive-by pull request.
+#
+# This file only has teeth while branch protection on `main` requires a review
+# from code owners. Check that before relying on it.
+
+# The passkey origin. Anything served from identity.tapes.network can ask a
+# person to unlock their person key behind a Face ID prompt. Keep it
+# dependency free and keep the diff readable.
+/apps/identity/ @phonofidelic
+
+# The guest side of the ceremony: it decides which origin may answer, and it
+# receives the PRF output.
+/packages/core/app/personKeyCeremony.ts @phonofidelic
+/packages/core/app/components/PasskeyCheck.tsx @phonofidelic
+
+# The wrapping format and the signing it rests on. Backups live in people's
+# files for years, so the byte layout cannot change.
+/packages/provenance/lib/personKeyBackup.ts @phonofidelic
+/packages/provenance/lib/signing.ts @phonofidelic

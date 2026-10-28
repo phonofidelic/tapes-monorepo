@@ -19,11 +19,20 @@ const PAGE_VERSION = 'ceremony.v1'
 
 /**
  * The relying party id every Tapes passkey is bound to. It is the registrable
- * domain, not this host name, so another subdomain can serve the page later.
+ * domain, not this host name, so another subdomain could serve the page later.
  * It can never change: a passkey made under one id cannot be read under
  * another.
  */
 const RELYING_PARTY_ID = 'tapes.network'
+
+/**
+ * The one host this page runs on, besides a dev server. Every subdomain of
+ * tapes.network may use the relying party id above, so the page names its own
+ * host rather than accepting the family: this file does nothing if it is ever
+ * served somewhere else under the domain. Moving the page means editing this
+ * line on purpose.
+ */
+const CEREMONY_HOST = 'identity.tapes.network'
 
 /**
  * The one PRF salt, from Person key wrapping format v1. The same salt on every
@@ -79,7 +88,7 @@ function start() {
   const rpId = relyingPartyId()
   if (!rpId) {
     return stop(
-      `This page only works on ${RELYING_PARTY_ID}. Nothing was asked of your passkey.`,
+      `This page only works on ${CEREMONY_HOST}. Nothing was asked of your passkey.`,
     )
   }
   if (!window.opener) {
@@ -104,11 +113,11 @@ function start() {
 /**
  * The relying party id for this host, or null when the page is served
  * somewhere it has no business binding passkeys. Localhost is allowed so the
- * page can be run from a dev server.
+ * page can be run from a dev server, and takes its own name as the id.
  */
 function relyingPartyId() {
   const host = window.location.hostname
-  if (host === RELYING_PARTY_ID || host.endsWith(`.${RELYING_PARTY_ID}`)) {
+  if (host === CEREMONY_HOST) {
     return RELYING_PARTY_ID
   }
   return host === 'localhost' || host.endsWith('.localhost') ? host : null
