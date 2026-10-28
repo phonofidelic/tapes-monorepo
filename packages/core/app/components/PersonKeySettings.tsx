@@ -3,6 +3,7 @@ import { Button } from '@tapes-monorepo/ui'
 import { useAppContext } from '@/context/AppContext'
 import { useUploadEndpoint } from '@/context/BlobContext'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
+import { PasskeyCheck, passkeyCheckEnabled } from './PasskeyCheck'
 import { PinSettings } from './PinSettings'
 import { RestoreFlow } from './RestoreFlow'
 
@@ -11,6 +12,9 @@ import { RestoreFlow } from './RestoreFlow'
  * to restore it from the backup. A device the host vouched for has no person
  * key, and restoring is how it gets one back. Below it, the person's PIN on
  * the host, once the host has them on its roster.
+ *
+ * `?passkey=1` adds a check that the passkey page answers this origin. It is
+ * for testing that handoff on a phone, not a thing to offer people.
  */
 export function PersonKeySettings() {
   const appContext = useAppContext()
@@ -51,6 +55,12 @@ export function PersonKeySettings() {
         <Button className="w-fit p-2" onClick={() => setRestoring(true)}>
           Restore from a backup
         </Button>
+      )}
+      {passkeyCheckEnabled(window.location.search) && (
+        <PasskeyCheck
+          hostName={(status.exists && status.vouchedBy) || window.location.host}
+          personPublicKey={status.exists ? status.publicKey : undefined}
+        />
       )}
       {status.exists && endpoint && (
         <PinSettings

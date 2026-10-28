@@ -11288,6 +11288,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"globals@npm:^16.0.0":
+  version: 16.5.0
+  resolution: "globals@npm:16.5.0"
+  checksum: 10c0/615241dae7851c8012f5aa0223005b1ed6607713d6813de0741768bd4ddc39353117648f1a7086b4b0fa45eae733f1c0a0fe369aa4e543bb63f8de8990178ea9
+  languageName: node
+  linkType: hard
+
 "globals@npm:^17.0.0":
   version: 17.13.0
   resolution: "globals@npm:17.13.0"
@@ -11639,6 +11646,18 @@ __metadata:
   checksum: 10c0/72418e4397638797ee2089f97b45fc29f937b830bc0eb4126f4a9889ecf10320ceacf3a177fe5d7ffaf6b4fe38b20bbd210151549bfdc881db8081eed41c870d
   languageName: node
   linkType: hard
+
+"identity@workspace:apps/identity":
+  version: 0.0.0-use.local
+  resolution: "identity@workspace:apps/identity"
+  dependencies:
+    "@tapes-monorepo/eslint-config": "npm:*"
+    "@tapes-monorepo/typescript-config": "npm:*"
+    eslint: "npm:^10.0.0"
+    globals: "npm:^16.0.0"
+    typescript: "npm:6.0.3"
+  languageName: unknown
+  linkType: soft
 
 "ieee754@npm:^1.1.13, ieee754@npm:^1.2.1":
   version: 1.2.1

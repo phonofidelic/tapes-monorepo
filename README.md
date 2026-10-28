@@ -26,6 +26,7 @@ This is a [Turborepo](https://turborepo.com/) monorepo managed with Yarn 4.
 | `apps/api`             | Standalone NestJS Automerge sync server. An alternative remote backend.       | `3031`   |
 | `apps/web`             | Next.js marketing site.                                                       | `3002`   |
 | `apps/docs`            | Next.js documentation site.                                                   | `3001`   |
+| `apps/identity`        | Static passkey ceremony page, served at `identity.tapes.network`.             | `3003`   |
 
 The host's embedded sync server listens on port `9001` by default. If that port
 is taken it uses whatever port the OS hands it. Set `TAPES_SYNC_SERVER_PORT` to
