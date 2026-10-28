@@ -8,4 +8,4 @@ The handoff is checked rather than trusted. The page is addressed by an exact or
 
 The pairing link gains a fifth parameter, `hn`, carrying the host's own name for itself. A guest keeps it and uses it to say which host a ceremony is for. It is self-reported and unverified, like the name a device sends on the socket, and it goes through the same sanitizer and length cap.
 
-Nothing is wrapped or stored yet, and no recovery path uses this. Settings shows a check behind `?passkey=1` for testing the handoff on a real phone.
+Nothing is wrapped or stored yet, and no recovery path uses this. Settings shows a check behind `?passkey=1` for testing the handoff on a real phone. It can make a passkey or use one that exists, and reports a short hash of the PRF output rather than the output, so the same synced passkey can be compared across two phones.

@@ -30,17 +30,38 @@ describe('PasskeyCheck', () => {
     })
     render(<PasskeyCheck hostName="Studio Mac" personPublicKey="person-key" />)
 
-    await userEvent.click(screen.getByRole('button'))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Make a passkey' }),
+    )
 
     expect(runPasskeyCeremony).toHaveBeenCalledWith(
       { action: 'create', hostName: 'Studio Mac', userId: 'person-key' },
       {},
     )
+    // The output itself is never shown, only a short hash of it, so two phones
+    // can be compared.
     expect(
-      await screen.findByText(/A passkey answered for tapes.network/),
+      await screen.findByText(
+        /A passkey answered for tapes.network. Credential credenti…, PRF ([0-9a-f]{4}-){2}[0-9a-f]{4}./,
+      ),
     ).toBeInTheDocument()
-    // The output itself is never shown, only its length.
-    expect(screen.getByText(/32 bytes of PRF output/)).toBeInTheDocument()
+  })
+
+  it('can also use a passkey that already exists', async () => {
+    vi.mocked(runPasskeyCeremony).mockResolvedValue({
+      ok: true,
+      credentialId: 'credential-id-value',
+      rpId: 'tapes.network',
+      prf: new Uint8Array(32),
+    })
+    render(<PasskeyCheck hostName="Studio Mac" />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Use a passkey' }))
+
+    expect(runPasskeyCeremony).toHaveBeenCalledWith(
+      { action: 'get', hostName: 'Studio Mac', userId: undefined },
+      {},
+    )
   })
 
   it('explains a password manager that returns no PRF output', async () => {
@@ -50,7 +71,9 @@ describe('PasskeyCheck', () => {
     })
     render(<PasskeyCheck hostName="Studio Mac" />)
 
-    await userEvent.click(screen.getByRole('button'))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Make a passkey' }),
+    )
 
     expect(await screen.findByText(/returns no PRF output/)).toBeInTheDocument()
   })
@@ -60,7 +83,9 @@ describe('PasskeyCheck', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     render(<PasskeyCheck hostName="Studio Mac" />)
 
-    await userEvent.click(screen.getByRole('button'))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Make a passkey' }),
+    )
 
     expect(await screen.findByText(/could not finish/)).toBeInTheDocument()
   })

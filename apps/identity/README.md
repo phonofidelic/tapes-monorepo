@@ -90,7 +90,10 @@ Set up by hand, outside this repo, and worth knowing if the domain ever moves:
 ## Testing the handoff on a phone
 
 Open a guest page over the LAN, add `&passkey=1` to its address, and run the
-check in Settings under "Your person key". Do it on a real iPhone with iCloud
-Keychain and a real Android phone with Google Password Manager. A virtual
-authenticator does not copy its PRF secret between devices, so headless runs
-cannot stand in for this.
+check in Settings under "Your person key". It makes a passkey, or uses one that
+exists, and shows a short hash of the PRF output so two phones can be compared.
+
+[`phone-test.md`](./phone-test.md) is the checklist to follow. Do it on a real
+iPhone with iCloud Keychain and a real Android phone with Google Password
+Manager. A virtual authenticator does not copy its PRF secret between devices,
+so headless runs cannot stand in for this.
