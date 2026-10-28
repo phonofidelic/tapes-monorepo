@@ -7,6 +7,7 @@ import {
   formatFingerprint,
   PAIRING_FINGERPRINT_PARAM,
   PAIRING_HOST_KEY_PARAM,
+  PAIRING_HOST_NAME_PARAM,
 } from './pairing'
 
 const FINGERPRINT =
@@ -43,6 +44,28 @@ describe('buildGuestUrl', () => {
     const url = new URL(buildGuestUrl({ ...options, hostKey })!)
 
     expect(url.searchParams.get(PAIRING_HOST_KEY_PARAM)).toBe(hostKey)
+  })
+
+  it('carries the host name, so a guest can say who it acts for', () => {
+    const url = new URL(buildGuestUrl({ ...options, hostName: "Chris' Mac" })!)
+
+    expect(url.searchParams.get(PAIRING_HOST_NAME_PARAM)).toBe("Chris' Mac")
+  })
+
+  it('sanitizes the host name the way the socket does', () => {
+    const url = new URL(
+      buildGuestUrl({ ...options, hostName: ' Studio\n\tMac ' })!,
+    )
+
+    expect(url.searchParams.get(PAIRING_HOST_NAME_PARAM)).toBe('Studio Mac')
+  })
+
+  it('omits a host name that is empty or only whitespace', () => {
+    for (const hostName of [undefined, '', '   ']) {
+      const url = buildGuestUrl({ ...options, hostName })!
+
+      expect(url).not.toContain(`${PAIRING_HOST_NAME_PARAM}=`)
+    }
   })
 
   it('has no link before this device has a document', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@tapes-monorepo/ui'
 import { useAppContext } from '@/context/AppContext'
+import { useSetting } from '@/context/SettingsContext'
 import { useUploadEndpoint } from '@/context/BlobContext'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
 import { PasskeyCheck, passkeyCheckEnabled } from './PasskeyCheck'
@@ -20,6 +21,7 @@ export function PersonKeySettings() {
   const appContext = useAppContext()
   const [status, setStatus] = useState<PersonKeyStatus>()
   const [restoring, setRestoring] = useState(false)
+  const [pairedHostName] = useSetting('pairedHostName')
   const endpoint = useUploadEndpoint()
 
   useEffect(() => {
@@ -58,7 +60,10 @@ export function PersonKeySettings() {
       )}
       {passkeyCheckEnabled(window.location.search) && (
         <PasskeyCheck
-          hostName={(status.exists && status.vouchedBy) || window.location.host}
+          hostName={
+            pairedHostName ??
+            ((status.exists && status.vouchedBy) || window.location.host)
+          }
           personPublicKey={status.exists ? status.publicKey : undefined}
         />
       )}

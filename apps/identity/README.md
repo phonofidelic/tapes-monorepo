@@ -44,7 +44,9 @@ mirrors these shapes because it cannot import them.
 3. The guest replies with `{ type: 'request', nonce, action, hostName, … }`.
    The page checks that the message really came from the origin in the
    fragment, then shows that origin and the host's claimed name and waits for a
-   tap.
+   tap. The name comes from `hn` on the pairing link, so it is the host's own
+   name for itself. Nothing verifies it, which is why the origin is shown next
+   to it.
 4. The page runs `navigator.credentials.create` or `.get` with the PRF
    extension, and posts back `{ type: 'result', credentialId, rpId, prf }` or
    `{ type: 'error', reason }`.
@@ -69,19 +71,26 @@ person to unlock their person key behind a Face ID prompt.
 
 ## Serving it
 
-Done once, by hand, outside this repo. The domain is at Cloudflare.
+The page is live at `https://identity.tapes.network`, from a Cloudflare Pages
+project with no build command and `apps/identity/public` as its output
+directory. The headers in `public/_headers` are applied, including
+`Cross-Origin-Opener-Policy: unsafe-none`.
 
-1. **Before the first passkey is bound to the domain:** turn on registrar lock
-   and DNSSEC, and set a long registration. Whoever holds `tapes.network`
-   controls every passkey bound to it.
-2. Create a Cloudflare Pages project from this repository. Build command: none.
-   Build output directory: `apps/identity/public`.
-3. Add `identity.tapes.network` as a custom domain on the project. Cloudflare
-   issues and renews the certificate.
-4. Check the response headers against `public/_headers`. The one to confirm is
-   `Cross-Origin-Opener-Policy: unsafe-none`. A stricter value severs
-   `window.opener` and the result can never return to the guest.
-5. Open a guest page over the LAN, add `&passkey=1` to its address, and run the
-   check in Settings under "Your person key". Do it on a real iPhone and a real
-   Android phone. A virtual authenticator does not copy its PRF secret between
-   devices, so headless runs cannot stand in for this.
+That header is the one to re-check after any change to the project. A stricter
+value severs `window.opener`, and the result can never return to the guest.
+
+Set up by hand, outside this repo, and worth knowing if the domain ever moves:
+
+- **Registrar lock, DNSSEC and a long registration go on before the first
+  passkey is bound to the domain.** Whoever holds `tapes.network` controls
+  every passkey bound to it. If it lapses, passkeys stop unlocking and the
+  passphrase backup is the only way back.
+- Cloudflare issues and renews the certificate for the custom domain.
+
+## Testing the handoff on a phone
+
+Open a guest page over the LAN, add `&passkey=1` to its address, and run the
+check in Settings under "Your person key". Do it on a real iPhone with iCloud
+Keychain and a real Android phone with Google Password Manager. A virtual
+authenticator does not copy its PRF secret between devices, so headless runs
+cannot stand in for this.

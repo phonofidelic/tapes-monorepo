@@ -19,6 +19,8 @@ import {
   GenericErrorFallbackScreen,
   createHostConnection,
   PAIRING_HOST_KEY_PARAM,
+  PAIRING_HOST_NAME_PARAM,
+  sanitizeLabel,
   type HostConnection,
 } from '@tapes-monorepo/core'
 import { use, Suspense } from 'react'
@@ -80,6 +82,28 @@ function captureHostKey() {
 }
 
 captureHostKey()
+
+// The link also carries the host's own name for itself as `hn`. It is kept so
+// this guest can say which host it is acting for, on the passkey page above
+// all. Self-reported and unverified, like any name on the socket.
+function captureHostName() {
+  const fromQuery = sanitizeLabel(
+    new URLSearchParams(window.location.search).get(PAIRING_HOST_NAME_PARAM),
+  )
+  if (!fromQuery) {
+    return
+  }
+  const settings = JSON.parse(window.localStorage.getItem('settings') ?? '{}')
+  window.localStorage.setItem(
+    'settings',
+    JSON.stringify({ ...settings, pairedHostName: fromQuery }),
+  )
+  const url = new URL(window.location.href)
+  url.searchParams.delete(PAIRING_HOST_NAME_PARAM)
+  window.history.replaceState({}, '', url)
+}
+
+captureHostName()
 
 // Read here for the same reason as the token. The name has to be on the
 // socket's upgrade request. It is the user's own name when they set one, and a
