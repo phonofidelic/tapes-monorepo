@@ -3,6 +3,8 @@ import { useSetting } from '@/context/SettingsContext'
 import { AudioInputSelector } from '@/components/AudioInputSelector'
 import { useAppContext } from '@/context/AppContext'
 import { Button } from '@tapes-monorepo/ui'
+import { PersonKeySettings } from '@/components/PersonKeySettings'
+import { RosterSettings } from '@/components/RosterSettings'
 import { SyncSettings } from '@/components/SyncSettings'
 
 export function Settings() {
@@ -103,6 +105,8 @@ export function Settings() {
         </div>
       )}
       <SyncSettings />
+      <PersonKeySettings />
+      <RosterSettings />
     </div>
   )
 }

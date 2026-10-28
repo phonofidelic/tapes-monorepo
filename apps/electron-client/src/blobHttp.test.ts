@@ -6,9 +6,11 @@ import { tmpdir } from 'os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createDeviceCertificate,
+  createDeviceVouch,
   createHostReceipt,
   createRecordingClaim,
   createSessionRecord,
+  createVouchRequest,
   decodeSignedStatement,
   DEVICE_CERTIFICATE_HEADER,
   encodeSignedStatement,
@@ -602,6 +604,50 @@ describe('device certificates on upload', () => {
       headers: authed(),
     })
     expect(await fetched.json()).toEqual(certificate)
+  })
+
+  it('stores a host vouch the claim names in place of a certificate', async () => {
+    const { origin } = await startHost({
+      loadSigningKey: generateSigningKeyPair,
+    })
+    const device = await generateSigningKeyPair()
+    const request = await createVouchRequest(
+      {
+        personKey: await exportPublicKey(
+          (await generateSigningKeyPair()).publicKey,
+        ),
+        deviceLabel: 'New phone',
+      },
+      device,
+    )
+    // Signed by some other host. Whether to trust it is for readers to judge.
+    const vouch = await createDeviceVouch(
+      {
+        request: request.payload,
+        hostLabel: 'Other Mac',
+        personName: 'Sam',
+        method: 'operator',
+        firstCertificate: 'c'.repeat(64),
+      },
+      await generateSigningKeyPair(),
+    )
+    const claim = await createRecordingClaim(
+      {
+        blob: { hash: AUDIO_HASH, size: AUDIO.length, mimeType: 'audio/wav' },
+        startedAt: '2026-10-05T12:00:00.000Z',
+        endedAt: '2026-10-05T12:03:00.000Z',
+        deviceCert: await statementAddress(vouch),
+      },
+      device,
+    )
+
+    const response = await upload(origin, AUDIO, {
+      claim: encodeSignedStatement(claim),
+      certificate: encodeSignedStatement(vouch),
+    })
+    const body = (await response.json()) as { statements: string[] }
+
+    expect(body.statements[2]).toBe(await statementAddress(vouch))
   })
 
   it('drops a certificate the claim does not name', async () => {

@@ -6,6 +6,7 @@ import {
   encodeFingerprint,
   formatFingerprint,
   PAIRING_FINGERPRINT_PARAM,
+  PAIRING_HOST_KEY_PARAM,
 } from './pairing'
 
 const FINGERPRINT =
@@ -35,6 +36,13 @@ describe('buildGuestUrl', () => {
 
   it('has no link at all without a LAN URL, so no token and no fingerprint', () => {
     expect(buildGuestUrl({ ...options, lanWebAppUrl: undefined })).toBeNull()
+  })
+
+  it('carries the host key for the guest to pin', () => {
+    const hostKey = 'Ab-_'.repeat(10) + 'xyz'
+    const url = new URL(buildGuestUrl({ ...options, hostKey })!)
+
+    expect(url.searchParams.get(PAIRING_HOST_KEY_PARAM)).toBe(hostKey)
   })
 
   it('has no link before this device has a document', () => {

@@ -14,7 +14,10 @@ import {
   type Signed,
 } from './types'
 
-/** The HTTP header a guest sends its certificate in, next to the claim. */
+/**
+ * The HTTP header a guest sends its certificate in, next to the claim. A guest
+ * whose device a host vouched for sends the vouch in it instead.
+ */
 export const DEVICE_CERTIFICATE_HEADER = 'X-Tapes-Device-Certificate'
 
 export async function createDeviceCertificate(

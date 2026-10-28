@@ -78,7 +78,12 @@ export function ElectronClientAppShell({
           envSyncServerUrl: import.meta.env.VITE_SYNC_SERVER_URL,
           // Read on every resolve. Renaming the device is a sync setting, so
           // the write lands here and the repo reconnects with the new name.
-          deviceLabel: resolveDeviceLabel({ storage: localStorage, navigator }),
+          // The host's window names the host, so it defaults to the Mac's name.
+          deviceLabel: resolveDeviceLabel({
+            storage: localStorage,
+            navigator,
+            defaultLabel: info.computerName,
+          }),
         })
         if (!urls.localUrl) {
           console.error(

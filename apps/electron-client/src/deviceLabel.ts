@@ -1,7 +1,7 @@
 import type http from 'http'
 import {
   DEVICE_LABEL_PARAM,
-  sanitizeDeviceLabel,
+  sanitizeLabel,
 } from '@tapes-monorepo/sync-protocol'
 
 /**
@@ -34,12 +34,10 @@ export function readDeviceLabel(
   request: Pick<http.IncomingMessage, 'headers'>,
   url: URL,
 ): string | undefined {
-  const fromQuery = sanitizeDeviceLabel(
-    url.searchParams.get(DEVICE_LABEL_PARAM),
-  )
+  const fromQuery = sanitizeLabel(url.searchParams.get(DEVICE_LABEL_PARAM))
   if (fromQuery) {
     return fromQuery
   }
   const header = request.headers['x-tapes-device-label']
-  return sanitizeDeviceLabel(Array.isArray(header) ? header[0] : header)
+  return sanitizeLabel(Array.isArray(header) ? header[0] : header)
 }

@@ -18,9 +18,11 @@ import type { Recording, RootDocument } from '@/types'
 import { AggregatesProvider } from '@/context/AggregatesContext'
 import {
   createDeviceCertificate,
+  createDeviceVouch,
   createHostReceipt,
   createRecordingClaim,
   createSessionRecord,
+  createVouchRequest,
   exportPublicKey,
   generateSigningKeyPair,
   keyFingerprint,
@@ -706,6 +708,51 @@ describe('provenance on a row', () => {
     ).toHaveTextContent(/received by the host/)
     expect(details()).toHaveTextContent(
       `The key of person ${fingerprint} certified the recording device as “Pixel · Chrome”`,
+    )
+  })
+
+  it('names a vouched person together with the host that vouched', async () => {
+    const personKeys = await generateSigningKeyPair()
+    const request = await createVouchRequest(
+      {
+        personKey: await exportPublicKey(personKeys.publicKey),
+        deviceLabel: 'Pixel · Chrome',
+      },
+      deviceKeys,
+    )
+    const vouch = await createDeviceVouch(
+      {
+        request: request.payload,
+        hostLabel: 'Studio Mac',
+        personName: 'Sam',
+        method: 'operator',
+        firstCertificate: 'c'.repeat(64),
+        vouchedAt: new Date('2026-10-05T11:50:00.000Z'),
+      },
+      hostKeys,
+    )
+    const claim = await claimFor(deviceKeys, {
+      deviceCert: await statementAddress(vouch),
+    })
+    const receipt = await createHostReceipt(
+      claim,
+      hostKeys,
+      new Date(RECEIVED_AT),
+    )
+
+    await showRow([claim, receipt, vouch])
+
+    expect(
+      await screen.findByText(
+        'Recorded by Sam, vouched by Studio Mac on “Pixel · Chrome”',
+        { exact: false },
+      ),
+    ).toBeInTheDocument()
+    expect(details()).toHaveTextContent(
+      'The host “Studio Mac” vouched for the recording device “Pixel · Chrome” as Sam, confirmed in person',
+    )
+    expect(details()).toHaveTextContent(
+      "The person's own key has not certified this device.",
     )
   })
 

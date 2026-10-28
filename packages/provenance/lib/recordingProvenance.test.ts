@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalJson } from './canonicalJson'
 import { sha256Hex } from './encoding'
 import { createDeviceCertificate } from './deviceCertificate'
+import { createDeviceVouch, createVouchRequest } from './deviceVouch'
 import { createHostReceipt } from './hostReceipt'
 import { createRecordingClaim, NO_SESSION_ID } from './recordingClaim'
 import {
@@ -81,6 +82,24 @@ async function sessionFor(claims: Signed<unknown>[], sessionId = 'session-1') {
         },
       ],
       claims: await Promise.all(claims.map((claim) => statementAddress(claim))),
+    },
+    hostKeys,
+  )
+}
+
+async function vouchFor(keys = deviceKeys) {
+  const request = await createVouchRequest(
+    { personKey, deviceLabel: 'New phone' },
+    keys,
+  )
+  return createDeviceVouch(
+    {
+      request: request.payload,
+      hostLabel: 'Studio Mac',
+      personName: 'Sam',
+      method: 'pin',
+      firstCertificate: await statementAddress(await certificateFor()),
+      vouchedAt: new Date('2026-10-05T11:50:00.000Z'),
     },
     hostKeys,
   )
@@ -428,6 +447,7 @@ describe('verifyRecordingStatements', () => {
         state: 'verified',
         deviceKey,
         person: {
+          via: 'certificate',
           personKey,
           deviceLabel: 'Studio phone',
           issuedAt: '2026-10-01T09:00:00.000Z',
@@ -486,6 +506,75 @@ describe('verifyRecordingStatements', () => {
       const claim = await signedClaim(blob, address)
 
       expect(await verify(fetched(claim), fetched(forged))).toEqual({
+        state: 'failed',
+        failures: [{ hash: address, problem: 'bad-signature' }],
+      })
+    })
+  })
+
+  describe('device vouches', () => {
+    it('shows the person and host a passing vouch names', async () => {
+      const vouch = await vouchFor()
+      const claim = await signedClaim(blob, await statementAddress(vouch))
+
+      expect(
+        await verify(
+          fetched(claim),
+          fetched(await receiptFor(claim)),
+          fetched(vouch),
+        ),
+      ).toMatchObject({
+        state: 'verified',
+        deviceKey,
+        person: {
+          via: 'vouch',
+          personKey,
+          personName: 'Sam',
+          deviceLabel: 'New phone',
+          hostKey: await exportPublicKey(hostKeys.publicKey),
+          hostLabel: 'Studio Mac',
+          method: 'pin',
+          vouchedAt: '2026-10-05T11:50:00.000Z',
+        },
+      })
+    })
+
+    it('fails a vouch for another device', async () => {
+      const vouch = await vouchFor(await generateSigningKeyPair())
+      const address = await statementAddress(vouch)
+      const claim = await signedClaim(blob, address)
+
+      expect(await verify(fetched(claim), fetched(vouch))).toEqual({
+        state: 'failed',
+        failures: [{ hash: address, problem: 'certificate-device-mismatch' }],
+      })
+    })
+
+    it('fails a vouch no claim names', async () => {
+      const vouch = await vouchFor()
+      const claim = await signedClaim()
+
+      expect(await verify(fetched(claim), fetched(vouch))).toEqual({
+        state: 'failed',
+        failures: [
+          {
+            hash: await statementAddress(vouch),
+            problem: 'certificate-not-claimed',
+          },
+        ],
+      })
+    })
+
+    it('fails a vouch with a changed person name', async () => {
+      const vouch = await vouchFor()
+      const changed = {
+        ...vouch,
+        payload: { ...vouch.payload, personName: 'Alex' },
+      }
+      const address = await statementAddress(changed)
+      const claim = await signedClaim(blob, address)
+
+      expect(await verify(fetched(claim), fetched(changed))).toEqual({
         state: 'failed',
         failures: [{ hash: address, problem: 'bad-signature' }],
       })

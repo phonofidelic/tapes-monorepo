@@ -25,12 +25,17 @@ import {
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
 import { generatePassphrase } from './passphrase'
-import { loadPersonIdentity } from './personKey'
 import {
   backUpPersonKey,
   checkPersonKeyBackup,
+  acceptVouch,
   createPersonKey,
+  deviceLinkAddress,
+  markJoined,
   personKeyStatus,
+  restorePersonKey,
+  signJoinRequest,
+  signVouchRequest,
 } from './personKeyRequests'
 
 declare global {
@@ -97,6 +102,45 @@ type EventData =
       type: 'person:backup'
       payload: {
         passphrase: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:sign-join'
+      payload: {
+        challenge: string
+        personName: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:request-vouch'
+      payload: {
+        personKey: string
+        deviceLabel: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:accept-vouch'
+      payload: {
+        vouch: string
+        pinnedHostKey?: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:restore'
+      payload: {
+        text: string
+        passphrase: string
+        deviceLabel: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:mark-joined'
+      payload: {
         requestId: string
       }
     }
@@ -270,16 +314,19 @@ onmessage = async (event) => {
         // Hashes the bytes this device captured and signs a claim over them,
         // before anything is uploaded. Fails without a device key, and the
         // caller then uploads unsigned. Names the device certificate when
-        // this guest has a person key.
+        // this guest has a person key, or the host's vouch when it re-joined
+        // without one.
         const { filename, mimeType, startedAt, endedAt, sessionId, requestId } =
           payload
         try {
           await pendingWrite
           const keyPair = await loadDeviceSigningKey()
-          const person = await loadPersonIdentity().catch((error: unknown) => {
-            console.warn('Signing without a device certificate:', error)
-            return undefined
-          })
+          const deviceCert = await deviceLinkAddress().catch(
+            (error: unknown) => {
+              console.warn('Signing without a device certificate:', error)
+              return undefined
+            },
+          )
           const root = await navigator.storage.getDirectory()
           const file = await (await root.getFileHandle(filename)).getFile()
           const signed = await createRecordingClaim(
@@ -292,7 +339,7 @@ onmessage = async (event) => {
               startedAt,
               endedAt,
               sessionId,
-              deviceCert: person?.certificateAddress,
+              deviceCert,
             },
             keyPair,
           )
@@ -348,6 +395,72 @@ onmessage = async (event) => {
         const { passphrase, requestId } = payload
         try {
           respond(type, requestId, true, await backUpPersonKey(passphrase))
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:sign-join': {
+        const { challenge, personName, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await signJoinRequest(challenge, personName),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:request-vouch': {
+        const { personKey, deviceLabel, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await signVouchRequest(personKey, deviceLabel),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:accept-vouch': {
+        const { vouch, pinnedHostKey, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await acceptVouch(vouch, pinnedHostKey),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:restore': {
+        // Runs Argon2id here, like a backup check.
+        const { text, passphrase, deviceLabel, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await restorePersonKey(text, passphrase, deviceLabel),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:mark-joined': {
+        const { requestId } = payload
+        try {
+          respond(type, requestId, true, await markJoined())
         } catch (error) {
           respond(type, requestId, false, undefined, error)
         }
