@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react'
 import { isValidPin, type RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { Button } from '@tapes-monorepo/ui'
-import type { IpcResponse, IpcService } from '@/IpcService'
+import type {
+  IpcResponse,
+  IpcService,
+  SignedVouch,
+  SignedVouchesResponse,
+} from '@/IpcService'
 import { useAppContext } from '@/context/AppContext'
+import { useAutomergeUrl } from '@/utils'
 
 /**
  * On the host, the people on its roster and their PINs. After too many wrong
  * PINs a person is locked out of the PIN path. The operator checks who is
  * asking, then unlocks it, or lets the person type a new PIN here.
+ *
+ * Each person also lists the devices this host has vouched for. The operator
+ * can withdraw a vouch given to the wrong person, which the host signs and
+ * lists on the recordings that name it.
  *
  * Read when Settings opens. A lockout that happens while it is open shows
  * after the next action or visit.
@@ -15,7 +25,9 @@ import { useAppContext } from '@/context/AppContext'
 export function RosterSettings() {
   const appContext = useAppContext()
   const ipc = appContext.type === 'electron-client' ? appContext.ipc : undefined
+  const { automergeUrl } = useAutomergeUrl()
   const [people, setPeople] = useState<RosterPerson[]>()
+  const [vouches, setVouches] = useState<SignedVouch[]>([])
   // Bumped after each change to read the roster again.
   const [version, setVersion] = useState(0)
 
@@ -32,6 +44,15 @@ export function RosterSettings() {
         }
       },
       (error: unknown) => console.warn('Could not read the roster:', error),
+    )
+    ipc.send<SignedVouchesResponse | undefined>('roster:get-vouches').then(
+      (response) => {
+        if (current && response?.success) {
+          setVouches(response.data.vouches)
+        }
+      },
+      (error: unknown) =>
+        console.warn('Could not read the signed vouches:', error),
     )
     return () => {
       current = false
@@ -50,6 +71,10 @@ export function RosterSettings() {
             key={person.personKey}
             ipc={ipc}
             person={person}
+            vouches={vouches.filter(
+              (vouch) => vouch.personKey === person.personKey,
+            )}
+            docUrl={automergeUrl}
             onChanged={() => setVersion((each) => each + 1)}
           />
         ))}
@@ -61,10 +86,15 @@ export function RosterSettings() {
 function PersonRow({
   ipc,
   person,
+  vouches,
+  docUrl,
   onChanged,
 }: {
   ipc: IpcService
   person: RosterPerson
+  vouches: SignedVouch[]
+  /** The root document whose recordings a revocation is listed on. */
+  docUrl: string | null
   onChanged: () => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -85,7 +115,7 @@ function PersonRow({
       setPin('')
       onChanged()
     } catch (cause) {
-      console.error('Could not change a PIN:', cause)
+      console.error('Could not change this person on the roster:', cause)
       setError('That did not go through. Try again.')
     } finally {
       setBusy(false)
@@ -102,6 +132,12 @@ function PersonRow({
     run(() =>
       ipc.send<IpcResponse | undefined>('roster:set-pin', {
         data: { personKey: person.personKey, pin: next },
+      }),
+    )
+  const revoke = (address: string) =>
+    run(() =>
+      ipc.send<IpcResponse | undefined>('roster:revoke-vouch', {
+        data: { address, docUrl: docUrl ?? '' },
       }),
     )
 
@@ -196,6 +232,54 @@ function PersonRow({
           )}
         </div>
       )}
+      {vouches.length > 0 && (
+        <VouchedDevices
+          vouches={vouches}
+          // Without a root document there are no recordings to list the
+          // revocation on, so the host would sign one no reader would see.
+          canRevoke={docUrl !== null && !busy}
+          onRevoke={revoke}
+        />
+      )}
     </li>
+  )
+}
+
+/**
+ * The devices this host vouched for as one person. A vouch is kept after it is
+ * withdrawn, so the operator can see that it was.
+ */
+function VouchedDevices({
+  vouches,
+  canRevoke,
+  onRevoke,
+}: {
+  vouches: SignedVouch[]
+  canRevoke: boolean
+  onRevoke: (address: string) => Promise<void>
+}) {
+  return (
+    <ul className="flex flex-col gap-2 pl-2 text-xs">
+      {vouches.map((vouch) => (
+        <li key={vouch.address} className="flex flex-col gap-1">
+          <span>
+            Vouched for “{vouch.deviceLabel}”
+            {vouch.method === 'pin' ? ', by PIN' : ', in person'}, key{' '}
+            {vouch.deviceFingerprint}
+          </span>
+          {vouch.revokedAt ? (
+            <span className="text-zinc-500">Withdrawn</span>
+          ) : (
+            <Button
+              className="w-fit p-1"
+              disabled={!canRevoke}
+              onClick={() => void onRevoke(vouch.address)}
+            >
+              Withdraw this vouch
+            </Button>
+          )}
+        </li>
+      ))}
+    </ul>
   )
 }

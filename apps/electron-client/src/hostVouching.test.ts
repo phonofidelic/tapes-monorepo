@@ -3,12 +3,14 @@ import { mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  checkDeviceRevocation,
   checkDeviceVouch,
   createDeviceCertificate,
   createJoinRequest,
   createVouchRequest,
   exportPublicKey,
   generateSigningKeyPair,
+  parseSignedStatement,
   statementAddress,
 } from '@tapes-monorepo/provenance'
 import {
@@ -16,6 +18,7 @@ import {
   MAX_PENDING,
   MAX_PIN_FAILURES,
   PENDING_TTL_MS,
+  type RevocationDelivery,
 } from './hostVouching'
 import { createPersonRoster, type PersonRoster } from './personRoster'
 
@@ -24,6 +27,9 @@ let roster: PersonRoster
 let clock: number
 let issued: Set<string>
 let changes: number
+let delivered: Parameters<RevocationDelivery>[0][]
+/** What the delivery reports back, as recording urls. */
+let listedOn: string[]
 
 const hostKeys = await generateSigningKeyPair()
 const hostKey = await exportPublicKey(hostKeys.publicKey)
@@ -34,6 +40,8 @@ beforeEach(async () => {
   clock = Date.parse('2026-10-19T18:00:00.000Z')
   issued = new Set()
   changes = 0
+  delivered = []
+  listedOn = ['automerge:recording']
 })
 
 afterEach(async () => {
@@ -52,6 +60,10 @@ const vouching = () =>
     loadSigningKey: async () => hostKeys,
     hostLabel: () => 'Studio Mac',
     consumeChallenge: (value) => issued.delete(value),
+    deliverRevocation: async (details) => {
+      delivered.push(details)
+      return listedOn
+    },
     now: () => clock,
     onChange: () => {
       changes++
@@ -533,5 +545,147 @@ describe('managing PINs', () => {
       ok: false,
       error: 'bad-pin',
     })
+  })
+})
+
+describe('revoking a vouch the host signed', () => {
+  it('remembers each vouch it signs, newest first', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const id = await requestId(host, sam.personKey)
+
+    const vouch = await host.confirm(id)
+
+    expect(await host.signedVouches()).toEqual([
+      {
+        address: await statementAddress(vouch!),
+        personKey: sam.personKey,
+        personName: 'Sam',
+        deviceKey: vouch!.payload.deviceKey,
+        deviceLabel: 'New phone',
+        deviceFingerprint: expect.any(String),
+        method: 'operator',
+        vouchedAt: vouch!.payload.vouchedAt,
+      },
+    ])
+  })
+
+  it('signs a revocation for the vouch and marks it withdrawn', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const vouch = await host.confirm(await requestId(host, sam.personKey))
+    const address = await statementAddress(vouch!)
+
+    const result = await host.revokeVouch(address, { docUrl: 'automerge:root' })
+
+    expect(result).toEqual({
+      ok: true,
+      address: expect.any(String),
+      listedOn: ['automerge:recording'],
+    })
+    expect(delivered).toHaveLength(1)
+    expect(delivered[0]).toMatchObject({
+      docUrl: 'automerge:root',
+      deviceLink: address,
+    })
+    const signed = parseSignedStatement(delivered[0].bytes)
+    const check = await checkDeviceRevocation(signed!)
+    expect(check.ok && check.revocation.payload).toEqual({
+      type: 'tapes/revocation@1',
+      signerKey: hostKey,
+      signedBy: 'host',
+      deviceKey: vouch!.payload.deviceKey,
+      deviceLink: address,
+      reason: 'wrong-person',
+      revokedAt: new Date(clock).toISOString(),
+    })
+    expect(await host.signedVouches()).toMatchObject([
+      {
+        revokedAt: new Date(clock).toISOString(),
+        revocation: result.ok ? result.address : '',
+      },
+    ])
+  })
+
+  it('refuses a second revocation, and one for a vouch it never signed', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const vouch = await host.confirm(await requestId(host, sam.personKey))
+    const address = await statementAddress(vouch!)
+    await host.revokeVouch(address, { docUrl: 'automerge:root' })
+
+    expect(
+      await host.revokeVouch(address, { docUrl: 'automerge:root' }),
+    ).toEqual({
+      ok: false,
+      error: 'already-revoked',
+    })
+    expect(
+      await host.revokeVouch('ff'.repeat(32), { docUrl: 'automerge:root' }),
+    ).toEqual({ ok: false, error: 'unknown-vouch' })
+  })
+
+  it('withdraws a vouch no recording names', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const vouch = await host.confirm(await requestId(host, sam.personKey))
+    // A device the host confirmed for the wrong person may never have
+    // recorded anything, and the vouch is still withdrawn.
+    listedOn = []
+
+    const result = await host.revokeVouch(await statementAddress(vouch!), {
+      docUrl: 'automerge:root',
+    })
+
+    expect(result).toMatchObject({ ok: true, listedOn: [] })
+    expect(await host.signedVouches()).toMatchObject([
+      { revokedAt: new Date(clock).toISOString() },
+    ])
+  })
+
+  it('survives a restart, because the roster holds the vouches', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const vouch = await host.confirm(await requestId(host, sam.personKey))
+
+    clock += PENDING_TTL_MS + 1
+    const restarted = createHostVouching({
+      roster: createPersonRoster(path.join(dir, 'people.json')),
+      loadSigningKey: async () => hostKeys,
+      hostLabel: () => 'Studio Mac',
+      consumeChallenge: () => true,
+      deliverRevocation: async () => listedOn,
+      now: () => clock,
+    })
+
+    expect(
+      await restarted.revokeVouch(await statementAddress(vouch!), {
+        docUrl: 'automerge:root',
+      }),
+    ).toMatchObject({ ok: true })
+  })
+
+  it('refuses to sign without a way to deliver the revocation', async () => {
+    const sam = await person()
+    const host = createHostVouching({
+      roster,
+      loadSigningKey: async () => hostKeys,
+      hostLabel: () => 'Studio Mac',
+      consumeChallenge: (value) => issued.delete(value),
+      now: () => clock,
+    })
+    await join(host, sam, 'Sam')
+    const vouch = await host.confirm(await requestId(host, sam.personKey))
+
+    expect(
+      await host.revokeVouch(await statementAddress(vouch!), {
+        docUrl: 'automerge:root',
+      }),
+    ).toEqual({ ok: false, error: 'no-delivery' })
   })
 })

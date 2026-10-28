@@ -54,6 +54,8 @@ export type ValidIpcChanel =
   | 'vouch:confirm'
   | 'vouch:reject'
   | 'roster:get-people'
+  | 'roster:get-vouches'
+  | 'roster:revoke-vouch'
   | 'roster:unlock-pin'
   | 'roster:set-pin'
 
@@ -84,6 +86,39 @@ export type PendingVouch = {
 
 /** The waiting list, as the snapshot channel answers and the event carries. */
 export type PendingVouchesEvent = { pending: PendingVouch[] }
+
+/**
+ * A vouch this host signed, as the operator sees it. Mirrors the host's
+ * `SignedVouchSummary`.
+ */
+export type SignedVouch = {
+  /** Address of the signed vouch, and what a revocation withdraws. */
+  address: string
+  personKey: string
+  /** The roster's name for the person the host vouched for. */
+  personName: string
+  /** The device's own name for itself. Unverified. */
+  deviceLabel: string
+  /** For telling two phones with the same label apart. */
+  deviceFingerprint: string
+  /** How the person showed the host it was them. */
+  method: 'operator' | 'pin'
+  /** The host's clock. */
+  vouchedAt: string
+  /** Set once the host has withdrawn it. */
+  revokedAt?: string
+}
+
+/** Every vouch this host has signed, newest first. */
+export type SignedVouchesResponse =
+  | {
+      success: false
+      error: Error
+    }
+  | {
+      success: true
+      data: { vouches: SignedVouch[] }
+    }
 
 export type IpcRequest = {
   params?: string[]
@@ -281,6 +316,11 @@ export type IpcSendArgs =
   | ['vouch:confirm', IpcRequest & { data: { id: string } }]
   | ['vouch:reject', IpcRequest & { data: { id: string } }]
   | ['roster:get-people']
+  | ['roster:get-vouches']
+  | [
+      'roster:revoke-vouch',
+      IpcRequest & { data: { address: string; docUrl: string } },
+    ]
   | ['roster:unlock-pin', IpcRequest & { data: { personKey: string } }]
   | [
       'roster:set-pin',

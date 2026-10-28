@@ -12,6 +12,8 @@ import {
 } from './channels/VouchChannels'
 import {
   GetRosterPeopleChannel,
+  GetSignedVouchesChannel,
+  RevokeVouchChannel,
   SetPinChannel,
   UnlockPinChannel,
 } from './channels/RosterChannels'
@@ -50,6 +52,8 @@ new MainWindow().init([
   new ConfirmVouchChannel(),
   new RejectVouchChannel(),
   new GetRosterPeopleChannel(),
+  new GetSignedVouchesChannel(),
+  new RevokeVouchChannel(),
   new UnlockPinChannel(),
   new SetPinChannel(),
   new SetSyncServerLanChannel(),

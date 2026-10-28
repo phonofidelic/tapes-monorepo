@@ -3,9 +3,11 @@ import {
   checkDeviceCertificate,
   checkJoinRequest,
   checkVouchRequest,
+  createDeviceRevocation,
   createDeviceVouch,
   keyFingerprint,
   statementAddress,
+  statementBytes,
   type DeviceVouch,
   type Signed,
   type VouchMethod,
@@ -16,7 +18,7 @@ import {
   sanitizeLabel,
   type RosterPerson,
 } from '@tapes-monorepo/sync-protocol'
-import type { PersonRoster, RosterEntry } from './personRoster'
+import type { PersonRoster, RosterEntry, SignedVouch } from './personRoster'
 import { hashPin, pinMatches } from './pinHash'
 
 /**
@@ -24,6 +26,10 @@ import { hashPin, pinMatches } from './pinHash'
  * the roster from their first device. A new device of theirs asks to be
  * vouched for, and the host signs a vouch once the operator confirms the
  * person or they type their PIN.
+ *
+ * Every vouch it signs is written to the person's roster entry. The operator
+ * can then withdraw one the host confirmed for the wrong person, long after
+ * the request itself was dropped.
  *
  * Wrong PINs are counted per person, not per device, because a guesser can
  * make a new device key for every try. The counts are saved in the roster, so
@@ -77,6 +83,40 @@ export type PinChangeResult =
 export type SetPinResult =
   { ok: true } | { ok: false; error: 'unknown-person' | 'bad-pin' }
 
+/** A vouch the host signed, with the person it names. For the operator. */
+export type SignedVouchSummary = SignedVouch & {
+  personKey: string
+  /** The roster's name for the person. */
+  personName: string
+}
+
+export type RevokeVouchResult =
+  | {
+      ok: true
+      /** Address of the Signed<DeviceRevocation> the host signed. */
+      address: string
+      /** The recordings that now list it. */
+      listedOn: string[]
+    }
+  | {
+      ok: false
+      error: 'unknown-vouch' | 'already-revoked' | 'no-delivery'
+    }
+
+/**
+ * Puts a signed revocation where readers will find it: stored on this host,
+ * and listed on every recording whose statements name the vouch.
+ */
+export type RevocationDelivery = (details: {
+  /** The root document whose recordings are searched. */
+  docUrl: string
+  bytes: Uint8Array
+  /** Address of the revocation itself. */
+  address: string
+  /** Address of the vouch it withdraws. */
+  deviceLink: string
+}) => Promise<string[]>
+
 /** A new device waiting for the operator or a PIN. */
 export type PendingVouch = {
   id: string
@@ -107,6 +147,7 @@ export function createHostVouching({
   loadSigningKey,
   hostLabel,
   consumeChallenge,
+  deliverRevocation,
   now = Date.now,
   onChange,
 }: {
@@ -115,6 +156,12 @@ export function createHostVouching({
   /** Read at signing time, so a rename applies to the next vouch. */
   hostLabel: () => string
   consumeChallenge: (challenge: string) => boolean
+  /**
+   * Delivers a revocation the operator signed. Left out where there is no repo
+   * or blob store to deliver it to, and revoking then fails rather than
+   * signing a statement no reader would see.
+   */
+  deliverRevocation?: RevocationDelivery
   now?: () => number
   /** Called when the list of waiting requests changes. */
   onChange?: () => void
@@ -204,10 +251,40 @@ export function createHostVouching({
       },
       await loadSigningKey(),
     )
+    const record: SignedVouch = {
+      address: await statementAddress(vouch),
+      deviceKey: vouch.payload.deviceKey,
+      deviceLabel: vouch.payload.deviceLabel,
+      deviceFingerprint: entry.deviceFingerprint,
+      method,
+      vouchedAt: vouch.payload.vouchedAt,
+    }
+    // Remembered before the guest is told, so a vouch the host handed out is
+    // never one the operator cannot find again.
+    await roster.update(person.personKey, (saved) => ({
+      ...saved,
+      vouches: [
+        ...(saved.vouches ?? []).filter(
+          (each) => each.address !== record.address,
+        ),
+        record,
+      ],
+    }))
     entry.status = 'vouched'
     entry.vouch = vouch
     onChange?.()
     return vouch
+  }
+
+  /** The person whose entry holds this vouch, and the vouch itself. */
+  async function findVouch(address: string) {
+    for (const person of await roster.list()) {
+      const vouch = person.vouches?.find((each) => each.address === address)
+      if (vouch) {
+        return { person, vouch }
+      }
+    }
+    return undefined
   }
 
   return {
@@ -409,6 +486,76 @@ export function createHostVouching({
       return (await savePin(personKey, pin))
         ? { ok: true }
         : { ok: false, error: 'unknown-person' }
+    },
+
+    /**
+     * The vouches this host has signed, newest first. The operator's list, so
+     * it names people rather than only keys.
+     */
+    async signedVouches(): Promise<SignedVouchSummary[]> {
+      const people = await roster.list()
+      return people
+        .flatMap((person) =>
+          (person.vouches ?? []).map((vouch) => ({
+            ...vouch,
+            personKey: person.personKey,
+            personName: person.name,
+          })),
+        )
+        .sort((first, second) =>
+          second.vouchedAt.localeCompare(first.vouchedAt),
+        )
+    },
+
+    /**
+     * The operator withdraws a vouch, for a device the host confirmed as the
+     * wrong person. The roster is marked after the revocation is delivered, so
+     * a delivery that fails outright can be tried again.
+     */
+    async revokeVouch(
+      address: string,
+      details: { docUrl: string },
+    ): Promise<RevokeVouchResult> {
+      if (!deliverRevocation) {
+        return { ok: false, error: 'no-delivery' }
+      }
+      const found = await findVouch(address)
+      if (!found) {
+        return { ok: false, error: 'unknown-vouch' }
+      }
+      if (found.vouch.revokedAt) {
+        return { ok: false, error: 'already-revoked' }
+      }
+      const revocation = await createDeviceRevocation(
+        {
+          signedBy: 'host',
+          deviceKey: found.vouch.deviceKey,
+          deviceLink: address,
+          reason: 'wrong-person',
+          revokedAt: new Date(now()),
+        },
+        await loadSigningKey(),
+      )
+      const revocationAddress = await statementAddress(revocation)
+      const listedOn = await deliverRevocation({
+        docUrl: details.docUrl,
+        bytes: statementBytes(revocation),
+        address: revocationAddress,
+        deviceLink: address,
+      })
+      await roster.update(found.person.personKey, (saved) => ({
+        ...saved,
+        vouches: (saved.vouches ?? []).map((each) =>
+          each.address === address
+            ? {
+                ...each,
+                revokedAt: revocation.payload.revokedAt,
+                revocation: revocationAddress,
+              }
+            : each,
+        ),
+      }))
+      return { ok: true, address: revocationAddress, listedOn }
     },
 
     /** The operator reopens a locked PIN after checking who is asking. */

@@ -3,7 +3,11 @@ import { createInterface } from 'node:readline'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
-import type { BlobDescriptor, RecordingAggregate } from '@tapes-monorepo/core'
+import type {
+  BlobDescriptor,
+  RecordingAggregate,
+  SignedVouch,
+} from '@tapes-monorepo/core'
 import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { HOST_PORT, PAIRING_TOKEN } from './ports'
 
@@ -60,6 +64,11 @@ export type SeedOptions = {
 
 /** Every object the host is holding, by hash. */
 export type HostObject = { hash: string; size: number; mimeType?: string }
+
+/** What the host answers the operator's withdraw with. */
+export type RevokeVouchResult =
+  | { ok: true; address: string; listedOn: string[] }
+  | { ok: false; error: string }
 
 /**
  * One host process. Every host takes the same pairing token, because a guest
@@ -223,6 +232,35 @@ export class Host {
     return this.send({ type: 'vouch-confirm', requestId })
   }
 
+  /** The vouches the host has signed, as the operator's roster lists them. */
+  signedVouches(): Promise<SignedVouch[]> {
+    return this.send({ type: 'vouches-signed' })
+  }
+
+  /** Withdraws one of them, as the operator's withdraw button does. */
+  revokeVouch(address: string): Promise<RevokeVouchResult> {
+    return this.send({ type: 'vouch-revoke', address })
+  }
+
+  /**
+   * Lists a statement on a seeded recording. A vouched guest's claim names
+   * the vouch this way, and a revocation is delivered to the recordings that
+   * do.
+   */
+  listStatement(url: string, hash: string): Promise<string[]> {
+    return this.send({ type: 'list-statement', url, hash })
+  }
+
+  /** One recording's statement list, as a peer of the host sees it. */
+  peerStatements(url: string): Promise<string[]> {
+    return this.send({ type: 'statements', url })
+  }
+
+  /** The same list, as the host's own repo has it. */
+  statements(url: string): Promise<string[]> {
+    return this.send({ type: 'host-statements', url })
+  }
+
   async dispose(): Promise<void> {
     if (!this.child) {
       return
@@ -324,6 +362,29 @@ export function hostPendingVouches(): Promise<
 
 export function confirmHostVouch(requestId: string): Promise<boolean> {
   return defaultHost.confirmVouch(requestId)
+}
+
+export function hostSignedVouches(): Promise<SignedVouch[]> {
+  return defaultHost.signedVouches()
+}
+
+export function revokeHostVouch(address: string): Promise<RevokeVouchResult> {
+  return defaultHost.revokeVouch(address)
+}
+
+export function listHostStatement(
+  url: string,
+  hash: string,
+): Promise<string[]> {
+  return defaultHost.listStatement(url, hash)
+}
+
+export function hostStatements(url: string): Promise<string[]> {
+  return defaultHost.statements(url)
+}
+
+export function peerStatements(url: string): Promise<string[]> {
+  return defaultHost.peerStatements(url)
 }
 
 export function disposeHost(): Promise<void> {

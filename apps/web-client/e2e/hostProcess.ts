@@ -6,6 +6,7 @@ import { Repo, type AutomergeUrl } from '@automerge/automerge-repo'
 import { BrowserWebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 import {
   getHostVouching,
+  getSyncRepo,
   hostSession,
   startSyncServer,
   stopSyncServer,
@@ -59,6 +60,11 @@ type Command =
   | { id: number; type: 'session-stop' }
   | { id: number; type: 'vouches-pending' }
   | { id: number; type: 'vouch-confirm'; requestId: string }
+  | { id: number; type: 'vouches-signed' }
+  | { id: number; type: 'vouch-revoke'; address: string }
+  | { id: number; type: 'list-statement'; url: string; hash: string }
+  | { id: number; type: 'statements'; url: string }
+  | { id: number; type: 'host-statements'; url: string }
   | { id: number; type: 'dispose' }
 
 type Paths = {
@@ -284,6 +290,43 @@ async function upload(
 }
 
 /**
+ * Adds a statement hash to a seeded recording, through the same peer `seed`
+ * uses. It stands in for a vouched guest's claim, which names the vouch that
+ * certified the device it recorded on.
+ */
+async function listStatement(
+  command: Extract<Command, { type: 'list-statement' }>,
+) {
+  const repo = await connectAsPeer()
+  const recording = await repo.find<Recording>(command.url as AutomergeUrl)
+  recording.change((doc) => {
+    doc.statements = [...(doc.statements ?? []), command.hash]
+  })
+  return recording.doc().statements ?? []
+}
+
+/** One recording's statement list, as this peer currently has it. */
+async function statements(command: Extract<Command, { type: 'statements' }>) {
+  const repo = await connectAsPeer()
+  const recording = await repo.find<Recording>(command.url as AutomergeUrl)
+  return recording.doc().statements ?? []
+}
+
+/**
+ * The same list as the host's own repo has it. A peer's change reaches the
+ * host over the socket, so a test that waits for the host to act on a
+ * statement has to watch this side, not the peer's.
+ */
+async function hostStatements(
+  command: Extract<Command, { type: 'host-statements' }>,
+) {
+  const recording = await getSyncRepo()!.find<Recording>(
+    command.url as AutomergeUrl,
+  )
+  return recording.doc().statements ?? []
+}
+
+/**
  * The root document's recordings, by name and url. A guest's own recording
  * gets its url on this device, so a test that made one on the browser has no
  * other way to name it when asking the host for its count.
@@ -415,6 +458,19 @@ async function run(command: Command): Promise<unknown> {
       return getHostVouching()?.pending() ?? []
     case 'vouch-confirm':
       return (await getHostVouching()?.confirm(command.requestId)) !== undefined
+    // What the operator's roster panel lists and its withdraw button calls.
+    case 'vouches-signed':
+      return (await getHostVouching()?.signedVouches()) ?? []
+    case 'vouch-revoke':
+      return getHostVouching()?.revokeVouch(command.address, {
+        docUrl: rootDocumentUrl!,
+      })
+    case 'list-statement':
+      return listStatement(command)
+    case 'statements':
+      return statements(command)
+    case 'host-statements':
+      return hostStatements(command)
     case 'dispose':
       disposing = true
       peer?.disconnect()
