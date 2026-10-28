@@ -38,6 +38,7 @@ import {
 } from './syncChallenges'
 import { createSessionRecorder, type OpenSession } from './sessionRecorder'
 import { listSessionRecord } from './sessionDelivery'
+import { listDeviceRevocation } from './vouchRevocation'
 import { createHostSession } from './hostSession'
 import { FALLBACK_HOST_LABEL } from './computerName'
 import {
@@ -686,6 +687,18 @@ export async function startSyncServer(
             computerName ??
             FALLBACK_HOST_LABEL,
           consumeChallenge: (challenge) => challenges.consume(challenge),
+          // Read from the running server rather than captured here: the repo
+          // and the store are built further down, and a restart replaces both.
+          deliverRevocation: async (details) => {
+            const repo = current?.repo
+            const store = current?.blobStore
+            if (!repo || !store) {
+              throw new Error(
+                'No repo or blob store for a revocation while the sync server is stopped',
+              )
+            }
+            return listDeviceRevocation(repo, store, details)
+          },
           onChange: () => emitPendingVouches(vouching?.pending() ?? []),
         })
       : undefined

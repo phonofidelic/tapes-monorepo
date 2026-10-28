@@ -1,6 +1,10 @@
 import path from 'path'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
-import type { DeviceCertificate, Signed } from '@tapes-monorepo/provenance'
+import type {
+  DeviceCertificate,
+  Signed,
+  VouchMethod,
+} from '@tapes-monorepo/provenance'
 import { isPinHash, type PinHash } from './pinHash'
 
 /**
@@ -8,9 +12,32 @@ import { isPinHash, type PinHash } from './pinHash'
  * person's new device only if they are on it. The host never holds a person's
  * private key.
  *
+ * Each entry also records the vouches this host signed for that person. The
+ * waiting requests are dropped after ten minutes, so this file is the only
+ * lasting record the operator can revoke a vouch from.
+ *
  * Do not import `electron` here. The sync server uses this module, and it
  * stays testable in a plain node process.
  */
+
+/** A vouch this host signed, as its own roster remembers it. */
+export type SignedVouch = {
+  /** Address of the Signed<DeviceVouch>. */
+  address: string
+  /** The vouched device's base64url Ed25519 public key. */
+  deviceKey: string
+  /** The device's own name for itself, from its vouch request. */
+  deviceLabel: string
+  /** For telling two phones with the same label apart. */
+  deviceFingerprint: string
+  method: VouchMethod
+  /** The host's clock. */
+  vouchedAt: string
+  /** When the host signed a revocation for it. Absent until it does. */
+  revokedAt?: string
+  /** Address of the Signed<DeviceRevocation>, set with `revokedAt`. */
+  revocation?: string
+}
 
 export type RosterEntry = {
   personKey: string
@@ -23,6 +50,8 @@ export type RosterEntry = {
    * a guesser a fresh set of tries.
    */
   pinFailures?: number
+  /** The vouches this host signed for this person, oldest first. */
+  vouches?: SignedVouch[]
   /** The host's clock. */
   joinedAt: string
 }
@@ -129,6 +158,23 @@ function isRosterEntry(value: unknown): value is RosterEntry {
     typeof entry.firstCertificate.signed?.signature === 'string' &&
     (entry.pin === undefined || isPinHash(entry.pin)) &&
     (entry.pinFailures === undefined || Number.isInteger(entry.pinFailures)) &&
+    (entry.vouches === undefined || entry.vouches.every(isSignedVouch)) &&
     typeof entry.joinedAt === 'string'
+  )
+}
+
+function isSignedVouch(value: unknown): value is SignedVouch {
+  const vouch = value as Partial<SignedVouch> | null
+  return (
+    typeof vouch === 'object' &&
+    vouch !== null &&
+    typeof vouch.address === 'string' &&
+    typeof vouch.deviceKey === 'string' &&
+    typeof vouch.deviceLabel === 'string' &&
+    typeof vouch.deviceFingerprint === 'string' &&
+    (vouch.method === 'operator' || vouch.method === 'pin') &&
+    typeof vouch.vouchedAt === 'string' &&
+    (vouch.revokedAt === undefined || typeof vouch.revokedAt === 'string') &&
+    (vouch.revocation === undefined || typeof vouch.revocation === 'string')
   )
 }

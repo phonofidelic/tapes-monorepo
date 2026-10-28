@@ -35,6 +35,8 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'vouch:confirm': true,
   'vouch:reject': true,
   'roster:get-people': true,
+  'roster:get-vouches': true,
+  'roster:revoke-vouch': true,
   'roster:unlock-pin': true,
   'roster:set-pin': true,
 }
