@@ -15,6 +15,11 @@ import {
   SetPinChannel,
   UnlockPinChannel,
 } from './channels/RosterChannels'
+import {
+  AddTrustedHostChannel,
+  GetTrustedHostsChannel,
+  RemoveTrustedHostChannel,
+} from './channels/TrustedHostChannels'
 import { GetDeviceKeyChannel } from './channels/GetDeviceKeyChannel'
 import { GetSyncServerInfoChannel } from './channels/GetSyncServerInfoChannel'
 import { HasBlobChannel } from './channels/HasBlobChannel'
@@ -52,6 +57,9 @@ new MainWindow().init([
   new GetRosterPeopleChannel(),
   new UnlockPinChannel(),
   new SetPinChannel(),
+  new GetTrustedHostsChannel(),
+  new AddTrustedHostChannel(),
+  new RemoveTrustedHostChannel(),
   new SetSyncServerLanChannel(),
   new SetSyncServerHttpsChannel(),
   new PutBlobChannel(),

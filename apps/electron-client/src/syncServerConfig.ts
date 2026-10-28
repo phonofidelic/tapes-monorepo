@@ -37,6 +37,10 @@ export const blobStoragePath = () => path.join(app.getPath('userData'), 'blobs')
 export const rosterPath = () =>
   path.join(app.getPath('userData'), 'people.json')
 
+/** The host keys whose vouches this operator accepts as the person's own. */
+export const trustedHostsPath = () =>
+  path.join(app.getPath('userData'), 'trusted-hosts.json')
+
 /**
  * Root of the append-only playback-event log. A sibling of the blob store, not
  * a directory inside it. Audio lives as long as its recording and events for

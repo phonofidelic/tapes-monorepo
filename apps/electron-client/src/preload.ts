@@ -37,6 +37,9 @@ const CHANNEL_ALLOWLIST: Record<ValidIpcChanel, true> = {
   'roster:get-people': true,
   'roster:unlock-pin': true,
   'roster:set-pin': true,
+  'trust:get-hosts': true,
+  'trust:add-host': true,
+  'trust:remove-host': true,
 }
 
 // Main-process events the renderer may listen for. Nothing asked for these and

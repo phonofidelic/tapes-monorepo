@@ -5,6 +5,7 @@ import { useAppContext } from '@/context/AppContext'
 import { Button } from '@tapes-monorepo/ui'
 import { PersonKeySettings } from '@/components/PersonKeySettings'
 import { RosterSettings } from '@/components/RosterSettings'
+import { TrustedHostSettings } from '@/components/TrustedHostSettings'
 import { SyncSettings } from '@/components/SyncSettings'
 
 export function Settings() {
@@ -107,6 +108,7 @@ export function Settings() {
       <SyncSettings />
       <PersonKeySettings />
       <RosterSettings />
+      <TrustedHostSettings />
     </div>
   )
 }

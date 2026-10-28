@@ -1,5 +1,10 @@
-import { decodeSignedStatement } from '@tapes-monorepo/provenance'
+import {
+  DEVICE_CERTIFICATE_TYPE,
+  decodeSignedStatement,
+  type DeviceCertificate,
+} from '@tapes-monorepo/provenance'
 import type { AppContextValue } from '@/context/AppContext'
+import type { CertifiedDevice } from '@/trustedHosts'
 import { callWorker } from '@/workerClient'
 
 /**
@@ -133,6 +138,34 @@ export function restorePersonKey(
   deviceLabel: string,
 ): Promise<RestoreResult> {
   return callWorker(worker, 'person:restore', { text, passphrase, deviceLabel })
+}
+
+/**
+ * The device this device's person key has certified, if it has one. Undefined
+ * when there is no person key, or when it holds a host's vouch instead of a
+ * certificate. A vouch for that same device and person is settled by this,
+ * whoever signed it.
+ */
+export async function readCertifiedDevice(
+  appContext: AppContextValue,
+): Promise<CertifiedDevice | undefined> {
+  let status: PersonKeyStatus
+  try {
+    status = await readPersonKeyStatus(appContext)
+  } catch (error) {
+    console.warn('Could not read the person key:', error)
+    return undefined
+  }
+  if (!status.exists) {
+    return undefined
+  }
+  const payload = decodeSignedStatement(status.certificate)?.payload as
+    Partial<DeviceCertificate> | undefined
+  return payload?.type === DEVICE_CERTIFICATE_TYPE &&
+    typeof payload.personKey === 'string' &&
+    typeof payload.deviceKey === 'string'
+    ? { personKey: payload.personKey, deviceKey: payload.deviceKey }
+    : undefined
 }
 
 /** Notes that the host already has the restored person on its roster. */

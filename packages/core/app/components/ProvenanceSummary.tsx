@@ -10,9 +10,16 @@ import {
   useRecordingProvenance,
   type ProvenanceState,
 } from '@/hooks/useRecordingProvenance'
+import { useTrustedHosts } from '@/hooks/useTrustedHosts'
 import { readLocalDeviceKey } from '@/localDeviceKey'
-import { readPersonKeyStatus } from '@/personKey'
+import { readCertifiedDevice, readPersonKeyStatus } from '@/personKey'
 import type { ProvenanceInput } from '@/recordingProvenance'
+import {
+  creditForPerson,
+  NOT_COUNTED,
+  type CertifiedDevice,
+  type VouchCredit,
+} from '@/trustedHosts'
 
 /**
  * One line on a Library row saying what a recording's signed statements prove,
@@ -23,7 +30,11 @@ import type { ProvenanceInput } from '@/recordingProvenance'
  * device", or the label its person key certified. A person is named by key
  * fingerprint, or "you" for the person key on this device. A key is not a
  * person's name, and nothing here pretends it is. A host's vouch is the one
- * exception: it shows the host's name for the person, always with the host.
+ * exception: it shows the host's name for the person.
+ *
+ * A vouch is named with the host that signed it until this reader counts it:
+ * the operator trusts that host's key, or the person's own key has since
+ * certified the device. Then it reads like a certificate.
  */
 
 const dateTime = new Intl.DateTimeFormat(undefined, {
@@ -70,6 +81,21 @@ function useLocalPersonKey(): string | undefined {
   return key
 }
 
+function useCertifiedDevice(): CertifiedDevice | undefined {
+  const appContext = useAppContext()
+  const [device, setDevice] = useState<CertifiedDevice>()
+  useEffect(() => {
+    let current = true
+    void readCertifiedDevice(appContext).then(
+      (device) => current && setDevice(device),
+    )
+    return () => {
+      current = false
+    }
+  }, [appContext])
+  return device
+}
+
 function useFingerprint(key: string | undefined): string | undefined {
   const [held, setHeld] = useState<{ key: string; fingerprint?: string }>()
   useEffect(() => {
@@ -105,6 +131,7 @@ function useDeviceName(
 function usePersonName(
   person: VerifiedPerson | undefined,
   localPersonKey: string | undefined,
+  credit: VouchCredit,
 ): string | undefined {
   const fingerprint = useFingerprint(person?.personKey)
   if (!person) {
@@ -118,8 +145,9 @@ function usePersonName(
         : fingerprint
           ? `person ${fingerprint}`
           : 'another person'
-  // The person key signed nothing, so the name is only as good as the host.
-  return person.via === 'vouch'
+  // An uncounted vouch leaves the person key having signed nothing, so the
+  // name is only as good as the host and is never shown without it.
+  return person.via === 'vouch' && !credit.counts
     ? `${name}, vouched by ${person.hostLabel}`
     : name
 }
@@ -139,13 +167,22 @@ export function ProvenanceSummary({
 function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
   const localKey = useLocalDeviceKey()
   const localPersonKey = useLocalPersonKey()
+  const { hostKeys } = useTrustedHosts()
+  const certifiedDevice = useCertifiedDevice()
   const person = 'person' in provenance ? provenance.person : undefined
   const deviceName = useDeviceName(
     'deviceKey' in provenance ? provenance.deviceKey : undefined,
     localKey,
     person?.deviceLabel,
   )
-  const personName = usePersonName(person, localPersonKey)
+  const credit =
+    person && 'deviceKey' in provenance
+      ? creditForPerson(
+          { deviceKey: provenance.deviceKey, person },
+          { trustedHostKeys: hostKeys, certifiedDevice },
+        )
+      : NOT_COUNTED
+  const personName = usePersonName(person, localPersonKey, credit)
 
   switch (provenance.state) {
     case 'checking':
@@ -183,7 +220,9 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
           }
         >
           <DeviceTimes {...provenance} />
-          {person && personName && <Person {...person} name={personName} />}
+          {person && personName && (
+            <Person {...person} name={personName} credit={credit} />
+          )}
           <Session {...provenance} localKey={localKey} />
         </Details>
       )
@@ -202,7 +241,9 @@ function ProvenanceText({ provenance }: { provenance: ProvenanceState }) {
           }
         >
           <DeviceTimes {...provenance} />
-          {person && personName && <Person {...person} name={personName} />}
+          {person && personName && (
+            <Person {...person} name={personName} credit={credit} />
+          )}
           <p>
             Received <Clock iso={provenance.receivedAt} />, by the host&apos;s
             clock.
@@ -236,17 +277,39 @@ function DeviceTimes({
   )
 }
 
-function Person({ name, ...person }: VerifiedPerson & { name: string }) {
+function Person({
+  name,
+  credit,
+  ...person
+}: VerifiedPerson & { name: string; credit: VouchCredit }) {
   if (person.via === 'vouch') {
     const confirmed =
       person.method === 'pin' ? 'who entered their PIN' : 'confirmed in person'
+    const because = credit.counts ? credit.because : undefined
     return (
-      <p>
-        The host “{person.hostLabel}” vouched for the recording device “
-        {person.deviceLabel}” as {person.personName}, {confirmed}, on{' '}
-        <Clock iso={person.vouchedAt} />, by the host&apos;s clock. The
-        person&apos;s own key has not certified this device.
-      </p>
+      <>
+        <p>
+          The host “{person.hostLabel}” vouched for the recording device “
+          {person.deviceLabel}” as {person.personName}, {confirmed}, on{' '}
+          <Clock iso={person.vouchedAt} />, by the host&apos;s clock.
+          {because === 'certified-device' ? (
+            <>
+              {' '}
+              The person&apos;s own key has since certified this device, so the
+              vouch no longer decides it.
+            </>
+          ) : because === 'trusted-host' ? (
+            <>
+              {' '}
+              You trust that host&apos;s key, so this counts as the
+              person&apos;s own.
+            </>
+          ) : (
+            <> The person&apos;s own key has not certified this device.</>
+          )}
+        </p>
+        {!credit.counts && <TrustHost {...person} />}
+      </>
     )
   }
   return (
@@ -254,6 +317,55 @@ function Person({ name, ...person }: VerifiedPerson & { name: string }) {
       {name === 'you' ? 'Your person key' : `The key of ${name}`} certified the
       recording device as “{person.deviceLabel}” on{' '}
       <Clock iso={person.issuedAt} />, by that device&apos;s clock.
+    </p>
+  )
+}
+
+/**
+ * Lets this host's operator trust the host that signed the vouch in front of
+ * them. The vouch carries the key and the host's name, so this is where the
+ * operator meets both. Only the desktop host keeps a list.
+ */
+function TrustHost({
+  hostKey,
+  hostLabel,
+}: {
+  hostKey: string
+  hostLabel: string
+}) {
+  const appContext = useAppContext()
+  const { trust } = useTrustedHosts()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+
+  if (appContext.type !== 'electron-client') {
+    return null
+  }
+  return (
+    <p>
+      <button
+        type="button"
+        className="w-fit rounded-sm p-1 ring-1 ring-zinc-400 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true)
+          setError(undefined)
+          try {
+            if (!(await trust({ hostKey, hostLabel }))) {
+              setError('That did not go through. Try again.')
+            }
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        Trust “{hostLabel}”
+      </button>
+      {error && (
+        <span role="alert" className="block text-rose-500">
+          {error}
+        </span>
+      )}
     </p>
   )
 }

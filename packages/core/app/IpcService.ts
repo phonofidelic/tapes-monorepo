@@ -56,6 +56,9 @@ export type ValidIpcChanel =
   | 'roster:get-people'
   | 'roster:unlock-pin'
   | 'roster:set-pin'
+  | 'trust:get-hosts'
+  | 'trust:add-host'
+  | 'trust:remove-host'
 
 /**
  * Events the main process sends to the renderer.
@@ -84,6 +87,19 @@ export type PendingVouch = {
 
 /** The waiting list, as the snapshot channel answers and the event carries. */
 export type PendingVouchesEvent = { pending: PendingVouch[] }
+
+/**
+ * A host key this operator accepts vouches from. Mirrors the host's
+ * `TrustedHostEntry`.
+ */
+export type TrustedHost = {
+  /** The trusted host's base64url Ed25519 public key. */
+  hostKey: string
+  /** The host's name from the vouch it was trusted from, if it came from one. */
+  hostLabel?: string
+  /** The host's clock. */
+  addedAt: string
+}
 
 export type IpcRequest = {
   params?: string[]
@@ -286,6 +302,12 @@ export type IpcSendArgs =
       'roster:set-pin',
       IpcRequest & { data: { personKey: string; pin: string | null } },
     ]
+  | ['trust:get-hosts']
+  | [
+      'trust:add-host',
+      IpcRequest & { data: { hostKey: string; hostLabel?: string } },
+    ]
+  | ['trust:remove-host', IpcRequest & { data: { hostKey: string } }]
   | [
       'blob:cache-put',
       IpcRequest & {
