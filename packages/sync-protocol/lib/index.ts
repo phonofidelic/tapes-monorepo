@@ -14,6 +14,7 @@
  */
 
 export * from './label'
+export * from './passkeyRecords'
 export * from './roster'
 export * from './hostClient'
 export * from './syncProof'

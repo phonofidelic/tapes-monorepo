@@ -1,7 +1,7 @@
 /**
  * Signed provenance statements for recordings and sessions: their types,
- * canonical JSON, and Ed25519 signing over WebCrypto. Also the passphrase
- * backup format for person keys.
+ * canonical JSON, and Ed25519 signing over WebCrypto. Also the wrapping
+ * format for person keys, which a passphrase or a passkey unlocks.
  *
  * The device that records signs the claim, guest or host. A person key
  * certifies a guest's device key, or a host vouches for it after a lost key.
@@ -18,6 +18,7 @@ export * from './deviceRevocation'
 export * from './deviceVouch'
 export * from './encoding'
 export * from './hostReceipt'
+export * from './passkeyRecord'
 export * from './personKeyBackup'
 export * from './recordingClaim'
 export * from './recordingProvenance'

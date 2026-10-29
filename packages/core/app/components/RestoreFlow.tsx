@@ -1,22 +1,34 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { parseBackupText } from '@tapes-monorepo/provenance'
+import type { BlobEndpoint } from '@/blobClient'
 import { resolveDeviceLabel } from '@/deviceLabel'
-import { restorePersonKey, type PersonKeyStatus } from '@/personKey'
+import { fetchPasskeyRecord } from '@/passkeyRecordClient'
+import {
+  restorePersonKey,
+  restorePersonKeyWithPasskey,
+  type PersonKeyStatus,
+} from '@/personKey'
+import { runPasskeyCeremony } from '@/personKeyCeremony'
 import { decodeQr, decodeQrFromImage, frameData } from '@/qrDecode'
+import { ceremonyProblems } from './PasskeyRecordSettings'
 import { PromptFrame } from './PromptFrame'
 
 /**
- * Brings a person key back onto this device from its passphrase backup. The
- * backup can come from the camera, a saved file, a photo of its QR code or
- * pasted text. Once it unlocks, the person key certifies this device and
- * replaces any vouch the host signed for it.
+ * Brings a person key back onto this device, either way it was kept. A
+ * passphrase backup can come from the camera, a saved file, a photo of its QR
+ * code or pasted text. A passkey instead opens the copy the host holds.
+ * Once it unlocks, the person key certifies this device and replaces any
+ * vouch the host signed for it.
  */
 
 /** How often the camera view is checked for a QR code. */
 const SCAN_INTERVAL_MS = 250
 
 type Step =
-  { kind: 'find' } | { kind: 'scan' } | { kind: 'unlock'; text: string }
+  | { kind: 'find' }
+  | { kind: 'scan' }
+  | { kind: 'passkey' }
+  | { kind: 'unlock'; text: string }
 
 /** Words for a backup that cannot be read, before any passphrase is asked. */
 function readError(text: string): string | undefined {
@@ -32,12 +44,33 @@ function readError(text: string): string | undefined {
     : 'The backup is damaged. Try another copy.'
 }
 
+/** Words for a copy that did not open, whichever way it was locked. */
+function restoreError(
+  problem:
+    'unreadable' | 'wrong-passphrase' | 'wrong-passkey' | 'other-person-key',
+): string {
+  if (problem === 'wrong-passphrase') {
+    return 'That passphrase does not unlock the backup. Check each word.'
+  }
+  if (problem === 'wrong-passkey') {
+    return 'That passkey does not open the copy your host holds.'
+  }
+  return problem === 'other-person-key'
+    ? 'This backup is for a different person than this phone is set up for.'
+    : 'The backup could not be read.'
+}
+
 export function RestoreFlow({
   worker,
+  endpoint,
+  hostName,
   onRestored,
   onCancel,
 }: {
   worker: Worker
+  /** Where the host's records live. Without one, only a backup restores. */
+  endpoint?: BlobEndpoint
+  hostName: string
   onRestored: (status: PersonKeyStatus) => void
   onCancel: () => void
 }) {
@@ -50,6 +83,60 @@ export function RestoreFlow({
     setStep(problem ? { kind: 'find' } : { kind: 'unlock', text: text.trim() })
   }
 
+  const giveUp = (message: string) => {
+    setError(message)
+    setStep({ kind: 'find' })
+  }
+
+  // The tab has to open inside the click, so the ceremony runs before any
+  // await and the rest follows it.
+  const restoreWithPasskey = () => {
+    if (!endpoint) {
+      return
+    }
+    setError(undefined)
+    setStep({ kind: 'passkey' })
+    runPasskeyCeremony({ action: 'get', hostName }, {}).then(
+      async (outcome) => {
+        if (!outcome.ok) {
+          giveUp(ceremonyProblems[outcome.problem])
+          return
+        }
+        try {
+          const held = await fetchPasskeyRecord(endpoint, outcome)
+          if (!held.ok) {
+            giveUp(
+              held.problem === 'unreachable'
+                ? `${hostName} could not be reached. Use your backup instead.`
+                : `${hostName} holds no copy for that passkey. Use your backup instead.`,
+            )
+            return
+          }
+          const result = await restorePersonKeyWithPasskey(
+            worker,
+            held.record,
+            outcome.prf,
+            resolveDeviceLabel({ storage: localStorage, navigator }),
+          )
+          if (result.ok) {
+            onRestored(result.status)
+            return
+          }
+          giveUp(restoreError(result.problem))
+        } catch (cause) {
+          console.error('Could not restore with the passkey:', cause)
+          giveUp('Restoring failed. Try again.')
+        } finally {
+          outcome.prf.fill(0)
+        }
+      },
+      (cause: unknown) => {
+        console.warn('The passkey restore failed:', cause)
+        giveUp(ceremonyProblems.failed)
+      },
+    )
+  }
+
   return (
     <PromptFrame title="Restore your person key">
       {step.kind === 'find' && (
@@ -59,8 +146,13 @@ export function RestoreFlow({
             setError(undefined)
             setStep({ kind: 'scan' })
           }}
+          onPasskey={endpoint ? restoreWithPasskey : undefined}
+          hostName={hostName}
           onError={setError}
         />
+      )}
+      {step.kind === 'passkey' && (
+        <p role="status">Follow the prompt in the passkey tab.</p>
       )}
       {step.kind === 'scan' && (
         <ScanBackup
@@ -99,10 +191,15 @@ export function RestoreFlow({
 function FindBackup({
   onFound,
   onScan,
+  onPasskey,
+  hostName,
   onError,
 }: {
   onFound: (text: string) => void
   onScan: () => void
+  /** Left out where the host that holds the records is not reachable. */
+  onPasskey?: () => void
+  hostName: string
   onError: (message: string) => void
 }) {
   const [pasted, setPasted] = useState('')
@@ -127,9 +224,23 @@ function FindBackup({
 
   return (
     <>
+      {onPasskey && (
+        <>
+          <p>
+            Your passkey opens the copy {hostName} holds. It is the quickest way
+            back on a new phone.
+          </p>
+          <button
+            className="rounded-md bg-zinc-50 px-3 py-2 text-left font-medium text-zinc-900 hover:bg-zinc-200"
+            onClick={onPasskey}
+          >
+            Use your passkey
+          </button>
+        </>
+      )}
       <p>
-        You need your backup and its passphrase. The backup is the file you
-        saved or the QR code you kept.
+        {onPasskey ? 'Or use your backup' : 'You need your backup'} and its
+        passphrase. The backup is the file you saved or the QR code you kept.
       </p>
       <button
         className="rounded-md bg-zinc-800 px-3 py-2 text-left hover:bg-zinc-700"
@@ -288,13 +399,7 @@ function UnlockBackup({
         onRestored(result.status)
         return
       }
-      onError(
-        result.problem === 'wrong-passphrase'
-          ? 'That passphrase does not unlock the backup. Check each word.'
-          : result.problem === 'other-person-key'
-            ? 'This backup is for a different person than this phone is set up for.'
-            : 'The backup could not be read.',
-      )
+      onError(restoreError(result.problem))
     } catch (cause) {
       console.error('Could not restore the person key:', cause)
       onError('Restoring failed. Try again.')

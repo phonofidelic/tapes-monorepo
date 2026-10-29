@@ -5,7 +5,7 @@ import { useSetting } from '@/context/SettingsContext'
 import { useUploadEndpoint } from '@/context/BlobContext'
 import { useRosterSelf } from '@/hooks/useRosterSelf'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
-import { PasskeyCheck, passkeyCheckEnabled } from './PasskeyCheck'
+import { PasskeyRecordSettings } from './PasskeyRecordSettings'
 import { PinSettings } from './PinSettings'
 import { RejoinFlow } from './RejoinFlow'
 import { RestoreFlow } from './RestoreFlow'
@@ -17,8 +17,8 @@ import { RestoreFlow } from './RestoreFlow'
  * Asking the host again gets a fresh vouch, which this device needs once the
  * operator withdrew the one it holds. Below both, the person's PIN on the host.
  *
- * `?passkey=1` adds a check that the passkey page answers this origin. It is
- * for testing that handoff on a phone, not a thing to offer people.
+ * A device that holds the person key can also leave a passkey-locked copy on
+ * the host, which is the other way back on a phone that has nothing.
  */
 export function PersonKeySettings() {
   const appContext = useAppContext()
@@ -98,13 +98,16 @@ export function PersonKeySettings() {
           {message.text}
         </p>
       )}
-      {passkeyCheckEnabled(window.location.search) && (
-        <PasskeyCheck
-          hostName={
-            pairedHostName ??
-            ((status.exists && status.vouchedBy) || window.location.host)
+      {identified && !identified.vouchedBy && endpoint && (
+        <PasskeyRecordSettings
+          worker={appContext.worker}
+          endpoint={endpoint}
+          hostName={pairedHostName ?? window.location.host}
+          personPublicKey={identified.publicKey}
+          recordedAt={identified.passkeyRecordedAt}
+          onRecorded={(passkeyRecordedAt) =>
+            setStatus({ ...identified, passkeyRecordedAt })
           }
-          personPublicKey={status.exists ? status.publicKey : undefined}
         />
       )}
       {status.exists && endpoint && (
@@ -117,6 +120,8 @@ export function PersonKeySettings() {
       {restoring && (
         <RestoreFlow
           worker={appContext.worker}
+          endpoint={endpoint}
+          hostName={pairedHostName ?? window.location.host}
           onCancel={() => setRestoring(false)}
           onRestored={(next) => {
             setStatus(next)

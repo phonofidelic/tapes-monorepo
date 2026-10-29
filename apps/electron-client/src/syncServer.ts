@@ -46,6 +46,8 @@ import {
   type HostVouching,
   type PendingVouch,
 } from './hostVouching'
+import { createPasskeyRecordStore } from './passkeyRecords'
+import { createPasskeyRecordHandler } from './passkeyRecordsHttp'
 import { createPersonRoster } from './personRoster'
 import { createVouchRequestHandler } from './vouchHttp'
 import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
@@ -676,10 +678,21 @@ export async function startSyncServer(
 
   const challenges = createSyncChallengeStore()
 
+  const roster = rosterPath ? createPersonRoster(rosterPath) : undefined
+
+  // A record needs no host signature, so this stands even where the host has
+  // no signing key of its own.
+  const passkeyRecords = roster
+    ? createPasskeyRecordStore({
+        roster,
+        consumeChallenge: (challenge) => challenges.consume(challenge),
+      })
+    : undefined
+
   const vouching =
-    rosterPath && loadSigningKey
+    roster && loadSigningKey
       ? createHostVouching({
-          roster: createPersonRoster(rosterPath),
+          roster,
           loadSigningKey,
           // The host's own window presents the name the user gave the host.
           hostLabel: () =>
@@ -720,6 +733,14 @@ export async function startSyncServer(
     createSyncChallengeRequestHandler({ challenges, token: pairingToken }),
     ...(vouching
       ? [createVouchRequestHandler({ vouching, token: pairingToken })]
+      : []),
+    ...(passkeyRecords
+      ? [
+          createPasskeyRecordHandler({
+            records: passkeyRecords,
+            token: pairingToken,
+          }),
+        ]
       : []),
     createCaRequestHandler({ rootCertPem }),
   ])

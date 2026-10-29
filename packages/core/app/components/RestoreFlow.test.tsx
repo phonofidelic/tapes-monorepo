@@ -7,11 +7,23 @@ import {
   generateSigningKeyPair,
   wrapPersonKey,
 } from '@tapes-monorepo/provenance'
-import { restorePersonKey, type PersonKeyStatus } from '@/personKey'
+import type { BlobEndpoint } from '@/blobClient'
+import { fetchPasskeyRecord } from '@/passkeyRecordClient'
+import {
+  restorePersonKey,
+  restorePersonKeyWithPasskey,
+  type PersonKeyStatus,
+} from '@/personKey'
+import { runPasskeyCeremony } from '@/personKeyCeremony'
 import { decodeQrFromImage } from '@/qrDecode'
 import { RestoreFlow } from './RestoreFlow'
 
-vi.mock('@/personKey', () => ({ restorePersonKey: vi.fn() }))
+vi.mock('@/personKey', () => ({
+  restorePersonKey: vi.fn(),
+  restorePersonKeyWithPasskey: vi.fn(),
+}))
+vi.mock('@/personKeyCeremony', () => ({ runPasskeyCeremony: vi.fn() }))
+vi.mock('@/passkeyRecordClient', () => ({ fetchPasskeyRecord: vi.fn() }))
 vi.mock('@/qrDecode', () => ({
   decodeQr: vi.fn(),
   decodeQrFromImage: vi.fn(),
@@ -46,10 +58,30 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderFlow() {
+const ENDPOINT: BlobEndpoint = {
+  baseUrl: 'https://host.example',
+  token: 'pair-token',
+}
+
+/** The record the host holds, and the passkey that opens it. */
+const RECORD = 'a-stored-record'
+const CEREMONY = {
+  ok: true as const,
+  credentialId: 'credential-id',
+  rpId: 'tapes.network',
+  prf: new Uint8Array(32) as Uint8Array<ArrayBuffer>,
+}
+
+function renderFlow(endpoint?: BlobEndpoint) {
   const onRestored = vi.fn()
   render(
-    <RestoreFlow worker={worker} onRestored={onRestored} onCancel={vi.fn()} />,
+    <RestoreFlow
+      worker={worker}
+      endpoint={endpoint}
+      hostName="Studio Mac"
+      onRestored={onRestored}
+      onCancel={vi.fn()}
+    />,
   )
   return { onRestored }
 }
@@ -179,5 +211,91 @@ describe('RestoreFlow', () => {
     expect(
       screen.getByLabelText('Or paste the backup text'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('restoring with a passkey', () => {
+  beforeEach(() => {
+    vi.mocked(runPasskeyCeremony).mockResolvedValue(CEREMONY)
+    vi.mocked(fetchPasskeyRecord).mockResolvedValue({
+      ok: true,
+      record: RECORD,
+    })
+    vi.mocked(restorePersonKeyWithPasskey).mockResolvedValue({
+      ok: true,
+      status: RESTORED,
+    })
+  })
+
+  it('is offered only where the host can be reached', () => {
+    renderFlow()
+    expect(screen.queryByText('Use your passkey')).toBeNull()
+
+    cleanup()
+    renderFlow(ENDPOINT)
+    expect(screen.getByText('Use your passkey')).toBeTruthy()
+  })
+
+  it('opens the copy the host holds', async () => {
+    const user = userEvent.setup()
+    const { onRestored } = renderFlow(ENDPOINT)
+
+    await user.click(screen.getByText('Use your passkey'))
+
+    await waitFor(() => expect(onRestored).toHaveBeenCalledWith(RESTORED))
+    expect(runPasskeyCeremony).toHaveBeenCalledWith(
+      { action: 'get', hostName: 'Studio Mac' },
+      {},
+    )
+    expect(fetchPasskeyRecord).toHaveBeenCalledWith(ENDPOINT, CEREMONY)
+    expect(vi.mocked(restorePersonKeyWithPasskey).mock.calls[0][1]).toBe(RECORD)
+  })
+
+  it('sends a person back to their backup when the host holds no copy', async () => {
+    vi.mocked(fetchPasskeyRecord).mockResolvedValue({
+      ok: false,
+      problem: 'no-record',
+    })
+    const user = userEvent.setup()
+    const { onRestored } = renderFlow(ENDPOINT)
+
+    await user.click(screen.getByText('Use your passkey'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Studio Mac holds no copy for that passkey',
+    )
+    expect(onRestored).not.toHaveBeenCalled()
+    // Back on the first step, with the backup still an option.
+    expect(screen.getByText('Scan the QR code with the camera')).toBeTruthy()
+  })
+
+  it('says when the password manager returns no PRF output', async () => {
+    vi.mocked(runPasskeyCeremony).mockResolvedValue({
+      ok: false,
+      problem: 'no-prf',
+    })
+    const user = userEvent.setup()
+    renderFlow(ENDPOINT)
+
+    await user.click(screen.getByText('Use your passkey'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'passphrase backup is the way through',
+    )
+  })
+
+  it('says when the passkey does not open the record', async () => {
+    vi.mocked(restorePersonKeyWithPasskey).mockResolvedValue({
+      ok: false,
+      problem: 'wrong-passkey',
+    })
+    const user = userEvent.setup()
+    renderFlow(ENDPOINT)
+
+    await user.click(screen.getByText('Use your passkey'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'does not open the copy your host holds',
+    )
   })
 })

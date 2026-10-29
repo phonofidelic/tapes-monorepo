@@ -10,6 +10,7 @@ import {
   createPersonIdentity,
   loadPersonIdentity,
   markPersonKeyBackedUp,
+  markPersonKeyRecorded,
   markPersonKeyJoined,
   restorePersonIdentity,
 } from './personKey'
@@ -106,6 +107,28 @@ describe('markPersonKeyBackedUp', () => {
   })
 })
 
+describe('markPersonKeyRecorded', () => {
+  it('records when a passkey record was written, next to the backup', async () => {
+    const { publicKey } = await createPersonIdentity(device, factory)
+    await markPersonKeyBackedUp(
+      publicKey,
+      new Date('2026-10-22T10:00:00Z'),
+      factory,
+    )
+
+    await markPersonKeyRecorded(
+      publicKey,
+      new Date('2026-10-29T10:00:00Z'),
+      factory,
+    )
+
+    expect(await loadPersonIdentity(factory)).toMatchObject({
+      backedUpAt: '2026-10-22T10:00:00.000Z',
+      passkeyRecordedAt: '2026-10-29T10:00:00.000Z',
+    })
+  })
+})
+
 describe('markPersonKeyJoined', () => {
   it('records when the host added the person, next to the backup time', async () => {
     const { publicKey } = await createPersonIdentity(device, factory)
@@ -135,7 +158,11 @@ describe('restorePersonIdentity', () => {
 
     const result = await restorePersonIdentity(
       device,
-      { keyPair: personKeys, backedUpAt: restoredAt, joinedAt: 'earlier' },
+      {
+        keyPair: personKeys,
+        unlocked: { by: 'passphrase', at: restoredAt },
+        joinedAt: 'earlier',
+      },
       factory,
     )
 
@@ -162,7 +189,10 @@ describe('restorePersonIdentity', () => {
 
     await restorePersonIdentity(
       device,
-      { keyPair: existing.keyPair, backedUpAt: restoredAt },
+      {
+        keyPair: existing.keyPair,
+        unlocked: { by: 'passphrase', at: restoredAt },
+      },
       factory,
     )
 
@@ -170,6 +200,20 @@ describe('restorePersonIdentity', () => {
       certificateAddress: existing.certificateAddress,
       backedUpAt: restoredAt.toISOString(),
     })
+  })
+
+  it('notes a passkey restore apart from a passphrase one', async () => {
+    const personKeys = await generateSigningKeyPair(true)
+
+    await restorePersonIdentity(
+      device,
+      { keyPair: personKeys, unlocked: { by: 'passkey', at: restoredAt } },
+      factory,
+    )
+
+    const identity = await loadPersonIdentity(factory)
+    expect(identity?.passkeyRecordedAt).toBe(restoredAt.toISOString())
+    expect(identity?.backedUpAt).toBeUndefined()
   })
 
   it('refuses a backup of another person key', async () => {
@@ -180,7 +224,7 @@ describe('restorePersonIdentity', () => {
         device,
         {
           keyPair: await generateSigningKeyPair(true),
-          backedUpAt: restoredAt,
+          unlocked: { by: 'passphrase', at: restoredAt },
         },
         factory,
       ),

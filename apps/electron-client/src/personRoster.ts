@@ -39,6 +39,22 @@ export type SignedVouch = {
   revocation?: string
 }
 
+/**
+ * A wrapped copy of a person key that one of their passkeys unlocks. The host
+ * holds it so a replacement phone has somewhere to fetch it from. It is
+ * useless without that passkey, and the host never sees the key inside.
+ */
+export type StoredPasskeyRecord = {
+  /** The base64url credential id the record is fetched by. */
+  credentialId: string
+  /** sha-256 hex of the service auth token. The token itself is not kept. */
+  tokenHash: string
+  /** The record's file form, as the person's own device wrote it. */
+  record: string
+  /** The host's clock. */
+  storedAt: string
+}
+
 export type RosterEntry = {
   personKey: string
   name: string
@@ -52,6 +68,8 @@ export type RosterEntry = {
   pinFailures?: number
   /** The vouches this host signed for this person, oldest first. */
   vouches?: SignedVouch[]
+  /** The passkey records this host keeps for this person, oldest first. */
+  passkeyRecords?: StoredPasskeyRecord[]
   /** The host's clock. */
   joinedAt: string
 }
@@ -159,7 +177,21 @@ function isRosterEntry(value: unknown): value is RosterEntry {
     (entry.pin === undefined || isPinHash(entry.pin)) &&
     (entry.pinFailures === undefined || Number.isInteger(entry.pinFailures)) &&
     (entry.vouches === undefined || entry.vouches.every(isSignedVouch)) &&
+    (entry.passkeyRecords === undefined ||
+      entry.passkeyRecords.every(isStoredPasskeyRecord)) &&
     typeof entry.joinedAt === 'string'
+  )
+}
+
+function isStoredPasskeyRecord(value: unknown): value is StoredPasskeyRecord {
+  const record = value as Partial<StoredPasskeyRecord> | null
+  return (
+    typeof record === 'object' &&
+    record !== null &&
+    typeof record.credentialId === 'string' &&
+    typeof record.tokenHash === 'string' &&
+    typeof record.record === 'string' &&
+    typeof record.storedAt === 'string'
   )
 }
 

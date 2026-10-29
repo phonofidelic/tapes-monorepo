@@ -32,6 +32,8 @@ export type PersonIdentity = {
   certificateAddress: string
   /** When a backup last unlocked with its passphrase on this device. */
   backedUpAt?: string
+  /** When a passkey record for this person key was last written or opened. */
+  passkeyRecordedAt?: string
   /** When the host this guest is served by added the person to its roster. */
   joinedAt?: string
 }
@@ -40,6 +42,7 @@ type StoredIdentity = {
   keyPair: CryptoKeyPair
   certificate: Signed<DeviceCertificate>
   backedUpAt?: string
+  passkeyRecordedAt?: string
   joinedAt?: string
 }
 
@@ -129,13 +132,19 @@ export function createPersonIdentity(
 }
 
 /**
- * Stores a person key restored from its backup, with a new certificate for
- * this device's key. Refuses when the device already holds a different person
- * key. A device that already holds this one keeps its certificate.
+ * Stores a person key restored from a wrapped copy, with a new certificate
+ * for this device's key. `unlocked` says which way in it came, so the two
+ * ways back are reported apart. Refuses when the device already holds a
+ * different person key. A device that already holds this one keeps its
+ * certificate.
  */
 export function restorePersonIdentity(
   device: { keyPair: CryptoKeyPair; label: string },
-  restored: { keyPair: CryptoKeyPair; backedUpAt: Date; joinedAt?: string },
+  restored: {
+    keyPair: CryptoKeyPair
+    unlocked: { by: 'passphrase' | 'passkey'; at: Date }
+    joinedAt?: string
+  },
   factory: IDBFactory | undefined = globalThis.indexedDB,
 ): Promise<
   | { ok: true; identity: PersonIdentity }
@@ -143,13 +152,16 @@ export function restorePersonIdentity(
 > {
   return withDatabase(factory, async (db) => {
     const restoredKey = await exportPublicKey(restored.keyPair.publicKey)
-    const backedUpAt = restored.backedUpAt.toISOString()
+    const unlockedAt =
+      restored.unlocked.by === 'passkey'
+        ? { passkeyRecordedAt: restored.unlocked.at.toISOString() }
+        : { backedUpAt: restored.unlocked.at.toISOString() }
     const existing = await readStored(db)
     if (existing) {
       if ((await exportPublicKey(existing.keyPair.publicKey)) !== restoredKey) {
         return { ok: false, problem: 'other-person-key' }
       }
-      const updated = { ...existing, backedUpAt }
+      const updated = { ...existing, ...unlockedAt }
       await putRecord(db, PERSON_KEY_ID, updated)
       return { ok: true, identity: await toIdentity(updated) }
     }
@@ -163,7 +175,7 @@ export function restorePersonIdentity(
     const created: StoredIdentity = {
       keyPair: restored.keyPair,
       certificate,
-      backedUpAt,
+      ...unlockedAt,
       ...(restored.joinedAt && { joinedAt: restored.joinedAt }),
     }
     // `add`, so a key another tab stored meanwhile is never overwritten.
@@ -188,6 +200,20 @@ export function markPersonKeyBackedUp(
   )
 }
 
+/** Notes that a passkey record for the stored person key was written. */
+export function markPersonKeyRecorded(
+  publicKey: string,
+  at: Date,
+  factory: IDBFactory | undefined = globalThis.indexedDB,
+): Promise<void> {
+  return updateStored(
+    publicKey,
+    { passkeyRecordedAt: at.toISOString() },
+    'The record is for a different person key',
+    factory,
+  )
+}
+
 /**
  * Notes that the host added the stored person key to its roster. Storage is
  * per origin, and a guest's origin is its host, so one time covers it.
@@ -207,7 +233,9 @@ export function markPersonKeyJoined(
 
 function updateStored(
   publicKey: string,
-  fields: Partial<Pick<StoredIdentity, 'backedUpAt' | 'joinedAt'>>,
+  fields: Partial<
+    Pick<StoredIdentity, 'backedUpAt' | 'passkeyRecordedAt' | 'joinedAt'>
+  >,
   mismatch: string,
   factory: IDBFactory | undefined,
 ): Promise<void> {

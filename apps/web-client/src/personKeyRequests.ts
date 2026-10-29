@@ -3,13 +3,18 @@ import {
   backupToText,
   createDeviceRevocation,
   createJoinRequest,
+  createPasskeyRecordWrite,
   createVouchRequest,
   decodeSignedStatement,
   encodeSignedStatement,
   exportPublicKey,
   parseBackupText,
+  personKeyServiceToken,
   unwrapPersonKey,
+  unwrapPersonKeyWithPasskey,
   wrapPersonKey,
+  wrapPersonKeyWithPasskey,
+  type PasskeySecret,
   type RevocationReason,
 } from '@tapes-monorepo/provenance'
 import { loadDeviceSigningKey } from './deviceSigningKey'
@@ -26,6 +31,7 @@ import {
   loadPersonIdentity,
   markPersonKeyBackedUp,
   markPersonKeyJoined,
+  markPersonKeyRecorded,
   restorePersonIdentity,
   type PersonIdentity,
 } from './personKey'
@@ -50,6 +56,7 @@ export type PersonKeyStatus =
       certificate: string
       certificateAddress: string
       backedUpAt?: string
+      passkeyRecordedAt?: string
       joinedAt?: string
       /** The name of the host that vouched, when this device has no person key. */
       vouchedBy?: string
@@ -68,6 +75,7 @@ function statusOf(
     certificate: encodeSignedStatement(identity.certificate),
     certificateAddress: identity.certificateAddress,
     backedUpAt: identity.backedUpAt,
+    passkeyRecordedAt: identity.passkeyRecordedAt,
     joinedAt: identity.joinedAt,
   }
 }
@@ -181,6 +189,66 @@ export async function backUpPersonKey(
   return { text: backupToText(backup), fileText: backupToFileText(backup) }
 }
 
+/**
+ * Wraps the stored person key with what a passkey ceremony returned, and
+ * signs the write that files it on the host. The page sends the three parts;
+ * the PRF output and the person key stay in here.
+ */
+export async function recordPersonKeyWithPasskey(
+  passkey: PasskeySecret,
+  challenge: string,
+): Promise<{ write: string; record: string; token: string }> {
+  const identity = await loadPersonIdentity()
+  if (!identity) {
+    throw new Error('There is no person key to record')
+  }
+  const backup = await wrapPersonKeyWithPasskey(identity.keyPair, passkey)
+  const record = backupToFileText(backup)
+  const write = await createPasskeyRecordWrite(
+    { credentialId: passkey.credentialId, record, challenge },
+    identity.keyPair,
+  )
+  return {
+    write: encodeSignedStatement(write),
+    record,
+    token: await personKeyServiceToken(passkey.prf),
+  }
+}
+
+/** Notes that the host took the record, so Settings can say there is one. */
+export async function markPersonKeyRecord(): Promise<{
+  passkeyRecordedAt: string
+}> {
+  const identity = await loadPersonIdentity()
+  if (!identity) {
+    throw new Error('There is no person key a record was written for')
+  }
+  const at = new Date()
+  await markPersonKeyRecorded(identity.publicKey, at)
+  return { passkeyRecordedAt: at.toISOString() }
+}
+
+/**
+ * Restores the person key from a record the host held, unlocked by the same
+ * passkey. The person key then certifies this device, as a passphrase restore
+ * does.
+ */
+export async function restorePersonKeyWithPasskey(
+  record: string,
+  prf: Uint8Array<ArrayBuffer>,
+  deviceLabel: string,
+): Promise<RestoreResult> {
+  const parsed = parseBackupText(record)
+  if (!parsed.ok) {
+    return { ok: false, problem: 'unreadable' }
+  }
+  const unwrapped = await unwrapPersonKeyWithPasskey(parsed.backup, prf)
+  if (!unwrapped.ok) {
+    return { ok: false, problem: 'wrong-passkey' }
+  }
+  return takeUpPersonKey(unwrapped, 'passkey', deviceLabel)
+}
+
 export type BackupCheck =
   | { ok: true; backedUpAt: string }
   | {
@@ -258,7 +326,8 @@ export type RestoreResult =
   | { ok: true; status: PersonKeyStatus }
   | {
       ok: false
-      problem: 'unreadable' | 'wrong-passphrase' | 'other-person-key'
+      problem:
+        'unreadable' | 'wrong-passphrase' | 'wrong-passkey' | 'other-person-key'
     }
 
 /**
@@ -283,6 +352,15 @@ export async function restorePersonKey(
   if (!unwrapped.ok) {
     return { ok: false, problem: 'wrong-passphrase' }
   }
+  return takeUpPersonKey(unwrapped, 'passphrase', deviceLabel)
+}
+
+/** The half of a restore that is the same whichever way the record opened. */
+async function takeUpPersonKey(
+  unwrapped: { keyPair: CryptoKeyPair; publicKey: string },
+  by: 'passphrase' | 'passkey',
+  deviceLabel: string,
+): Promise<RestoreResult> {
   const vouch = await loadDeviceVouch()
   // A vouch for another person is not this person's to replace.
   if (vouch && vouch.vouch.payload.personKey !== unwrapped.publicKey) {
@@ -292,7 +370,7 @@ export async function restorePersonKey(
     { keyPair: await loadDeviceSigningKey(), label: deviceLabel },
     {
       keyPair: unwrapped.keyPair,
-      backedUpAt: new Date(),
+      unlocked: { by, at: new Date() },
       // The host vouched for a person on its roster, so they have joined.
       joinedAt: vouch?.vouch.payload.vouchedAt,
     },

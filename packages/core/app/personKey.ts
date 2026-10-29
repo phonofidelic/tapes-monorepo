@@ -25,6 +25,8 @@ export type PersonKeyStatus =
       certificateAddress: string
       /** When a saved backup last unlocked with its passphrase. */
       backedUpAt?: string
+      /** When a passkey record was last written or opened on this device. */
+      passkeyRecordedAt?: string
       /** When this guest's host added the person to its roster. */
       joinedAt?: string
       /**
@@ -121,7 +123,8 @@ export type RestoreResult =
   | { ok: true; status: PersonKeyStatus }
   | {
       ok: false
-      problem: 'unreadable' | 'wrong-passphrase' | 'other-person-key'
+      problem:
+        'unreadable' | 'wrong-passphrase' | 'wrong-passkey' | 'other-person-key'
     }
 
 /**
@@ -136,6 +139,23 @@ export function restorePersonKey(
   deviceLabel: string,
 ): Promise<RestoreResult> {
   return callWorker(worker, 'person:restore', { text, passphrase, deviceLabel })
+}
+
+/**
+ * Restores the person key from a record the host held, unlocked by the same
+ * passkey. Quick next to a passphrase restore: there is no Argon2id to run.
+ */
+export function restorePersonKeyWithPasskey(
+  worker: Worker,
+  record: string,
+  prf: Uint8Array<ArrayBuffer>,
+  deviceLabel: string,
+): Promise<RestoreResult> {
+  return callWorker(worker, 'person:passkey-restore', {
+    record,
+    prf,
+    deviceLabel,
+  })
 }
 
 /**
