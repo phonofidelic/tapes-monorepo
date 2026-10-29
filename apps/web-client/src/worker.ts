@@ -32,8 +32,11 @@ import {
   createPersonKey,
   deviceLinkAddress,
   markJoined,
+  markPersonKeyRecord,
   personKeyStatus,
+  recordPersonKeyWithPasskey,
   restorePersonKey,
+  restorePersonKeyWithPasskey,
   signDeviceRevocation,
   signJoinRequest,
   signVouchRequest,
@@ -149,7 +152,26 @@ type EventData =
       }
     }
   | {
-      type: 'person:mark-joined'
+      type: 'person:passkey-record'
+      payload: {
+        prf: Uint8Array<ArrayBuffer>
+        rpId: string
+        credentialId: string
+        challenge: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:passkey-restore'
+      payload: {
+        record: string
+        prf: Uint8Array<ArrayBuffer>
+        deviceLabel: string
+        requestId: string
+      }
+    }
+  | {
+      type: 'person:mark-record' | 'person:mark-joined'
       payload: {
         requestId: string
       }
@@ -476,6 +498,50 @@ onmessage = async (event) => {
             true,
             await restorePersonKey(text, passphrase, deviceLabel),
           )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        }
+        break
+      }
+      case 'person:passkey-record': {
+        const { prf, rpId, credentialId, challenge, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await recordPersonKeyWithPasskey(
+              { prf, rpId, credentialId },
+              challenge,
+            ),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        } finally {
+          prf.fill(0)
+        }
+        break
+      }
+      case 'person:passkey-restore': {
+        const { record, prf, deviceLabel, requestId } = payload
+        try {
+          respond(
+            type,
+            requestId,
+            true,
+            await restorePersonKeyWithPasskey(record, prf, deviceLabel),
+          )
+        } catch (error) {
+          respond(type, requestId, false, undefined, error)
+        } finally {
+          prf.fill(0)
+        }
+        break
+      }
+      case 'person:mark-record': {
+        const { requestId } = payload
+        try {
+          respond(type, requestId, true, await markPersonKeyRecord())
         } catch (error) {
           respond(type, requestId, false, undefined, error)
         }

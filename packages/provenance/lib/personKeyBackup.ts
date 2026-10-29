@@ -1,11 +1,12 @@
 /**
- * The passphrase-locked backup of a person key, version 1. One binary record:
- * version, KDF settings, salt, nonce, the public key, and the AES-256-GCM
- * encrypted 32-byte seed. It travels as `TPK1.` plus base64url, in a QR code
- * or inside a small text file.
+ * A wrapped copy of a person key, format version 1. One binary record: the
+ * version, the unlock method and its parameters, a salt, a nonce, the public
+ * key, and the AES-256-GCM encrypted 32-byte seed. It travels as `TPK1.` plus
+ * base64url, in a QR code, a saved file, or a record a host holds.
  *
- * The KDF is passed in, so this package stays free of WebAssembly. Never change
- * the layout of version 1: backups live in people's files for years.
+ * Method 1 unlocks with a passphrase, method 2 with a passkey's PRF output.
+ * Never change the layout of either: records live in people's files for years.
+ * The passphrase KDF is passed in, so this package stays free of WebAssembly.
  */
 
 import { fromBase64Url, toBase64Url } from './encoding'
@@ -18,6 +19,24 @@ export const BACKUP_TEXT_PREFIX = 'TPK1.'
 
 /** The `format` field of the file form. */
 export const BACKUP_FILE_FORMAT = 'tapes-person-key-backup'
+
+/**
+ * Which secret unlocks a record. A new method takes a new byte here rather
+ * than a new format version.
+ */
+export const UNLOCK_PASSPHRASE = 1
+export const UNLOCK_PASSKEY = 2
+
+/**
+ * The one PRF salt, for every passkey, device and record, so that one passkey
+ * always yields one secret. It goes in `prf.eval.first`, and `second` is never
+ * used. `apps/identity/public/ceremony.v1.js` holds its own copy of this
+ * string, because it cannot import one.
+ */
+export const PERSON_KEY_PRF_SALT = 'tapes/person-key/v1'
+
+/** WebAuthn's own cap on a credential id. */
+export const MAX_CREDENTIAL_ID_LENGTH = 1023
 
 export type Argon2idParams = {
   kdf: 'argon2id'
@@ -45,18 +64,57 @@ export type DeriveBackupKey = (
   params: Argon2idParams,
 ) => Promise<Uint8Array<ArrayBuffer>>
 
-// The KDF id in the header. Argon2id is the only one accepted.
-const KDF_ARGON2ID = 1
+/** Method 1: the passphrase goes through Argon2id with these settings. */
+export type PassphraseUnlock = {
+  method: typeof UNLOCK_PASSPHRASE
+  kdf: Argon2idParams
+}
 
+/**
+ * Method 2: a passkey's PRF output unlocks the record. Both fields sit in the
+ * header, which is the cipher's additional data, so a record only opens for
+ * the passkey that made it and only under the domain it was made at.
+ */
+export type PasskeyUnlock = {
+  method: typeof UNLOCK_PASSKEY
+  /** SHA-256 of the relying party id, as UTF-8 bytes. */
+  rpIdHash: Uint8Array<ArrayBuffer>
+  credentialId: Uint8Array<ArrayBuffer>
+}
+
+export type UnlockMethod = PassphraseUnlock | PasskeyUnlock
+
+/** What a passkey ceremony returns, as the record needs it. */
+export type PasskeySecret = {
+  /** The 32 bytes `prf.eval.first` produced. Never stored as it is. */
+  prf: Uint8Array<ArrayBuffer>
+  /** The relying party id the passkey is bound to. */
+  rpId: string
+  /** The credential id, base64url, as WebAuthn spells it. */
+  credentialId: string
+}
+
+const RP_ID_HASH_LENGTH = 32
 const SALT_LENGTH = 16
 const NONCE_LENGTH = 12
 const PUBLIC_KEY_LENGTH = 32
 /** A 32-byte Ed25519 seed plus the 16-byte AES-GCM tag. */
 const CIPHERTEXT_LENGTH = 48
 
+/** Everything after the method parameters is the same in every record. */
+const FIXED_LENGTH =
+  SALT_LENGTH + NONCE_LENGTH + PUBLIC_KEY_LENGTH + CIPHERTEXT_LENGTH
+const PASSPHRASE_RECORD_LENGTH = 2 + 6 + FIXED_LENGTH
+const passkeyRecordLength = (credentialIdLength: number) =>
+  2 + RP_ID_HASH_LENGTH + 2 + credentialIdLength + FIXED_LENGTH
+
+/** HKDF info strings. The PRF output is never used as a key directly. */
+const WRAP_INFO = 'tapes/person-key/v1/wrap'
+const SERVICE_AUTH_INFO = 'tapes/person-key/v1/service-auth'
+
 export type PersonKeyBackup = {
   version: number
-  kdf: Argon2idParams
+  unlock: UnlockMethod
   salt: Uint8Array<ArrayBuffer>
   nonce: Uint8Array<ArrayBuffer>
   /** In the clear, so a restore can show whose key it is first. */
@@ -64,26 +122,41 @@ export type PersonKeyBackup = {
   ciphertext: Uint8Array<ArrayBuffer>
 }
 
-/** Why some text is not a backup this version can open. */
+/** Why some text is not a record this version can open. */
 export type BackupProblem =
-  'not-a-backup' | 'newer-version' | 'damaged' | 'unsupported-kdf'
+  | 'not-a-backup'
+  | 'newer-version'
+  | 'damaged'
+  /** The unlock method, or its settings, are not ones this reader supports. */
+  | 'unsupported-method'
 
 export type BackupParse =
   { ok: true; backup: PersonKeyBackup } | { ok: false; problem: BackupProblem }
 
 /**
  * Everything except the ciphertext. It is also the AES-GCM additional data, so
- * changing the KDF settings or the public key makes unlocking fail.
+ * changing the method, its parameters or the public key makes unlocking fail.
  */
 function encodeHeader(
   backup: Omit<PersonKeyBackup, 'ciphertext'>,
 ): Uint8Array<ArrayBuffer> {
+  const { unlock } = backup
+  const params =
+    unlock.method === UNLOCK_PASSPHRASE
+      ? [
+          ...u32(unlock.kdf.memoryKiB),
+          unlock.kdf.iterations & 0xff,
+          unlock.kdf.parallelism & 0xff,
+        ]
+      : [
+          ...unlock.rpIdHash,
+          ...u16(unlock.credentialId.length),
+          ...unlock.credentialId,
+        ]
   return Uint8Array.from([
     backup.version,
-    KDF_ARGON2ID,
-    ...u32(backup.kdf.memoryKiB),
-    backup.kdf.iterations & 0xff,
-    backup.kdf.parallelism & 0xff,
+    unlock.method,
+    ...params,
     ...backup.salt,
     ...backup.nonce,
     ...backup.publicKey,
@@ -98,20 +171,13 @@ export function encodeBackup(backup: PersonKeyBackup): Uint8Array<ArrayBuffer> {
   return out
 }
 
-/** Never throws. The bytes come from a camera or a file picker. */
+/** Never throws. The bytes come from a camera, a file picker or a response. */
 export function decodeBackup(bytes: Uint8Array): BackupParse {
-  const fixed = 2 + 6 + SALT_LENGTH + NONCE_LENGTH + PUBLIC_KEY_LENGTH
   if (bytes.length < 2) {
     return { ok: false, problem: 'damaged' }
   }
   if (bytes[0] !== BACKUP_FORMAT_VERSION) {
     return { ok: false, problem: 'newer-version' }
-  }
-  if (bytes[1] !== KDF_ARGON2ID) {
-    return { ok: false, problem: 'unsupported-kdf' }
-  }
-  if (bytes.length !== fixed + CIPHERTEXT_LENGTH) {
-    return { ok: false, problem: 'damaged' }
   }
   let offset = 2
   const take = (n: number) => {
@@ -119,23 +185,60 @@ export function decodeBackup(bytes: Uint8Array): BackupParse {
     offset += n
     return slice
   }
-  const memoryKiB = readU32(take(4))
-  const [iterations, parallelism] = take(2)
-  // Refuse sizes a phone cannot allocate rather than crash the tab. Tiny ones
-  // mean a broken or hostile file.
-  if (
-    memoryKiB < 8 * 1024 ||
-    memoryKiB > 1024 * 1024 ||
-    iterations < 1 ||
-    parallelism < 1
-  ) {
-    return { ok: false, problem: 'unsupported-kdf' }
+
+  // The method is read before any length, so a record this reader cannot open
+  // says so instead of looking damaged.
+  const method = bytes[1]
+  let unlock: UnlockMethod
+  if (method === UNLOCK_PASSPHRASE) {
+    if (bytes.length !== PASSPHRASE_RECORD_LENGTH) {
+      return { ok: false, problem: 'damaged' }
+    }
+    const memoryKiB = readU32(take(4))
+    const [iterations, parallelism] = take(2)
+    // Refuse sizes a phone cannot allocate rather than crash the tab. Tiny
+    // ones mean a broken or hostile file.
+    if (
+      memoryKiB < 8 * 1024 ||
+      memoryKiB > 1024 * 1024 ||
+      iterations < 1 ||
+      parallelism < 1
+    ) {
+      return { ok: false, problem: 'unsupported-method' }
+    }
+    unlock = {
+      method: UNLOCK_PASSPHRASE,
+      kdf: { kdf: 'argon2id', memoryKiB, iterations, parallelism },
+    }
+  } else if (method === UNLOCK_PASSKEY) {
+    // The credential id says its own length, so the total is only known after
+    // reading the fields before it.
+    if (bytes.length < 2 + RP_ID_HASH_LENGTH + 2) {
+      return { ok: false, problem: 'damaged' }
+    }
+    const rpIdHash = take(RP_ID_HASH_LENGTH)
+    const credentialIdLength = readU16(take(2))
+    if (
+      credentialIdLength < 1 ||
+      credentialIdLength > MAX_CREDENTIAL_ID_LENGTH ||
+      bytes.length !== passkeyRecordLength(credentialIdLength)
+    ) {
+      return { ok: false, problem: 'damaged' }
+    }
+    unlock = {
+      method: UNLOCK_PASSKEY,
+      rpIdHash,
+      credentialId: take(credentialIdLength),
+    }
+  } else {
+    return { ok: false, problem: 'unsupported-method' }
   }
+
   return {
     ok: true,
     backup: {
       version: BACKUP_FORMAT_VERSION,
-      kdf: { kdf: 'argon2id', memoryKiB, iterations, parallelism },
+      unlock,
       salt: take(SALT_LENGTH),
       nonce: take(NONCE_LENGTH),
       publicKey: take(PUBLIC_KEY_LENGTH),
@@ -150,14 +253,28 @@ export function backupToText(backup: PersonKeyBackup): string {
 }
 
 /**
+ * The credential id a passkey record is stored under, base64url. Undefined for
+ * a passphrase record, which no store holds.
+ */
+export function passkeyRecordKey(backup: PersonKeyBackup): string | undefined {
+  return backup.unlock.method === UNLOCK_PASSKEY
+    ? toBase64Url(backup.unlock.credentialId)
+    : undefined
+}
+
+/**
  * The file form: a small JSON object around the text form, so there is one
  * layout to version. It is saved as `.txt`, because Chrome's Web Share refuses
- * `.json` files.
+ * `.json` files. A store keyed by credential id holds the same object.
  */
 export function backupToFileText(
   backup: PersonKeyBackup,
   createdAt = new Date(),
 ): string {
+  const help =
+    backup.unlock.method === UNLOCK_PASSKEY
+      ? 'Tapes person key record. To restore it, open Tapes and pick this file. You also need the passkey that made it.'
+      : 'Tapes person key backup. To restore it, open Tapes and pick this file. You also need your passphrase.'
   return (
     JSON.stringify(
       {
@@ -166,7 +283,7 @@ export function backupToFileText(
         createdAt: createdAt.toISOString(),
         publicKey: toBase64Url(backup.publicKey),
         backup: backupToText(backup),
-        help: 'Tapes person key backup. To restore it, open Tapes and pick this file. You also need your passphrase.',
+        help,
       },
       null,
       2,
@@ -243,13 +360,50 @@ function importSeed(seed: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
   ])
 }
 
-async function wrappingKey(
+async function passphraseKey(
   derive: DeriveBackupKey,
   passphrase: string,
   salt: Uint8Array<ArrayBuffer>,
   kdf: Argon2idParams,
 ): Promise<CryptoKey> {
   const bytes = await derive(normalizePassphrase(passphrase), salt, kdf)
+  return aesKey(bytes)
+}
+
+/**
+ * HKDF-SHA-256 over the PRF output. The wrapping key uses the record's salt,
+ * so re-wrapping the same person key gives a different key each time even
+ * though the passkey's secret never changes.
+ */
+async function hkdf(
+  prf: Uint8Array<ArrayBuffer>,
+  salt: Uint8Array<ArrayBuffer>,
+  info: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const base = await crypto.subtle.importKey('raw', prf, 'HKDF', false, [
+    'deriveBits',
+  ])
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt,
+      info: new TextEncoder().encode(info),
+    },
+    base,
+    256,
+  )
+  return new Uint8Array(bits)
+}
+
+async function passkeyKey(
+  prf: Uint8Array<ArrayBuffer>,
+  salt: Uint8Array<ArrayBuffer>,
+): Promise<CryptoKey> {
+  return aesKey(await hkdf(prf, salt, WRAP_INFO))
+}
+
+async function aesKey(bytes: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
   const key = await crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, [
     'encrypt',
     'decrypt',
@@ -258,39 +412,99 @@ async function wrappingKey(
   return key
 }
 
-/** Locks a person key. Its private key must be extractable. */
-export async function wrapPersonKey(
+/**
+ * What a client shows a service to fetch its own record. It cannot use the
+ * record's salt, because a client needs the token before it has the record. A
+ * service holding the token cannot work back to the wrapping key.
+ */
+export async function personKeyServiceToken(
+  prf: Uint8Array<ArrayBuffer>,
+): Promise<string> {
+  const bytes = await hkdf(prf, new Uint8Array(0), SERVICE_AUTH_INFO)
+  const token = toBase64Url(bytes)
+  bytes.fill(0)
+  return token
+}
+
+async function wrapWith(
   keyPair: CryptoKeyPair,
-  passphrase: string,
-  derive: DeriveBackupKey,
-  kdf: Argon2idParams = BACKUP_KDF,
+  unlock: UnlockMethod,
+  wrappingKey: (salt: Uint8Array<ArrayBuffer>) => Promise<CryptoKey>,
 ): Promise<PersonKeyBackup> {
   const header = {
     version: BACKUP_FORMAT_VERSION,
-    kdf,
+    unlock,
     salt: crypto.getRandomValues(new Uint8Array(SALT_LENGTH)),
     nonce: crypto.getRandomValues(new Uint8Array(NONCE_LENGTH)),
     publicKey: new Uint8Array(
       await crypto.subtle.exportKey('raw', keyPair.publicKey),
     ),
   }
-  const aesKey = await wrappingKey(derive, passphrase, header.salt, kdf)
+  const aes = await wrappingKey(header.salt)
   const seed = await exportSeed(keyPair.privateKey)
   const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: header.nonce, additionalData: encodeHeader(header) },
-    aesKey,
+    aes,
     seed,
   )
   seed.fill(0)
   return { ...header, ciphertext: new Uint8Array(ciphertext) }
 }
 
-export type UnwrapResult =
-  | { ok: true; keyPair: CryptoKeyPair; publicKey: string }
-  | { ok: false; problem: 'wrong-passphrase' | 'key-mismatch' }
+/** Locks a person key with a passphrase. Its private key must be extractable. */
+export function wrapPersonKey(
+  keyPair: CryptoKeyPair,
+  passphrase: string,
+  derive: DeriveBackupKey,
+  kdf: Argon2idParams = BACKUP_KDF,
+): Promise<PersonKeyBackup> {
+  return wrapWith(keyPair, { method: UNLOCK_PASSPHRASE, kdf }, (salt) =>
+    passphraseKey(derive, passphrase, salt, kdf),
+  )
+}
 
 /**
- * A wrong passphrase and a damaged backup look the same to AES-GCM. Both come
+ * Locks a person key with what a passkey ceremony returned. Rejects on a
+ * credential id WebAuthn could not have issued, which means the caller passed
+ * something other than a ceremony result.
+ */
+export async function wrapPersonKeyWithPasskey(
+  keyPair: CryptoKeyPair,
+  passkey: PasskeySecret,
+): Promise<PersonKeyBackup> {
+  const credentialId = fromBase64Url(passkey.credentialId)
+  if (
+    !credentialId ||
+    credentialId.length < 1 ||
+    credentialId.length > MAX_CREDENTIAL_ID_LENGTH
+  ) {
+    throw new Error('That is not a WebAuthn credential id')
+  }
+  const unlock: PasskeyUnlock = {
+    method: UNLOCK_PASSKEY,
+    rpIdHash: await rpIdHash(passkey.rpId),
+    credentialId,
+  }
+  return wrapWith(keyPair, unlock, (salt) => passkeyKey(passkey.prf, salt))
+}
+
+async function rpIdHash(rpId: string): Promise<Uint8Array<ArrayBuffer>> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(rpId),
+  )
+  return new Uint8Array(digest)
+}
+
+export type UnwrapProblem =
+  'wrong-passphrase' | 'wrong-passkey' | 'key-mismatch' | 'wrong-method'
+
+export type UnwrapResult =
+  | { ok: true; keyPair: CryptoKeyPair; publicKey: string }
+  | { ok: false; problem: UnwrapProblem }
+
+/**
+ * A wrong passphrase and a damaged record look the same to AES-GCM. Both come
  * back as wrong-passphrase, which is what a person should check first.
  */
 export async function unwrapPersonKey(
@@ -298,7 +512,37 @@ export async function unwrapPersonKey(
   passphrase: string,
   derive: DeriveBackupKey,
 ): Promise<UnwrapResult> {
-  const aesKey = await wrappingKey(derive, passphrase, backup.salt, backup.kdf)
+  if (backup.unlock.method !== UNLOCK_PASSPHRASE) {
+    return { ok: false, problem: 'wrong-method' }
+  }
+  const aes = await passphraseKey(
+    derive,
+    passphrase,
+    backup.salt,
+    backup.unlock.kdf,
+  )
+  return open(backup, aes, 'wrong-passphrase')
+}
+
+/**
+ * Unlocks a passkey record with the PRF output of the same ceremony. Another
+ * passkey, another relying party or an edited header all fail the same way.
+ */
+export async function unwrapPersonKeyWithPasskey(
+  backup: PersonKeyBackup,
+  prf: Uint8Array<ArrayBuffer>,
+): Promise<UnwrapResult> {
+  if (backup.unlock.method !== UNLOCK_PASSKEY) {
+    return { ok: false, problem: 'wrong-method' }
+  }
+  return open(backup, await passkeyKey(prf, backup.salt), 'wrong-passkey')
+}
+
+async function open(
+  backup: PersonKeyBackup,
+  aes: CryptoKey,
+  failure: 'wrong-passphrase' | 'wrong-passkey',
+): Promise<UnwrapResult> {
   let seed: Uint8Array<ArrayBuffer>
   try {
     seed = new Uint8Array(
@@ -308,12 +552,12 @@ export async function unwrapPersonKey(
           iv: backup.nonce,
           additionalData: encodeHeader(backup),
         },
-        aesKey,
+        aes,
         backup.ciphertext,
       ),
     )
   } catch {
-    return { ok: false, problem: 'wrong-passphrase' }
+    return { ok: false, problem: failure }
   }
 
   const privateKey = await importSeed(seed)
@@ -338,6 +582,10 @@ export async function unwrapPersonKey(
   }
 }
 
+function u16(value: number): number[] {
+  return [(value >>> 8) & 0xff, value & 0xff]
+}
+
 function u32(value: number): number[] {
   return [
     (value >>> 24) & 0xff,
@@ -345,6 +593,10 @@ function u32(value: number): number[] {
     (value >>> 8) & 0xff,
     value & 0xff,
   ]
+}
+
+function readU16(bytes: Uint8Array): number {
+  return ((bytes[0] << 8) | bytes[1]) >>> 0
 }
 
 function readU32(bytes: Uint8Array): number {

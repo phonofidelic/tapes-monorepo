@@ -95,6 +95,27 @@ export type VouchRequest = {
   requestedAt: string
 }
 
+export const PASSKEY_RECORD_WRITE_TYPE = 'tapes/passkey-record@1'
+
+/**
+ * Signed by a person key to store or replace the passkey record kept under
+ * one credential id. Holding the pairing token is not enough to write one:
+ * without this, any paired peer could overwrite a person's only way back from
+ * a lost phone. It is signed over a challenge from the host, so it cannot be
+ * replayed to restore an older record. Never stored.
+ */
+export type PasskeyRecordWrite = {
+  type: typeof PASSKEY_RECORD_WRITE_TYPE
+  /** The signer's base64url Ed25519 public key. */
+  personKey: string
+  /** The base64url credential id of the passkey that unlocks the record. */
+  credentialId: string
+  /** sha-256 of the record's text form, so the signature covers the bytes. */
+  record: string
+  /** The one-time value the host issued for this write. */
+  challenge: string
+}
+
 export const DEVICE_VOUCH_TYPE = 'tapes/device-vouch@1'
 
 /** How the person showed the host it was them. */

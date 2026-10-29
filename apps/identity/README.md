@@ -139,10 +139,11 @@ Set up by hand, outside this repo, and worth knowing if the domain ever moves:
 
 ## Testing the handoff on a phone
 
-Open a guest page over the LAN, add `&passkey=1` to its address, and run the
-check in Settings under "Your person key". It makes a passkey, or uses one that
-exists. It then shows a short hash of the PRF output, so two phones can be
-compared.
+Open a guest page over the LAN and, in Settings under "Your person key", use
+"Protect with a passkey". That makes the passkey and leaves a locked copy of
+the person key on the host. On a second phone, pick "Restore your person key"
+and then "Use your passkey". Both phones must be signed in to the same
+password manager.
 
 Do it on a real iPhone with iCloud Keychain and a real Android phone with
 Google Password Manager. A virtual authenticator does not copy its PRF secret

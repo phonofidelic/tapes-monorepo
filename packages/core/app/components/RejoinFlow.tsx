@@ -19,7 +19,8 @@ import { RestoreFlow } from './RestoreFlow'
 
 /**
  * A guest with no keys, on a host that already knows people. The person picks
- * their name, restores their person key from its backup, or says they are new.
+ * their name, restores their person key with a passkey or its passphrase
+ * backup, or says they are new.
  * A returning person who picked their name waits for the operator to confirm
  * them, or types their PIN, and the host vouches for this device.
  *
@@ -52,11 +53,14 @@ export function WelcomeBackFlow({
   const [person, setPerson] = useState<RosterPerson>()
   const [restoring, setRestoring] = useState(false)
   const [error, setError] = useState<string>()
+  const [pairedHostName] = useSetting('pairedHostName')
 
   if (restoring) {
     return (
       <RestoreFlow
         worker={worker}
+        endpoint={endpoint}
+        hostName={pairedHostName ?? window.location.host}
         onCancel={() => setRestoring(false)}
         onRestored={(status) => {
           // A person the host already knows needs no join step.
