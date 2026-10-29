@@ -33,6 +33,7 @@ import {
   type Signed,
 } from '@tapes-monorepo/provenance'
 import { clearStatementCache } from '@/recordingProvenance'
+import { trustHost } from '@/trustedHosts'
 import { Library } from './Library'
 
 const REPO_URL = 'automerge:repo' as AutomergeUrl
@@ -553,6 +554,7 @@ describe('provenance on a row', () => {
   beforeEach(async () => {
     cleanup()
     clearStatementCache()
+    localStorage.clear()
     vi.unstubAllGlobals()
     localDeviceKey = undefined
     localPersonKey = undefined
@@ -602,10 +604,43 @@ describe('provenance on a row', () => {
     }
   }
 
+  /** A claim by `deviceKeys`, vouched for as Sam by `hostKeys`. */
+  const vouchedClaim = async () => {
+    const personKeys = await generateSigningKeyPair()
+    const request = await createVouchRequest(
+      {
+        personKey: await exportPublicKey(personKeys.publicKey),
+        deviceLabel: 'Pixel · Chrome',
+      },
+      deviceKeys,
+    )
+    const vouch = await createDeviceVouch(
+      {
+        request: request.payload,
+        hostLabel: 'Studio Mac',
+        personName: 'Sam',
+        method: 'operator',
+        firstCertificate: 'c'.repeat(64),
+        vouchedAt: new Date('2026-10-05T11:50:00.000Z'),
+      },
+      hostKeys,
+    )
+    const claim = await claimFor(deviceKeys, {
+      deviceCert: await statementAddress(vouch),
+    })
+    return {
+      claim,
+      vouch,
+      receipt: await createHostReceipt(claim, hostKeys, new Date(RECEIVED_AT)),
+      hostKey: await exportPublicKey(hostKeys.publicKey),
+    }
+  }
+
   /** Serves these statements from the host, and a 404 for anything else. */
   const showRow = async (
     statements: Signed<unknown>[],
     listed: string[] = [],
+    appContext: AppContextValue = webContext,
   ) => {
     const served = new Map<string, Uint8Array>()
     for (const statement of statements) {
@@ -642,7 +677,7 @@ describe('provenance on a row', () => {
       ...withBlob(),
       statements: [...served.keys(), ...listed],
     }
-    renderLibrary(webContext, [ENDPOINT])
+    renderLibrary(appContext, [ENDPOINT])
   }
 
   const details = () => document.querySelector('details')
@@ -748,33 +783,7 @@ describe('provenance on a row', () => {
   })
 
   it('names a vouched person together with the host that vouched', async () => {
-    const personKeys = await generateSigningKeyPair()
-    const request = await createVouchRequest(
-      {
-        personKey: await exportPublicKey(personKeys.publicKey),
-        deviceLabel: 'Pixel · Chrome',
-      },
-      deviceKeys,
-    )
-    const vouch = await createDeviceVouch(
-      {
-        request: request.payload,
-        hostLabel: 'Studio Mac',
-        personName: 'Sam',
-        method: 'operator',
-        firstCertificate: 'c'.repeat(64),
-        vouchedAt: new Date('2026-10-05T11:50:00.000Z'),
-      },
-      hostKeys,
-    )
-    const claim = await claimFor(deviceKeys, {
-      deviceCert: await statementAddress(vouch),
-    })
-    const receipt = await createHostReceipt(
-      claim,
-      hostKeys,
-      new Date(RECEIVED_AT),
-    )
+    const { claim, vouch, receipt } = await vouchedClaim()
 
     await showRow([claim, receipt, vouch])
 
@@ -790,6 +799,82 @@ describe('provenance on a row', () => {
     expect(details()).toHaveTextContent(
       "The person's own key has not certified this device.",
     )
+  })
+
+  describe('a vouch from a host this reader trusts', () => {
+    it('names the person without the host that vouched', async () => {
+      const { claim, vouch, receipt, hostKey } = await vouchedClaim()
+      trustHost({ hostKey, hostLabel: 'Studio Mac' })
+
+      await showRow([claim, receipt, vouch])
+
+      expect(
+        await screen.findByText('Recorded by Sam on “Pixel · Chrome”', {
+          exact: false,
+        }),
+      ).toBeInTheDocument()
+      expect(details()).toHaveTextContent(
+        'You trust that host, so this counts as Sam.',
+      )
+      // The vouch is still a vouch. What changed is who is believed.
+      expect(details()).toHaveTextContent(
+        "The person's own key has not certified this device.",
+      )
+    })
+
+    it('offers no way to trust it twice', async () => {
+      const { claim, vouch, receipt, hostKey } = await vouchedClaim()
+      trustHost({ hostKey, hostLabel: 'Studio Mac' })
+
+      await showRow([claim, receipt, vouch], [], electronContext())
+      await screen.findByText('Recorded by Sam on “Pixel · Chrome”', {
+        exact: false,
+      })
+
+      expect(screen.queryByText('Trust this host')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('trusting the host that vouched', () => {
+    it('counts the vouch as the person once the operator trusts the host', async () => {
+      const { claim, vouch, receipt, hostKey } = await vouchedClaim()
+
+      await showRow([claim, receipt, vouch], [], electronContext())
+      await userEvent.click(await screen.findByText('Trust this host'))
+
+      expect(
+        await screen.findByText('Recorded by Sam on “Pixel · Chrome”', {
+          exact: false,
+        }),
+      ).toBeInTheDocument()
+      expect(
+        JSON.parse(localStorage.getItem('tapes.trustedHosts') ?? '{}'),
+      ).toHaveProperty(hostKey)
+    })
+
+    // Which hosts count decides what the recordings a host holds say about
+    // people. A guest reads the vouch but does not make that call.
+    it('is not offered to a guest', async () => {
+      const { claim, vouch, receipt } = await vouchedClaim()
+
+      await showRow([claim, receipt, vouch])
+      await screen.findByText('Recorded by Sam, vouched by Studio Mac', {
+        exact: false,
+      })
+
+      expect(screen.queryByText('Trust this host')).not.toBeInTheDocument()
+    })
+
+    // A certificate is the person's own signature, so there is no host in it
+    // for the operator to trust.
+    it('is not offered for a certified device', async () => {
+      const { claim, certificate } = await certifiedClaim()
+
+      await showRow([claim, certificate], [], electronContext())
+      await screen.findByText(/^Signed by/)
+
+      expect(screen.queryByText('Trust this host')).not.toBeInTheDocument()
+    })
   })
 
   it('says "you" for the person key on this device', async () => {
