@@ -18,7 +18,6 @@ export function TrustedHostsSettings() {
   const appContext = useAppContext()
   const hosts = useTrustedHosts()
 
-  // Which hosts count is a decision about the recordings this host holds.
   if (appContext.type !== 'electron-client') {
     return null
   }
