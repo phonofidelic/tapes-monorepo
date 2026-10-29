@@ -13,9 +13,11 @@ import {
   useRecordingProvenance,
   type ProvenanceState,
 } from '@/hooks/useRecordingProvenance'
+import { useTrustedHosts } from '@/hooks/useTrustedHosts'
 import { readLocalDeviceKey } from '@/localDeviceKey'
 import { readPersonKeyStatus } from '@/personKey'
 import type { ProvenanceInput } from '@/recordingProvenance'
+import { trustHost } from '@/trustedHosts'
 
 /**
  * One line on a Library row saying what a recording's signed statements prove,
@@ -26,7 +28,13 @@ import type { ProvenanceInput } from '@/recordingProvenance'
  * device", or the label its person key certified. A person is named by key
  * fingerprint, or "you" for the person key on this device. A key is not a
  * person's name, and nothing here pretends it is. A host's vouch is the one
- * exception: it shows the host's name for the person, always with the host.
+ * exception: it shows the host's name for the person, along with the host that
+ * signed it.
+ *
+ * A vouch from a host the operator trusts counts as the person's own, so the
+ * host is left off the name. Whom to trust is this reader's decision, kept per
+ * device by `trustedHosts.ts`. The operator starts trusting a host from the
+ * vouch shown here and stops in Settings.
  *
  * A device key whose certificate or vouch was revoked is still shown. The line
  * between takes to keep and takes to doubt is whether a host had the recording
@@ -119,6 +127,7 @@ function useDeviceName(
 function usePersonName(
   person: VerifiedPerson | undefined,
   localPersonKey: string | undefined,
+  trustedHost: boolean,
 ): string | undefined {
   const fingerprint = useFingerprint(person?.personKey)
   if (!person) {
@@ -133,7 +142,9 @@ function usePersonName(
           ? `person ${fingerprint}`
           : 'another person'
   // The person key signed nothing, so the name is only as good as the host.
-  return person.via === 'vouch'
+  // Which host that was is the point of saying it, unless the reader has
+  // already said they trust that host.
+  return person.via === 'vouch' && !trustedHost
     ? `${name}, vouched by ${person.hostLabel}`
     : name
 }
@@ -168,15 +179,24 @@ function ProvenanceText({
   provenance: ProvenanceState
   onRevokeDevice?: RevokeDevice
 }) {
+  const appContext = useAppContext()
   const localKey = useLocalDeviceKey()
   const localPersonKey = useLocalPersonKey()
+  const trustedHosts = useTrustedHosts()
   const person = 'person' in provenance ? provenance.person : undefined
   const deviceName = useDeviceName(
     'deviceKey' in provenance ? provenance.deviceKey : undefined,
     localKey,
     person?.deviceLabel,
   )
-  const personName = usePersonName(person, localPersonKey)
+  // Only a vouch leans on a host. A certificate the person key signed itself
+  // needs no trust from the reader, and a vouch the person has since replaced
+  // with one is not what a claim names any more.
+  const vouch = person?.via === 'vouch' ? person : undefined
+  const trustedHost = trustedHosts.some(
+    (host) => host.hostKey === vouch?.hostKey,
+  )
+  const personName = usePersonName(person, localPersonKey, trustedHost)
   const revocation =
     'revocation' in provenance ? provenance.revocation : undefined
   const deviceLink =
@@ -192,6 +212,10 @@ function ProvenanceText({
     deviceLink !== undefined &&
     deviceKey !== undefined &&
     deviceKey !== localKey
+  // The host the operator could start trusting. Trusting one is the host
+  // operator's call: a guest reads vouches but does not decide which count.
+  const trustableHost =
+    appContext.type === 'electron-client' && !trustedHost ? vouch : undefined
 
   switch (provenance.state) {
     case 'checking':
@@ -232,7 +256,15 @@ function ProvenanceText({
           }
         >
           <DeviceTimes {...provenance} />
-          {person && personName && <Person {...person} name={personName} />}
+          {person && personName && (
+            <Person {...person} name={personName} trustedHost={trustedHost} />
+          )}
+          {trustableHost && (
+            <TrustHostControls
+              hostKey={trustableHost.hostKey}
+              hostLabel={trustableHost.hostLabel}
+            />
+          )}
           {revocation && <Revocation {...revocation} />}
           {revocable && (
             <RevokeDeviceControls
@@ -263,7 +295,15 @@ function ProvenanceText({
           }
         >
           <DeviceTimes {...provenance} />
-          {person && personName && <Person {...person} name={personName} />}
+          {person && personName && (
+            <Person {...person} name={personName} trustedHost={trustedHost} />
+          )}
+          {trustableHost && (
+            <TrustHostControls
+              hostKey={trustableHost.hostKey}
+              hostLabel={trustableHost.hostLabel}
+            />
+          )}
           {revocation && <Revocation {...revocation} />}
           {revocable && (
             <RevokeDeviceControls
@@ -391,7 +431,36 @@ function RevokeDeviceControls({
   )
 }
 
-function Person({ name, ...person }: VerifiedPerson & { name: string }) {
+/**
+ * Starts counting a host's vouches as the person's own signature. It applies
+ * to every vouch that host signed, not just this one, so the operator stops
+ * trusting it in Settings rather than from a single recording.
+ */
+function TrustHostControls({
+  hostKey,
+  hostLabel,
+}: {
+  hostKey: string
+  hostLabel: string
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p>Count what “{hostLabel}” vouches for as the person&apos;s own:</p>
+      <Button
+        className="w-fit p-1"
+        onClick={() => trustHost({ hostKey, hostLabel })}
+      >
+        Trust this host
+      </Button>
+    </div>
+  )
+}
+
+function Person({
+  name,
+  trustedHost,
+  ...person
+}: VerifiedPerson & { name: string; trustedHost: boolean }) {
   if (person.via === 'vouch') {
     const confirmed =
       person.method === 'pin' ? 'who entered their PIN' : 'confirmed in person'
@@ -399,8 +468,11 @@ function Person({ name, ...person }: VerifiedPerson & { name: string }) {
       <p>
         The host “{person.hostLabel}” vouched for the recording device “
         {person.deviceLabel}” as {person.personName}, {confirmed}, on{' '}
-        <Clock iso={person.vouchedAt} />, by the host&apos;s clock. The
-        person&apos;s own key has not certified this device.
+        <Clock iso={person.vouchedAt} />, by the host&apos;s clock.{' '}
+        {trustedHost && (
+          <>You trust that host, so this counts as {person.personName}. </>
+        )}
+        The person&apos;s own key has not certified this device.
       </p>
     )
   }
