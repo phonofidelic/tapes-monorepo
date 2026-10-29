@@ -72,6 +72,9 @@ export function PasskeyRecordSettings({
           } else {
             setSaid({ text: refusal(result.detail, hostName), error: true })
           }
+        } catch (cause) {
+          console.error('Could not record the person key:', cause)
+          setSaid({ text: 'That did not work. Try again.', error: true })
         } finally {
           outcome.prf.fill(0)
           setRunning(false)
