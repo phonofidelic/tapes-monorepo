@@ -7,7 +7,10 @@ import {
   exportPublicKey,
   generateSigningKeyPair,
 } from '@tapes-monorepo/provenance'
-import { SYNC_PROOF_PARAM } from '@tapes-monorepo/sync-protocol'
+import {
+  SYNC_CLOSE_REVOKED,
+  SYNC_PROOF_PARAM,
+} from '@tapes-monorepo/sync-protocol'
 import { ProvenSyncAdapter } from './provenSyncAdapter'
 
 const SYNC_URL = 'wss://192.168.1.5:9001/sync?t=secret&d=Phone'
@@ -23,6 +26,48 @@ function captureConnects() {
     urls.push(this.url)
   })
   return urls
+}
+
+/** Enough of a WebSocket for the adapter to add and fire a close handler. */
+class FakeSocket {
+  private listeners = new Set<(event: { code: number }) => void>()
+  addEventListener(event: string, listener: (event: { code: number }) => void) {
+    if (event === 'close') {
+      this.listeners.add(listener)
+    }
+  }
+  removeEventListener(
+    _event: string,
+    listener: (event: { code: number }) => void,
+  ) {
+    this.listeners.delete(listener)
+  }
+  close() {}
+  /** What the host does when it turns this device away. */
+  closedBy(code: number) {
+    for (const listener of [...this.listeners]) {
+      listener({ code })
+    }
+  }
+}
+
+/** Records the socket each connect made, without opening one. */
+function captureSockets() {
+  const sockets: FakeSocket[] = []
+  vi.spyOn(
+    BrowserWebSocketClientAdapter.prototype,
+    'connect',
+  ).mockImplementation(function (
+    this: { socket?: unknown; peerId?: PeerId },
+    peerId: PeerId,
+  ) {
+    const socket = new FakeSocket()
+    sockets.push(socket)
+    this.socket = socket
+    // The real connect records it, and disconnect asserts on it.
+    this.peerId = peerId
+  })
+  return sockets
 }
 
 function challengeServer() {
@@ -146,5 +191,49 @@ describe('ProvenSyncAdapter', () => {
     expect(adapter.isConnected()).toBe(true)
     adapter.emit('peer-disconnected', { peerId: host })
     expect(adapter.isConnected()).toBe(false)
+  })
+
+  describe('when the host refuses a revoked key', () => {
+    it('reports it and stops opening sockets', async () => {
+      const sockets = captureSockets()
+      const { fetchImpl } = challengeServer()
+      const adapter = new ProvenSyncAdapter(
+        SYNC_URL,
+        generateSigningKeyPair,
+        fetchImpl,
+      )
+      const revoked = vi.fn()
+      adapter.onRevoked(revoked)
+
+      adapter.connect(PEER)
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].closedBy(SYNC_CLOSE_REVOKED)
+
+      expect(adapter.isRevoked()).toBe(true)
+      expect(revoked).toHaveBeenCalledTimes(1)
+      // Every retry would be refused the same way.
+      adapter.connect(PEER)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(sockets).toHaveLength(1)
+    })
+
+    it('leaves an ordinary close alone', async () => {
+      const sockets = captureSockets()
+      const { fetchImpl } = challengeServer()
+      const adapter = new ProvenSyncAdapter(
+        SYNC_URL,
+        generateSigningKeyPair,
+        fetchImpl,
+      )
+
+      adapter.connect(PEER)
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      // What a dropped connection looks like.
+      sockets[0].closedBy(1006)
+
+      expect(adapter.isRevoked()).toBe(false)
+      adapter.connect(PEER)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    })
   })
 })

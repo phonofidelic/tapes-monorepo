@@ -49,8 +49,13 @@ import {
 import { createPasskeyRecordStore } from './passkeyRecords'
 import { createPasskeyRecordHandler } from './passkeyRecordsHttp'
 import { createPersonRoster } from './personRoster'
+import { isRevokedDeviceKey } from './revokedDeviceKeys'
 import { createVouchRequestHandler } from './vouchHttp'
-import { hasHostClientMarker } from '@tapes-monorepo/sync-protocol'
+import {
+  hasHostClientMarker,
+  SYNC_CLOSE_REVOKED,
+  SYNC_CLOSE_REVOKED_REASON,
+} from '@tapes-monorepo/sync-protocol'
 import {
   exportPublicKey,
   type RecordingClaim,
@@ -777,7 +782,19 @@ export async function startSyncServer(
     // name for every connection it accepts. The name is self-reported and
     // grants nothing on its own.
     const deviceLabel = readDeviceLabel(request, url)
-    void deviceKeyFor(request, url).then((deviceKey) => {
+    void deviceKeyFor(request, url).then(async (deviceKey) => {
+      if (deviceKey && (await isRevoked(deviceKey))) {
+        // The handshake is completed only to close it, so the guest reads a
+        // code instead of a bare network error. `connection` is never emitted,
+        // so the repo and the connection list never see this socket.
+        wss.handleUpgrade(request, socket, head, (client) => {
+          console.warn(
+            `Refused a revoked device: ${deviceLabel ?? UNNAMED_DEVICE_LABEL}`,
+          )
+          client.close(SYNC_CLOSE_REVOKED, SYNC_CLOSE_REVOKED_REASON)
+        })
+        return
+      }
       deviceKeys.set(request, deviceKey)
       wss.handleUpgrade(request, socket, head, (client) => {
         console.info(
@@ -787,6 +804,23 @@ export async function startSyncServer(
       })
     })
   })
+
+  /**
+   * Never rejects. A roster this host cannot read says nothing about any
+   * device, and turning every guest away over it would be worse than letting
+   * a revoked one in.
+   */
+  const isRevoked = async (deviceKey: string): Promise<boolean> => {
+    if (!roster) {
+      return false
+    }
+    try {
+      return await isRevokedDeviceKey(roster, deviceKey)
+    } catch (error) {
+      console.warn('Could not check a device key against the roster:', error)
+      return false
+    }
+  }
 
   // The key each upgrade proved, for the `connection` handler below.
   const deviceKeys = new WeakMap<http.IncomingMessage, string | undefined>()

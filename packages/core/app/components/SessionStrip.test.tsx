@@ -42,25 +42,35 @@ afterEach(() => {
 })
 
 /** A host connection the test turns on and off. */
-function fakeConnection(connected = false): HostConnection & {
+function fakeConnection(
+  connected = false,
+  revoked = false,
+): HostConnection & {
   setConnected(next: boolean): void
+  setRevoked(): void
 } {
   const listeners = new Set<() => void>()
+  const notify = () => act(() => listeners.forEach((listener) => listener()))
   return {
     isConnected: () => connected,
+    isRevoked: () => revoked,
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
     setConnected(next) {
       connected = next
-      act(() => listeners.forEach((listener) => listener()))
+      notify()
+    },
+    setRevoked() {
+      revoked = true
+      notify()
     },
   }
 }
 
-function renderGuest({ connected = false } = {}) {
-  const connection = fakeConnection(connected)
+function renderGuest({ connected = false, revoked = false } = {}) {
+  const connection = fakeConnection(connected, revoked)
   const tree = () => (
     <AppContextProvider
       value={{ type: 'web-client', worker: {} as unknown as Worker }}
@@ -89,6 +99,22 @@ describe('the guest session indicator', () => {
     )
 
     expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  // A refused socket and a host out of range look the same otherwise, and
+  // only one of them is worth waiting out.
+  it('says the device is revoked rather than unreachable', () => {
+    doc = { recordings: [], session: SESSION }
+    const { connection } = renderGuest({ connected: true })
+
+    connection.setRevoked()
+
+    expect(strip()).toHaveTextContent('This device is revoked')
+    expect(strip()).toHaveTextContent('the host will not sync with it')
+    expect(strip().querySelector('[data-dot]')).toHaveAttribute(
+      'data-dot',
+      'failed',
+    )
   })
 
   it('says it cannot reach the host while offline, whatever the doc says', () => {

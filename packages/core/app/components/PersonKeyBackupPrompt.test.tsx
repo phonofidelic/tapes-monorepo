@@ -265,6 +265,7 @@ describe('JoinFlow', () => {
 describe('PersonKeyBackupPrompt', () => {
   const connected: HostConnection = {
     isConnected: () => true,
+    isRevoked: () => false,
     subscribe: () => () => {},
   }
 
