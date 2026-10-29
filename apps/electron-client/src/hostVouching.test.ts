@@ -609,6 +609,25 @@ describe('revoking a vouch the host signed', () => {
     ])
   })
 
+  it('tells the device that holds the vouch where it stands', async () => {
+    const host = vouching()
+    const sam = await person()
+    await join(host, sam, 'Sam')
+    const vouch = await host.confirm(await requestId(host, sam.personKey))
+    const address = await statementAddress(vouch!)
+    expect(await host.signedVouchState(address)).toEqual({ state: 'standing' })
+
+    const result = await host.revokeVouch(address, { docUrl: 'automerge:root' })
+
+    expect(await host.signedVouchState(address)).toEqual({
+      state: 'withdrawn',
+      revokedAt: new Date(clock).toISOString(),
+      revocation: result.ok ? result.address : '',
+    })
+    // A vouch this host never signed is not a withdrawn one.
+    expect(await host.signedVouchState('ff'.repeat(32))).toBeUndefined()
+  })
+
   it('refuses a second revocation, and one for a vouch it never signed', async () => {
     const host = vouching()
     const sam = await person()
