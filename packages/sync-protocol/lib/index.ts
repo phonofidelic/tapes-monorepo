@@ -15,6 +15,7 @@
 
 export * from './label'
 export * from './passkeyRecords'
+export * from './revokedDevice'
 export * from './roster'
 export * from './hostClient'
 export * from './syncProof'

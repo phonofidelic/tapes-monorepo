@@ -17,10 +17,12 @@ export function HostConnectionProvider({
   )
 }
 
-export type HostConnectionStatus = 'unpaired' | 'connected' | 'offline'
+export type HostConnectionStatus =
+  'unpaired' | 'connected' | 'offline' | 'revoked'
 
 const NO_HOST: HostConnection = {
   isConnected: () => false,
+  isRevoked: () => false,
   subscribe: () => () => {},
 }
 
@@ -28,9 +30,16 @@ const NO_HOST: HostConnection = {
 export function useHostConnection(): HostConnectionStatus {
   const connection = use(HostConnectionContext)
   const store = connection ?? NO_HOST
-  const connected = useSyncExternalStore(store.subscribe, store.isConnected)
+  const state = useSyncExternalStore(store.subscribe, () =>
+    // One snapshot, so the two answers cannot be read a render apart.
+    store.isRevoked()
+      ? 'revoked'
+      : store.isConnected()
+        ? 'connected'
+        : 'offline',
+  )
   if (!connection) {
     return 'unpaired'
   }
-  return connected ? 'connected' : 'offline'
+  return state
 }

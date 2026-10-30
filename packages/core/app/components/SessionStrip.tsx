@@ -22,7 +22,8 @@ import {
 /**
  * The 40px session strip at the top of the Recorder. The electron app is the
  * host and gets the start and stop control. A paired web guest gets a
- * read-only indicator. A web client with no host shows no strip.
+ * read-only indicator, or a standing notice once the host has turned its
+ * device key away. A web client with no host shows no strip.
  */
 export function SessionStrip() {
   const appContext = useAppContext()
@@ -32,6 +33,15 @@ export function SessionStrip() {
   }
   if (hostConnection === 'unpaired') {
     return null
+  }
+  if (hostConnection === 'revoked') {
+    return (
+      <Strip
+        dot="failed"
+        title="This device is revoked"
+        detail="the host will not sync with it"
+      />
+    )
   }
   return <GuestSessionIndicator online={hostConnection === 'connected'} />
 }

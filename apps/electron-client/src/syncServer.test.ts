@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'fs/promises'
+import { mkdtemp, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { WebSocket } from 'ws'
@@ -20,6 +20,7 @@ import {
 import {
   syncChallengeUrl,
   withSyncProof,
+  SYNC_CLOSE_REVOKED,
   type SyncChallengeResponse,
 } from '@tapes-monorepo/sync-protocol'
 import { readStoredStatement } from './statementUpload'
@@ -427,5 +428,122 @@ describe('session records', () => {
     })
     expect(await getBlobStore()!.refs(hash!)).toEqual([docUrl])
     expect(recording.doc().statements).toEqual([accepted, hash])
+  })
+})
+
+describe('a revoked device key', () => {
+  const TOKEN = 'secret'
+
+  /** A roster whose only vouch is for `deviceKey`, withdrawn or standing. */
+  async function startWithRoster(deviceKey: string, revoked: boolean) {
+    storagePath = await mkdtemp(path.join(tmpdir(), 'tapes-sync-'))
+    const rosterPath = path.join(storagePath, 'people.json')
+    await writeFile(
+      rosterPath,
+      JSON.stringify({
+        people: [
+          {
+            personKey: 'person-key',
+            name: 'Sam',
+            firstCertificate: {
+              address: 'cc'.repeat(32),
+              signed: { payload: {}, signature: 'x' },
+            },
+            vouches: [
+              {
+                address: 'aa'.repeat(32),
+                deviceKey,
+                deviceLabel: 'Phone',
+                deviceFingerprint: 'ab cd',
+                method: 'operator',
+                vouchedAt: '2026-10-28T10:00:00.000Z',
+                ...(revoked && { revokedAt: '2026-10-29T10:00:00.000Z' }),
+              },
+            ],
+            joinedAt: '2026-10-28T09:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    const hostKey = await generateSigningKeyPair()
+    return startSyncServer({
+      storagePath,
+      host: '127.0.0.1',
+      port: 0,
+      peerId: 'test-host',
+      pairingToken: TOKEN,
+      rosterPath,
+      loadSigningKey: async () => hostKey,
+    })
+  }
+
+  async function provenUrl(syncUrl: string, keyPair: CryptoKeyPair) {
+    const response = await fetch(syncChallengeUrl(syncUrl), {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    })
+    const { challenge } = (await response.json()) as SyncChallengeResponse
+    const proof = await createSyncProof(challenge, keyPair)
+    return withSyncProof(syncUrl, encodeSignedStatement(proof))
+  }
+
+  /** The code the host closed with, for a socket it does not keep. */
+  function closeCode(url: string) {
+    return new Promise<number>((resolve, reject) => {
+      const socket = new WebSocket(url)
+      socket.on('close', resolve)
+      socket.on('error', reject)
+    })
+  }
+
+  // The refusal has to reach the guest as something it can report, and a
+  // browser gives it no status for a turned-down upgrade. So the handshake
+  // is completed and the socket closed at once.
+  it('is closed with the revoked code and never reaches the repo', async () => {
+    const guestKey = await generateSigningKeyPair()
+    const info = await startWithRoster(
+      await exportPublicKey(guestKey.publicKey),
+      true,
+    )
+
+    const code = await closeCode(
+      await provenUrl(`${info.url}/sync?t=${TOKEN}&d=Phone`, guestKey),
+    )
+
+    expect(code).toBe(SYNC_CLOSE_REVOKED)
+    expect(getSyncConnections()).toEqual([])
+  })
+
+  it('is served while the vouch still stands', async () => {
+    const guestKey = await generateSigningKeyPair()
+    const info = await startWithRoster(
+      await exportPublicKey(guestKey.publicKey),
+      false,
+    )
+
+    const socket = await open(
+      await provenUrl(`${info.url}/sync?t=${TOKEN}&d=Phone`, guestKey),
+    )
+
+    expect(getSyncConnections()).toHaveLength(1)
+    socket.close()
+  })
+
+  // Not knowing is not grounds to refuse. This host never vouched for the
+  // device, so it has nothing to say about its key.
+  it('does not refuse a device the roster has never seen', async () => {
+    const revoked = await exportPublicKey(
+      (await generateSigningKeyPair()).publicKey,
+    )
+    const info = await startWithRoster(revoked, true)
+
+    const socket = await open(
+      await provenUrl(
+        `${info.url}/sync?t=${TOKEN}&d=Phone`,
+        await generateSigningKeyPair(),
+      ),
+    )
+
+    expect(getSyncConnections()).toHaveLength(1)
+    socket.close()
   })
 })

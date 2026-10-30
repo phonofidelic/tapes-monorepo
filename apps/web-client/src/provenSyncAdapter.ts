@@ -7,6 +7,7 @@ import {
 import {
   syncChallengeUrl,
   withSyncProof,
+  SYNC_CLOSE_REVOKED,
   type SyncChallengeResponse,
 } from '@tapes-monorepo/sync-protocol'
 
@@ -18,6 +19,10 @@ import {
  * The base adapter reconnects on the same url, and a proof works once. So a
  * fresh challenge is fetched and signed on every connect, including retries.
  * Any failure connects without a proof. The host still serves the socket.
+ *
+ * A host that knows this device's key is revoked closes the socket with its
+ * own code. That is read here, so the app can say so rather than show a
+ * connection that never comes up.
  */
 
 /** Long enough for a slow LAN, short enough not to hold up a reconnect. */
@@ -29,6 +34,8 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
   private proving = false
   private stopped = false
   private hostConnected = false
+  private revoked = false
+  private revokedListeners = new Set<() => void>()
 
   constructor(
     private readonly baseUrl: string,
@@ -51,6 +58,16 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
     return this.hostConnected
   }
 
+  /** Whether the host turned this device away over a revoked key. */
+  isRevoked(): boolean {
+    return this.revoked
+  }
+
+  /** Called once, when the host first says the key is revoked. */
+  onRevoked(listener: () => void): void {
+    this.revokedListeners.add(listener)
+  }
+
   override connect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
     // The base class retries on a timer. A retry while a proof is still being
     // made would open a second socket.
@@ -65,7 +82,30 @@ export class ProvenSyncAdapter extends BrowserWebSocketClientAdapter {
       }
       this.url = url
       super.connect(peerId, peerMetadata)
+      // Added after the base class made the socket, and alongside its own
+      // close handler rather than in place of it.
+      this.socket?.addEventListener('close', (event) => {
+        if (event.code === SYNC_CLOSE_REVOKED) {
+          this.noteRevoked()
+        }
+      })
     })
+  }
+
+  /**
+   * The host will refuse every retry the same way, so this stops reconnecting
+   * instead of knocking once a second. A new vouch is the only thing that
+   * changes the answer, and the guest reloads to use it.
+   */
+  private noteRevoked(): void {
+    if (this.revoked) {
+      return
+    }
+    this.revoked = true
+    this.disconnect()
+    for (const listener of this.revokedListeners) {
+      listener()
+    }
   }
 
   override disconnect(): void {

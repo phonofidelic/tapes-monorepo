@@ -17,6 +17,14 @@ class EventEmitter {
   }
 }
 
+/** The peer-event half of an adapter, for spreading into a wider fake. */
+function bind(adapter: EventEmitter) {
+  return {
+    on: (event: string, listener: () => void) => adapter.on(event, listener),
+    off: (event: string, listener: () => void) => adapter.off(event, listener),
+  }
+}
+
 describe('the host connection', () => {
   it('starts offline and follows the adapter peer', () => {
     const adapter = new EventEmitter()
@@ -54,5 +62,43 @@ describe('the host connection', () => {
     adapter.emit('peer-candidate')
 
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('is never revoked on an adapter that cannot say', () => {
+    const connection = createHostConnection(new EventEmitter())
+
+    expect(connection.isRevoked()).toBe(false)
+  })
+
+  it('follows an adapter that says the host revoked this device', () => {
+    const adapter = new EventEmitter()
+    let notifyRevoked = () => {}
+    const connection = createHostConnection({
+      ...bind(adapter),
+      isRevoked: () => false,
+      onRevoked: (listener) => {
+        notifyRevoked = listener
+      },
+    })
+    const listener = vi.fn()
+    connection.subscribe(listener)
+
+    expect(connection.isRevoked()).toBe(false)
+    notifyRevoked()
+
+    expect(connection.isRevoked()).toBe(true)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  // A revoked key is known before the first socket, on a reconnect after a
+  // reload.
+  it('starts revoked when the adapter already is', () => {
+    const connection = createHostConnection({
+      ...bind(new EventEmitter()),
+      isRevoked: () => true,
+      onRevoked: () => {},
+    })
+
+    expect(connection.isRevoked()).toBe(true)
   })
 })
