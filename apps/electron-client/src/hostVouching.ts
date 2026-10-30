@@ -17,6 +17,7 @@ import {
   isValidPin,
   sanitizeLabel,
   type RosterPerson,
+  type SignedVouchState,
 } from '@tapes-monorepo/sync-protocol'
 import type { PersonRoster, RosterEntry, SignedVouch } from './personRoster'
 import { hashPin, pinMatches } from './pinHash'
@@ -486,6 +487,29 @@ export function createHostVouching({
       return (await savePin(personKey, pin))
         ? { ok: true }
         : { ok: false, error: 'unknown-person' }
+    },
+
+    /**
+     * Where one vouch stands, for the device that holds it. Undefined when
+     * this host signed no vouch at that address, as after its roster was
+     * replaced, which is not the same as having withdrawn it.
+     */
+    async signedVouchState(
+      address: string,
+    ): Promise<SignedVouchState | undefined> {
+      const found = await findVouch(address)
+      if (!found) {
+        return undefined
+      }
+      return found.vouch.revokedAt
+        ? {
+            state: 'withdrawn',
+            revokedAt: found.vouch.revokedAt,
+            ...(found.vouch.revocation && {
+              revocation: found.vouch.revocation,
+            }),
+          }
+        : { state: 'standing' }
     },
 
     /**
