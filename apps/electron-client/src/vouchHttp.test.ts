@@ -17,6 +17,7 @@ import {
   PIN_CHANGE_PATH,
   ROSTER_PATH,
   SYNC_CHALLENGE_PATH,
+  VOUCH_STATE_PATH,
   VOUCHES_PATH,
   type SyncChallengeResponse,
 } from '@tapes-monorepo/sync-protocol'
@@ -198,9 +199,35 @@ describe('roster and vouch routes', () => {
     expect(response.status).toBe(404)
   })
 
+  it('says the vouch a device holds still stands', async () => {
+    const id = await askForVouch(await joinAs('Sam', '4821'))
+    const answer = (await (
+      await send(`${VOUCHES_PATH}/${id}/pin`, { pin: '4821' })
+    ).json()) as { vouch: string }
+    const address = await statementAddress(decodeSignedStatement(answer.vouch)!)
+
+    const response = await send(`${VOUCH_STATE_PATH}/${address}`)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ state: 'standing' })
+    expect((await send(`${VOUCH_STATE_PATH}/${address}`, {})).status).toBe(405)
+  })
+
+  // A vouch this host never signed is not a withdrawn one.
+  it('answers nothing for a vouch it never signed', async () => {
+    const response = await send(`${VOUCH_STATE_PATH}/${'ff'.repeat(32)}`)
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'unknown-vouch' })
+  })
+
   it('refuses a guest without the pairing token', async () => {
     expect((await send(ROSTER_PATH, undefined, null)).status).toBe(401)
     expect((await send(VOUCHES_PATH, {}, 'wrong')).status).toBe(401)
+    expect(
+      (await send(`${VOUCH_STATE_PATH}/${'ff'.repeat(32)}`, undefined, null))
+        .status,
+    ).toBe(401)
   })
 
   it('refuses a body that is not JSON', async () => {

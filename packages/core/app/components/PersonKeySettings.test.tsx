@@ -6,7 +6,7 @@ import { AppContextProvider } from '@/context/AppContext'
 import { BlobProvider } from '@/context/BlobContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
-import { fetchRoster } from '@/rosterClient'
+import { fetchRoster, readVouchState } from '@/rosterClient'
 import { PersonKeySettings } from './PersonKeySettings'
 
 vi.mock('@/personKey', () => ({ readPersonKeyStatus: vi.fn() }))
@@ -15,6 +15,7 @@ vi.mock('@/rosterClient', () => ({
   changePin: vi.fn(),
   fetchRoster: vi.fn(),
   joinHostRoster: vi.fn(),
+  readVouchState: vi.fn(),
 }))
 
 // The flow that asks the host has its own tests. Here it only has to finish,
@@ -79,6 +80,7 @@ const ASK_AGAIN = 'Ask Studio Mac to vouch again'
 
 beforeEach(() => {
   vi.mocked(fetchRoster).mockResolvedValue([SAM])
+  vi.mocked(readVouchState).mockResolvedValue({ state: 'standing' })
 })
 
 afterEach(() => {
@@ -141,6 +143,42 @@ describe('PersonKeySettings: asking for another vouch', () => {
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /vouch again/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('says the host withdrew the vouch, and makes the ask the next step', async () => {
+    vi.mocked(readVouchState).mockResolvedValue({
+      state: 'withdrawn',
+      revokedAt: '2026-10-28T09:00:00.000Z',
+      revocation: 'ef'.repeat(32),
+    })
+    renderSettings(VOUCHED)
+
+    expect(
+      await screen.findByText(
+        'This device has no person key. Studio Mac withdrew its vouch for it.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/judged by when the host received them/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: ASK_AGAIN })).toBeInTheDocument()
+    expect(readVouchState).toHaveBeenCalledWith(ENDPOINT, 'ab'.repeat(32))
+  })
+
+  // A host whose roster was replaced knows no vouch at that address, which is
+  // not the same as having withdrawn it.
+  it('says nothing about a withdrawal the host does not report', async () => {
+    vi.mocked(readVouchState).mockResolvedValue(undefined)
+    renderSettings(VOUCHED)
+
+    expect(
+      await screen.findByText(
+        'This device has no person key. Studio Mac vouched for it.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/judged by when the host received them/),
     ).not.toBeInTheDocument()
   })
 

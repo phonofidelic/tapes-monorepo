@@ -1,6 +1,7 @@
 /**
- * The routes a guest uses to join a host's roster of people, and later to ask
- * the host to vouch for a new device key after it lost its keys.
+ * The routes a guest uses to join a host's roster of people, to ask the host
+ * to vouch for a new device key after it lost its keys, and to read whether
+ * the vouch it holds still stands.
  *
  * Every route is guarded by the pairing token, like the challenge route. The
  * signed statements travel encoded, as the provenance package encodes them.
@@ -24,6 +25,13 @@ export const PIN_CHANGE_PATH = `${ROSTER_PATH}/pin`
  * PIN instead of waiting for the operator.
  */
 export const VOUCHES_PATH = '/vouches'
+
+/**
+ * `GET` on `/vouches/state/<address>` says whether the host still stands
+ * behind the vouch at that address. The asker holds that vouch already, so
+ * this reports nothing it does not have, unlike the roster route.
+ */
+export const VOUCH_STATE_PATH = `${VOUCHES_PATH}/state`
 
 /** One person on a host's roster, as guests see it. Never a PIN hash. */
 export type RosterPerson = {
@@ -62,6 +70,17 @@ export type VouchStatus =
   | { status: 'rejected' }
   /** `vouch` is the encoded Signed<DeviceVouch>. */
   | { status: 'vouched'; vouch: string }
+
+/** Where one vouch the host signed stands. */
+export type SignedVouchState =
+  | { state: 'standing' }
+  | {
+      state: 'withdrawn'
+      /** The host's clock when it signed the revocation. */
+      revokedAt: string
+      /** Address of the Signed<DeviceRevocation>, for a reader that wants it. */
+      revocation?: string
+    }
 
 export type PinResponse =
   | { ok: true; vouch: string }

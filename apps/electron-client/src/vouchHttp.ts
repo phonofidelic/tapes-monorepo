@@ -6,6 +6,7 @@ import {
 import {
   PIN_CHANGE_PATH,
   ROSTER_PATH,
+  VOUCH_STATE_PATH,
   VOUCHES_PATH,
   type JoinBody,
   type PinBody,
@@ -25,8 +26,9 @@ import { isAuthorized } from './tokenAuth'
 
 /**
  * The roster and vouch routes: joining the roster, changing a PIN, asking for
- * a vouch, and reading or answering that request. Guarded by the pairing token
- * like every other route on this origin.
+ * a vouch, reading or answering that request, and reading whether a vouch the
+ * host signed still stands. Guarded by the pairing token like every other
+ * route on this origin.
  *
  * The operator's side, such as confirming a request or unlocking a PIN, is not
  * here. It runs in the host's own window over IPC, never over the LAN.
@@ -72,6 +74,16 @@ export function createVouchRequestHandler({
       sendJson(response, 200, body)
       return true
     }
+    if (route.kind === 'vouch-state' && method === 'GET') {
+      request.resume()
+      const state = await vouching.signedVouchState(route.address)
+      if (!state) {
+        sendJson(response, 404, { error: 'unknown-vouch' })
+        return true
+      }
+      sendJson(response, 200, state)
+      return true
+    }
     if (route.kind === 'status' && method === 'GET') {
       request.resume()
       const status = vouching.status(route.id)
@@ -86,14 +98,15 @@ export function createVouchRequestHandler({
       sendJson(response, 200, body)
       return true
     }
-    if (method !== 'POST' || route.kind === 'status') {
+    const readOnly = route.kind === 'status' || route.kind === 'vouch-state'
+    if (method !== 'POST' || readOnly) {
       request.resume()
       response.writeHead(405, {
         ...CORS_HEADERS,
         Allow:
           route.kind === 'roster'
             ? 'GET,POST,OPTIONS'
-            : route.kind === 'status'
+            : readOnly
               ? 'GET,OPTIONS'
               : 'POST,OPTIONS',
       })
@@ -219,6 +232,7 @@ type Route =
   | { kind: 'roster' }
   | { kind: 'pin-change' }
   | { kind: 'requests' }
+  | { kind: 'vouch-state'; address: string }
   | { kind: 'status'; id: string }
   | { kind: 'pin'; id: string }
 
@@ -231,6 +245,12 @@ function matchRoute(pathname: string): Route | undefined {
   }
   if (pathname === VOUCHES_PATH) {
     return { kind: 'requests' }
+  }
+  const state = new RegExp(`^${VOUCH_STATE_PATH}/([0-9a-f]{64})$`).exec(
+    pathname,
+  )
+  if (state) {
+    return { kind: 'vouch-state', address: state[1] }
   }
   const match = new RegExp(`^${VOUCHES_PATH}/([\\w-]+)(/pin)?$`).exec(pathname)
   if (!match) {

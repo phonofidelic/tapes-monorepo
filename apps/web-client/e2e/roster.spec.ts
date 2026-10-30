@@ -14,7 +14,12 @@ import {
   startHost,
   PAIRING_TOKEN,
 } from './host'
-import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
+import {
+  statementAddress,
+  STATEMENT_MIME_TYPE,
+  type DeviceVouch,
+  type Signed,
+} from '@tapes-monorepo/provenance'
 
 /**
  * A guest's first join puts the person on the host's roster and backs up
@@ -25,8 +30,9 @@ import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
  *
  * Then the operator's side: withdrawing a vouch the host gave the wrong
  * person. It runs after the others so it has a signed vouch to withdraw. The
- * last test is a device that already holds a vouch asking for another one from
- * Settings, which is the way back once the operator withdrew it.
+ * last two tests are a device that already holds a vouch asking for another
+ * one from Settings, and a device whose own vouch was withdrawn being told so
+ * there.
  *
  * Each test gets a fresh browser context, which is a device with no keys.
  * Later tests need the person and the backup the first one made, so they run
@@ -267,8 +273,8 @@ test('a vouched guest asks for another vouch from Settings', async ({
   await rejoin.getByRole('button', { name: 'Use PIN' }).click()
   await expect(rejoin).toHaveCount(0)
 
-  // Nothing on the device says whether its vouch still stands, so Settings
-  // offers the ask whenever the host knows the person.
+  // This device's vouch still stands. The ask is offered either way, since a
+  // device may want a new vouch without the old one having been withdrawn.
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: /vouch again/ }).click()
   const asking = page.getByRole('dialog', { name: /vouch again/ })
@@ -287,4 +293,36 @@ test('a vouched guest asks for another vouch from Settings', async ({
   expect(await readKeyRecord(page, 'vouch')).toMatchObject({
     payload: { personName: 'Sam', method: 'operator', hostKey },
   })
+})
+
+test('a guest whose vouch was withdrawn is told so in Settings', async ({
+  page,
+}) => {
+  await page.goto(pairingUrl())
+  await page
+    .getByRole('dialog', { name: 'Have you been here before?' })
+    .getByRole('button', { name: 'Sam' })
+    .click()
+  const rejoin = page.getByRole('dialog', { name: 'Welcome back, Sam' })
+  await rejoin.getByLabel('Your PIN').fill('4821')
+  await rejoin.getByRole('button', { name: 'Use PIN' }).click()
+  await expect(rejoin).toHaveCount(0)
+  const vouch = (await readKeyRecord(page, 'vouch')) as Signed<DeviceVouch>
+
+  // The operator withdraws the very vouch this device is holding. No
+  // recording names it, so there is nothing to list the revocation on.
+  expect(await revokeHostVouch(await statementAddress(vouch))).toMatchObject({
+    ok: true,
+    listedOn: [],
+  })
+
+  // The device asks the host where its vouch stands, rather than waiting for
+  // a reader of its takes to find the revocation.
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(
+    page.getByText(
+      'This device has no person key. Tapes host withdrew its vouch for it.',
+    ),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: /vouch again/ })).toBeVisible()
 })

@@ -2,6 +2,7 @@ import {
   PIN_CHANGE_PATH,
   ROSTER_PATH,
   SYNC_CHALLENGE_PATH,
+  VOUCH_STATE_PATH,
   VOUCHES_PATH,
   type JoinBody,
   type PinChangeBody,
@@ -9,6 +10,7 @@ import {
   type PinResponse,
   type RosterPerson,
   type RosterResponse,
+  type SignedVouchState,
   type SyncChallengeResponse,
   type VouchRequestResponse,
   type VouchStatus,
@@ -149,6 +151,29 @@ export async function readVouchStatus(
     throw new Error(`The vouch request answered ${response.status}`)
   }
   return (await response.json()) as VouchStatus
+}
+
+/**
+ * Whether the host still stands behind the vouch this device holds. Undefined
+ * when the host knows no vouch at that address, which is not a withdrawal:
+ * a host whose roster was replaced answers the same way.
+ */
+export async function readVouchState(
+  endpoint: BlobEndpoint,
+  address: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SignedVouchState | undefined> {
+  const response = await fetchImpl(
+    `${endpoint.baseUrl}${VOUCH_STATE_PATH}/${encodeURIComponent(address)}`,
+    { headers: authHeaders(endpoint), cache: 'no-store' },
+  )
+  if (response.status === 404) {
+    return undefined
+  }
+  if (!response.ok) {
+    throw new Error(`The vouch state answered ${response.status}`)
+  }
+  return (await response.json()) as SignedVouchState
 }
 
 /** Tries a PIN for a waiting request. The host counts wrong ones per person. */
