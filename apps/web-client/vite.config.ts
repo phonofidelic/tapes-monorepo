@@ -166,6 +166,13 @@ export default defineConfig(({ command }) => ({
     },
   },
   plugins,
+  // Never pre-bundle the workspace packages. Vite keys its dependency cache on
+  // the lockfile and this config, so a rebuilt `dist` leaves the cached copy in
+  // place and the dev server serves the old exports. An import added to
+  // sync-protocol then fails with "does not provide an export named ...".
+  optimizeDeps: {
+    exclude: ['@tapes-monorepo/sync-protocol', '@tapes-monorepo/provenance'],
+  },
   server: {
     // When a LAN guest loads the app from this dev server (for HMR), its
     // Automerge sync socket connects to `/sync` on the same origin. Proxy that
