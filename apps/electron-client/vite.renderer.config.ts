@@ -60,4 +60,11 @@ export default defineConfig(({ command }) => ({
     target: 'esnext',
   },
   plugins: [react(), wasm(), topLevelAwait(), devCspAllowInlineStyles()],
+  // Never pre-bundle the workspace packages. Vite keys its dependency cache on
+  // the lockfile and this config, so a rebuilt `dist` leaves the cached copy in
+  // place and the dev server serves the old exports. An import added to
+  // sync-protocol then fails with "does not provide an export named ...".
+  optimizeDeps: {
+    exclude: ['@tapes-monorepo/sync-protocol', '@tapes-monorepo/provenance'],
+  },
 }))
