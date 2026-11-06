@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
 import type {
-  BlobDescriptor,
+  RecordingBlobDescriptor,
   RecordingAggregate,
   SignedVouch,
 } from '@tapes-monorepo/core'
@@ -28,7 +28,7 @@ export const HOST_ORIGIN = `http://127.0.0.1:${HOST_PORT}`
 
 export type SeededRecording = {
   url: AutomergeUrl
-  descriptor: BlobDescriptor
+  descriptor: RecordingBlobDescriptor
   /** Hashes of the claim and receipt the host stored, as the doc lists them. */
   statements: string[]
 }

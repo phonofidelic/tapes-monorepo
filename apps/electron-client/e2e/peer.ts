@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import path from 'node:path'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
-import type { BlobDescriptor } from '@tapes-monorepo/core'
+import type { RecordingBlobDescriptor } from '@tapes-monorepo/core'
 
 /**
  * The test process's handle on a peer of the app under test — the near side of
@@ -15,7 +15,7 @@ export type PeerRecording = {
   name: string
   filepath: string
   duration: number
-  blob?: BlobDescriptor
+  blob?: RecordingBlobDescriptor
 }
 
 let child: ChildProcessWithoutNullStreams | undefined

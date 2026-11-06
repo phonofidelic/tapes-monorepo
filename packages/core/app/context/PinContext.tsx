@@ -1,6 +1,6 @@
 import { createContext, use, useCallback, useMemo, useState } from 'react'
 import type { AutomergeUrl } from '@automerge/automerge-repo'
-import type { BlobDescriptor } from '@/types'
+import type { RecordingBlobDescriptor } from '@/types'
 import {
   fetchBlobFromAny,
   replicateBlob,
@@ -54,7 +54,7 @@ type PinContextValue = {
    */
   pin: (
     url: AutomergeUrl,
-    descriptor: BlobDescriptor,
+    descriptor: RecordingBlobDescriptor,
     statements?: readonly string[],
   ) => Promise<void>
   unpin: (url: AutomergeUrl) => Promise<void>
@@ -127,7 +127,7 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
   const pin = useCallback(
     async (
       url: AutomergeUrl,
-      descriptor: BlobDescriptor,
+      descriptor: RecordingBlobDescriptor,
       statements: readonly string[] = [],
     ) => {
       if (endpoints.length === 0) {

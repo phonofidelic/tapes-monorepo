@@ -8,7 +8,7 @@ import {
   STATEMENT_MIME_TYPE,
 } from '@tapes-monorepo/provenance'
 import { SyncServerInfo } from './services/SyncService'
-import type { BlobDescriptor } from './types'
+import type { RecordingBlobDescriptor } from './types'
 
 /**
  * Client for the host's `/blobs` routes.
@@ -274,7 +274,7 @@ async function failure(response: Response): Promise<BlobRequestError> {
  * recording's doc.
  */
 export type StoredBlob = {
-  blob: BlobDescriptor
+  blob: RecordingBlobDescriptor
   /**
    * Hashes of the signed claim and receipt the host stored next to the audio.
    * Empty when the upload carried no claim or the claim did not verify.
@@ -341,7 +341,7 @@ export async function uploadBlob(
     throw await failure(response)
   }
 
-  const answer = (await response.json()) as BlobDescriptor & {
+  const answer = (await response.json()) as RecordingBlobDescriptor & {
     statements?: unknown
   }
   return {

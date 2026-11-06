@@ -13,7 +13,7 @@ import {
 } from '../../electron-client/src/syncServer'
 import { createBlobStore } from '../../electron-client/src/blobStore'
 import type {
-  BlobDescriptor,
+  RecordingBlobDescriptor,
   Recording,
   RootDocument,
 } from '@tapes-monorepo/core'
@@ -260,7 +260,7 @@ async function upload(
   // but only the buffer is a `BodyInit` as far as the DOM types are concerned.
   bytes: ArrayBuffer,
   claim?: string,
-): Promise<{ blob: BlobDescriptor; statements: string[] }> {
+): Promise<{ blob: RecordingBlobDescriptor; statements: string[] }> {
   const response = await fetch(
     `http://127.0.0.1:${port}/blobs?doc=${encodeURIComponent(docUrl)}`,
     {
@@ -277,7 +277,9 @@ async function upload(
     throw new Error(`Seeding a blob failed: ${response.status}`)
   }
   const { statements = [], ...blob } =
-    (await response.json()) as BlobDescriptor & { statements?: string[] }
+    (await response.json()) as RecordingBlobDescriptor & {
+      statements?: string[]
+    }
   return {
     blob: {
       hash: blob.hash,
