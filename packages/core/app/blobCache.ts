@@ -1,6 +1,6 @@
 import { STATEMENT_MIME_TYPE } from '@tapes-monorepo/provenance'
 import type { AppContextValue } from './context/AppContext'
-import type { BlobDescriptor } from './types'
+import type { RecordingBlobDescriptor } from './types'
 import type { HasBlobResponse, IpcResponse } from './IpcService'
 import { callWorker } from './workerClient'
 
@@ -111,7 +111,7 @@ export async function hasCachedBlob(
  */
 export async function cachedBlobSource(
   appContext: AppContextValue,
-  descriptor: BlobDescriptor,
+  descriptor: RecordingBlobDescriptor,
 ): Promise<{ src: string; revoke: boolean } | null> {
   if (appContext.type === 'electron-client') {
     return (await hasCachedBlob(appContext, descriptor.hash))
@@ -133,7 +133,7 @@ export async function cachedBlobSource(
 
 export async function cacheBlob(
   appContext: AppContextValue,
-  descriptor: BlobDescriptor,
+  descriptor: RecordingBlobDescriptor,
   blob: Blob,
   docUrl: string,
 ): Promise<void> {

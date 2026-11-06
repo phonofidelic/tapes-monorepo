@@ -4,7 +4,7 @@ import { AutomergeUrl } from '@automerge/automerge-repo'
  * Where a recording's audio lives: the sha-256 of the bytes, which is also its
  * address in the host's blob store.
  */
-export type BlobDescriptor = {
+export type RecordingBlobDescriptor = {
   hash: string
   size: number
   mimeType: string
@@ -26,7 +26,7 @@ export type Recording = {
    * recording is. Absent when the bytes have not reached a host yet. A
    * local-only client has nowhere to put them.
    */
-  blob?: BlobDescriptor
+  blob?: RecordingBlobDescriptor
   /**
    * Blob store hashes of signed statements about the audio: the recorder's
    * claim and the host's receipt. The signatures live in the stored objects,
