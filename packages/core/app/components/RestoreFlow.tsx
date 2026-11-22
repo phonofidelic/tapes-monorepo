@@ -282,7 +282,9 @@ function FindBackup({
             spellCheck={false}
             value={pasted}
             onChange={(event) => setPasted(event.target.value)}
-            className="rounded-md bg-zinc-800 px-2 py-1.5 font-mono text-xs text-zinc-50"
+            // `text-xs` keeps a long backup phrase readable, but it would let
+            // iOS Safari zoom on focus, so touch devices get 16px back.
+            className="rounded-md bg-zinc-800 px-2 py-1.5 font-mono text-xs text-zinc-50 pointer-coarse:text-base"
           />
         </label>
         <div className="flex justify-end">

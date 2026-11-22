@@ -332,6 +332,23 @@ describe('saving a recording', () => {
     })
   })
 
+  // The name field is the shared `TextInput` from the ui package. The recorder
+  // used to carry its own copy of that component.
+  it('saves the recording under the name typed into the field', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+
+    renderRecorder(undefined)
+    await userEvent.click(screen.getByTitle('Stop recording'))
+    await userEvent.click(screen.getByTitle('Rename New recording'))
+    const field = screen.getByLabelText('Name your new recording')
+    await userEvent.clear(field)
+    // Enter in the name field is what saves the recording.
+    await userEvent.type(field, 'Take two{Enter}')
+
+    await waitFor(() => expect(documentWrites.length).toBeGreaterThan(0))
+    expect(documentWrites[0]).toMatchObject({ name: 'Take two' })
+  })
+
   // A standalone web client has no host at all. Recording must still work.
   it('queues the upload when there is nowhere to send it', async () => {
     const fetchMock = vi.fn()
