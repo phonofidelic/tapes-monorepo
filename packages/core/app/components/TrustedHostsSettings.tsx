@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import { keyFingerprint } from '@tapes-monorepo/provenance'
 import { Button } from '@tapes-monorepo/ui'
+import { LocalNameControls } from '@/components/LocalNameControls'
 import { useAppContext } from '@/context/AppContext'
+import { useKeyFingerprint } from '@/hooks/useKeyFingerprint'
+import { useLocalName } from '@/hooks/useLocalNames'
 import { useTrustedHosts } from '@/hooks/useTrustedHosts'
 import { untrustHost, type TrustedHost } from '@/trustedHosts'
 
@@ -10,9 +11,10 @@ import { untrustHost, type TrustedHost } from '@/trustedHosts'
  * host is added from the vouch shown on a Library row, which is where its key
  * and its label come from, and dropped again here.
  *
- * Each host is shown by key fingerprint as well as label. The label is the
- * host's own name for itself and proves nothing, so it is never the only thing
- * on the line.
+ * Each host is shown by key fingerprint as well as name. The operator's own
+ * name for the host leads where there is one. The label beside it is the
+ * host's own name for itself and proves nothing, so it is never the only
+ * thing on the line.
  */
 export function TrustedHostsSettings() {
   const appContext = useAppContext()
@@ -41,36 +43,29 @@ export function TrustedHostsSettings() {
 }
 
 function HostRow({ hostKey, hostLabel }: TrustedHost) {
-  const fingerprint = useFingerprint(hostKey)
+  const fingerprint = useKeyFingerprint(hostKey)
+  const named = useLocalName(hostKey)
   return (
     <li className="flex flex-col gap-1">
       <span>
-        “{hostLabel}”
+        {named ?? `“${hostLabel}”`}
         <span className="block text-xs text-zinc-500">
-          key {fingerprint ?? '…'}
+          {named !== undefined && `Calls itself “${hostLabel}”. `}key{' '}
+          {fingerprint ?? '…'}
         </span>
       </span>
-      <Button className="w-fit p-2" onClick={() => untrustHost(hostKey)}>
-        Stop trusting this host
-      </Button>
+      <div className="flex flex-wrap gap-1">
+        <LocalNameControls
+          publicKey={hostKey}
+          kind="host"
+          what="host"
+          // Matches the button beside it, which uses the shared component.
+          buttonClassName="flex w-fit items-center rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        />
+        <Button className="w-fit p-2" onClick={() => untrustHost(hostKey)}>
+          Stop trusting this host
+        </Button>
+      </div>
     </li>
   )
-}
-
-function useFingerprint(hostKey: string): string | undefined {
-  const [fingerprint, setFingerprint] = useState<string>()
-
-  useEffect(() => {
-    let current = true
-    void keyFingerprint(hostKey).then((print) => {
-      if (current) {
-        setFingerprint(print)
-      }
-    })
-    return () => {
-      current = false
-    }
-  }, [hostKey])
-
-  return fingerprint
 }

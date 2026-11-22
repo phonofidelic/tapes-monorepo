@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { LocalNameControls } from '@/components/LocalNameControls'
 import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import {
@@ -9,6 +10,8 @@ import {
 } from '@/deviceLabel'
 import { buildGuestUrl, buildTrustPageUrl, formatFingerprint } from '@/pairing'
 import { useConnectedDevices } from '@/hooks/useConnectedDevices'
+import { useKeyFingerprint } from '@/hooks/useKeyFingerprint'
+import { useLocalName } from '@/hooks/useLocalNames'
 import { isSyncServerUrl, useAutomergeUrl } from '@/utils'
 import { isValidAutomergeUrl } from '@automerge/automerge-repo'
 import { Button, TextInput } from '@tapes-monorepo/ui'
@@ -389,6 +392,11 @@ function ConnectedDevicesEmptyOrErrorMessage({
   )
 }
 
+/**
+ * One connected device. The name is the operator's own where they gave one,
+ * and the guest's name for itself moves to the line below as a claim. With
+ * neither, the row shows the device key's fingerprint.
+ */
 function ConnectionRow({ connection }: { connection: SyncConnection }) {
   const getFormattedDuration = (connectedAt: number) =>
     new Intl.DurationFormat('en', {
@@ -405,6 +413,20 @@ function ConnectionRow({ connection }: { connection: SyncConnection }) {
   const [formattedDuration, setFormattedDuration] = useState(() =>
     getFormattedDuration(connection.connectedAt),
   )
+  const named = useLocalName(connection.deviceKey)
+  const fingerprint = useKeyFingerprint(connection.deviceKey)
+  // The operator's own name first, then the name the guest gave itself. With
+  // neither, the key identifies the device where "Unknown device" did not.
+  const name =
+    named ??
+    connection.label ??
+    (fingerprint ? `device ${fingerprint}` : FALLBACK_DEVICE_LABEL)
+  // Naming your own window is pointless, and a connection that proved no key
+  // has nothing to hang a name on.
+  const nameable =
+    connection.deviceKey !== undefined && !connection.self
+      ? connection.deviceKey
+      : undefined
 
   useEffect(() => {
     const connectionDurationInterval = setInterval(
@@ -424,7 +446,7 @@ function ConnectionRow({ connection }: { connection: SyncConnection }) {
       </div>
       <div className="flex flex-col gap-0.5">
         <div className="flex gap-2">
-          <p>{connection.label ?? FALLBACK_DEVICE_LABEL}</p>
+          <p>{name}</p>
           {connection.self && (
             <div className="bg-subtle rounded-full px-2 py-0.5 text-xs">
               This device
@@ -432,12 +454,18 @@ function ConnectionRow({ connection }: { connection: SyncConnection }) {
           )}
         </div>
         <p className="text-muted">
+          {named !== undefined &&
+            connection.label !== undefined &&
+            `Calls itself “${connection.label}” · `}
           Connected{' '}
           {formattedDuration.length > 0
             ? formattedDuration + ' ago'
             : 'just now'}
           {connection.address && ` · ${connection.address}`}
         </p>
+        {nameable && (
+          <LocalNameControls publicKey={nameable} kind="device" what="device" />
+        )}
       </div>
     </div>
   )
@@ -546,6 +574,10 @@ function GuestSettings() {
  * can list its guests. On the desktop app it names the host itself, in session
  * records and in the vouches it signs. A guest's person name is what the host's
  * roster calls the person when they join.
+ *
+ * Both are outbound. Neither is a name for someone else, and nothing verifies
+ * either at the far end. The names this device gives other people's keys are
+ * local, and are typed where that key is shown (see `localNames.ts`).
  */
 function NameSettings() {
   const appContext = useAppContext()

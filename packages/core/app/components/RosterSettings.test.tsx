@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { AppContextProvider } from '@/context/AppContext'
 import type { IpcService, SignedVouch } from '@/IpcService'
+import { setLocalName } from '@/localNames'
 import { RosterSettings } from './RosterSettings'
 
 vi.mock('@/utils', () => ({
@@ -22,10 +23,15 @@ const VOUCH: SignedVouch = {
   personKey: 'sam-key',
   personName: 'Sam',
   deviceLabel: 'New phone',
+  deviceKey: 'new-phone-key',
   deviceFingerprint: 'ab cd ef',
   method: 'operator',
   vouchedAt: '2026-10-27T18:00:00.000Z',
 }
+
+beforeEach(() => {
+  localStorage.clear()
+})
 
 afterEach(() => {
   cleanup()
@@ -139,5 +145,27 @@ describe('RosterSettings', () => {
     const ipc = renderSettings([])
     await waitFor(() => expect(ipc.send).toHaveBeenCalled())
     expect(screen.queryByText('People')).not.toBeInTheDocument()
+  })
+
+  // The roster name is the one the person typed on their own phone. Nothing
+  // checked it, so the operator's own name for them leads instead.
+  it('leads with the operator’s name for a person, and keeps the joined name', async () => {
+    setLocalName({ key: 'sam-key', kind: 'person', name: 'Sam Okafor' })
+
+    renderSettings([SAM])
+
+    expect(await screen.findByText('Sam Okafor')).toBeInTheDocument()
+    expect(screen.getByText(/Joined as “Sam”/)).toBeInTheDocument()
+  })
+
+  it('leads with the operator’s name for a vouched device', async () => {
+    setLocalName({ key: 'new-phone-key', kind: 'device', name: 'Stage phone' })
+
+    renderSettings([SAM], [VOUCH])
+
+    expect(
+      await screen.findByText(/Vouched for Stage phone/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Calls itself “New phone”/)).toBeInTheDocument()
   })
 })

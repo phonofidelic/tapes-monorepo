@@ -58,6 +58,13 @@ export type SyncConnection = {
   connectedAt: number
   /** This host's own window rather than a guest. */
   self: boolean
+  /**
+   * The device key the connection proved it holds on the upgrade, which is
+   * what a local name is kept against. For the host's own window it is the
+   * host key. Undefined when the connection proved nothing, and then the row
+   * has only the name the guest gave itself.
+   */
+  deviceKey?: string
 }
 
 /**

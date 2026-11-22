@@ -8,6 +8,7 @@ import {
 } from '@tapes-monorepo/provenance'
 import { AppContextProvider, type AppContextValue } from '@/context/AppContext'
 import type { IpcService } from '@/IpcService'
+import { setLocalName } from '@/localNames'
 import { trustHost } from '@/trustedHosts'
 import { TrustedHostsSettings } from './TrustedHostsSettings'
 
@@ -72,6 +73,16 @@ describe('TrustedHostsSettings', () => {
       expect(screen.queryByText('“Studio Mac”')).not.toBeInTheDocument(),
     )
     expect(localStorage.getItem('tapes.trustedHosts')).toBe('{}')
+  })
+
+  it('leads with the operator’s name for a host, and keeps its own', async () => {
+    trustHost({ hostKey, hostLabel: 'Studio Mac' })
+    setLocalName({ key: hostKey, kind: 'host', name: 'The big Mac' })
+
+    renderSettings()
+
+    expect(await screen.findByText('The big Mac')).toBeInTheDocument()
+    expect(screen.getByText(/Calls itself “Studio Mac”/)).toBeInTheDocument()
   })
 
   // Which hosts count is a decision about the recordings a host holds, so a

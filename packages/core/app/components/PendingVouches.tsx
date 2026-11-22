@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { IpcResponse, PendingVouch } from '@/IpcService'
+import { LocalNameControls } from '@/components/LocalNameControls'
 import { useAppContext } from '@/context/AppContext'
+import { useLocalName } from '@/hooks/useLocalNames'
 import { usePendingVouches } from '@/hooks/usePendingVouches'
 
 /**
@@ -10,6 +12,11 @@ import { usePendingVouches } from '@/hooks/usePendingVouches'
  *
  * The key fingerprint is on the guest's screen too, so two phones with the
  * same name can be told apart.
+ *
+ * This is also where the operator names the device. They are looking at it and
+ * at the person holding it, which is the one moment they can say what it is
+ * with any confidence. The name is kept against the device key, so it shows
+ * wherever that key turns up later.
  */
 
 const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' })
@@ -41,6 +48,7 @@ export function PendingVouches() {
 
 function PendingRow({ request }: { request: PendingVouch }) {
   const appContext = useAppContext()
+  const named = useLocalName(request.deviceKey)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -70,13 +78,21 @@ function PendingRow({ request }: { request: PendingVouch }) {
   return (
     <li className="flex flex-col gap-2">
       <p>
-        <span className="font-medium">{request.personName}</span> on “
-        {request.deviceLabel}”
+        <span className="font-medium">{request.personName}</span> on{' '}
+        {named ?? `“${request.deviceLabel}”`}
         <span className="block text-xs text-zinc-400">
+          {named !== undefined && `Calls itself “${request.deviceLabel}”. `}
           Key {request.deviceFingerprint}
           {Number.isNaN(received) ? '' : `, asked at ${time.format(received)}`}
         </span>
       </p>
+      <LocalNameControls
+        publicKey={request.deviceKey}
+        kind="device"
+        what="device"
+        // The panel is dark whatever the theme, so the shared hover is wrong.
+        buttonClassName="flex w-fit items-center rounded-md px-3 py-1.5 text-zinc-400 hover:text-zinc-50"
+      />
       {error && (
         <p role="alert" className="text-rose-300">
           {error}

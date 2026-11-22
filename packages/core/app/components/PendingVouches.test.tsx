@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppContextProvider } from '@/context/AppContext'
@@ -9,9 +9,16 @@ const SAM: PendingVouch = {
   id: 'request-1',
   personName: 'Sam',
   deviceLabel: 'iPhone · Safari',
+  deviceKey: 'sam-phone-key',
   deviceFingerprint: 'AB12-CD34',
   receivedAt: '2026-10-24T18:00:00.000Z',
 }
+
+beforeEach(() => {
+  // The naming store is per device, so a name saved by one test would still
+  // be there for the next.
+  localStorage.clear()
+})
 
 afterEach(() => {
   cleanup()
@@ -94,5 +101,30 @@ describe('PendingVouches', () => {
     )
 
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  // The operator is looking at the phone and at the person holding it, so this
+  // is the one moment they can say what the device is.
+  it('names the waiting device, and keeps its own name as a claim', async () => {
+    const user = userEvent.setup()
+    renderPanel([SAM])
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Name this device' }),
+    )
+    await user.type(screen.getByRole('textbox'), 'Studio phone')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const panel = screen.getByRole('region', { name: 'Waiting to join' })
+    expect(panel).toHaveTextContent('Sam on Studio phone')
+    expect(panel).toHaveTextContent('Calls itself “iPhone · Safari”')
+  })
+
+  it('shows the device’s own name when the operator has given none', async () => {
+    renderPanel([SAM])
+
+    expect(
+      await screen.findByRole('region', { name: 'Waiting to join' }),
+    ).toHaveTextContent('Sam on “iPhone · Safari”')
   })
 })
