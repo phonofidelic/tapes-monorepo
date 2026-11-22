@@ -7,7 +7,9 @@ import type {
   SignedVouch,
   SignedVouchesResponse,
 } from '@/IpcService'
+import { LocalNameControls } from '@/components/LocalNameControls'
 import { useAppContext } from '@/context/AppContext'
+import { useLocalName } from '@/hooks/useLocalNames'
 import { useAutomergeUrl } from '@/utils'
 
 /**
@@ -18,6 +20,10 @@ import { useAutomergeUrl } from '@/utils'
  * Each person also lists the devices this host has vouched for. The operator
  * can withdraw a vouch given to the wrong person, which the host signs and
  * lists on the recordings that name it.
+ *
+ * A person and a vouched device are both named by the operator here, against
+ * their keys. The names people and devices gave themselves on joining stay
+ * beside those, as claims: nothing checked either one.
  *
  * Read when Settings opens. A lockout that happens while it is open shows
  * after the next action or visit.
@@ -97,6 +103,7 @@ function PersonRow({
   docUrl: string | null
   onChanged: () => void
 }) {
+  const named = useLocalName(person.personKey)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [settingPin, setSettingPin] = useState(false)
@@ -144,8 +151,9 @@ function PersonRow({
   return (
     <li className="flex flex-col gap-1">
       <p>
-        <span className="font-medium">{person.name}</span>
+        <span className="font-medium">{named ?? person.name}</span>
         <span className="block text-xs text-zinc-500">
+          {named !== undefined && `Joined as “${person.name}”. `}
           {person.pinLocked
             ? 'PIN locked after too many wrong tries'
             : person.hasPin
@@ -153,6 +161,13 @@ function PersonRow({
               : 'No PIN'}
         </span>
       </p>
+      <LocalNameControls
+        publicKey={person.personKey}
+        kind="person"
+        what="person"
+        // Matches the PIN buttons below.
+        buttonClassName="flex w-fit items-center rounded-sm p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      />
       {error && (
         <p role="alert" className="text-rose-500">
           {error}
@@ -170,7 +185,7 @@ function PersonRow({
         >
           <label className="flex flex-col gap-1">
             <span className="text-xs">
-              {person.name} types a new PIN, 4 to 6 digits
+              {named ?? person.name} types a new PIN, 4 to 6 digits
             </span>
             <input
               type="password"
@@ -261,25 +276,61 @@ function VouchedDevices({
   return (
     <ul className="flex flex-col gap-2 pl-2 text-xs">
       {vouches.map((vouch) => (
-        <li key={vouch.address} className="flex flex-col gap-1">
-          <span>
-            Vouched for “{vouch.deviceLabel}”
-            {vouch.method === 'pin' ? ', by PIN' : ', in person'}, key{' '}
-            {vouch.deviceFingerprint}
-          </span>
-          {vouch.revokedAt ? (
-            <span className="text-zinc-500">Withdrawn</span>
-          ) : (
-            <Button
-              className="w-fit p-1"
-              disabled={!canRevoke}
-              onClick={() => void onRevoke(vouch.address)}
-            >
-              Withdraw this vouch
-            </Button>
-          )}
-        </li>
+        <VouchRow
+          key={vouch.address}
+          vouch={vouch}
+          canRevoke={canRevoke}
+          onRevoke={onRevoke}
+        />
       ))}
     </ul>
+  )
+}
+
+/**
+ * One vouched device. The operator's own name for it leads where there is
+ * one, and the name the device gave itself stays beside it as a claim.
+ */
+function VouchRow({
+  vouch,
+  canRevoke,
+  onRevoke,
+}: {
+  vouch: SignedVouch
+  canRevoke: boolean
+  onRevoke: (address: string) => Promise<void>
+}) {
+  const named = useLocalName(vouch.deviceKey)
+  return (
+    <li className="flex flex-col gap-1">
+      <span>
+        Vouched for {named ?? `“${vouch.deviceLabel}”`}
+        {vouch.method === 'pin' ? ', by PIN' : ', in person'}, key{' '}
+        {vouch.deviceFingerprint}
+        {named !== undefined && (
+          <span className="block text-zinc-500">
+            Calls itself “{vouch.deviceLabel}”.
+          </span>
+        )}
+      </span>
+      <div className="flex flex-wrap gap-1">
+        <LocalNameControls
+          publicKey={vouch.deviceKey}
+          kind="device"
+          what="device"
+        />
+        {vouch.revokedAt ? (
+          <span className="text-zinc-500">Withdrawn</span>
+        ) : (
+          <Button
+            className="w-fit p-1"
+            disabled={!canRevoke}
+            onClick={() => void onRevoke(vouch.address)}
+          >
+            Withdraw this vouch
+          </Button>
+        )}
+      </div>
+    </li>
   )
 }

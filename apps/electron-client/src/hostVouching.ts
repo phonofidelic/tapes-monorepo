@@ -123,6 +123,8 @@ export type PendingVouch = {
   id: string
   personName: string
   deviceLabel: string
+  /** The key the request proved it holds, so the operator can name it. */
+  deviceKey: string
   /** For the operator to tell two phones with the same label apart. */
   deviceFingerprint: string
   /** The host's clock. */
@@ -421,6 +423,7 @@ export function createHostVouching({
           id: entry.id,
           personName: entry.personName,
           deviceLabel: entry.request.deviceLabel,
+          deviceKey: entry.request.deviceKey,
           deviceFingerprint: entry.deviceFingerprint,
           receivedAt: new Date(entry.receivedAt).toISOString(),
         }))

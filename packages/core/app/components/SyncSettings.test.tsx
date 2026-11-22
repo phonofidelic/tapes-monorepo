@@ -9,6 +9,11 @@ import {
   within,
 } from '@testing-library/react'
 import { generateAutomergeUrl } from '@automerge/automerge-repo'
+import {
+  exportPublicKey,
+  generateSigningKeyPair,
+  keyFingerprint,
+} from '@tapes-monorepo/provenance'
 import { AppContextProvider } from '@/context/AppContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import { SyncSettings } from '@/components/SyncSettings'
@@ -19,6 +24,7 @@ import type {
   SyncServerInfo,
 } from '@/services/SyncService'
 import { IpcService } from '@/IpcService'
+import { setLocalName } from '@/localNames'
 
 /**
  * What the host's sync panel says about who is connected.
@@ -445,5 +451,69 @@ describe('SyncSettings: staying current with the host', () => {
     unmount()
 
     expect(unsubscribe).toHaveBeenCalled()
+  })
+
+  describe('naming a connected device', () => {
+    let deviceKey: string
+    let fingerprint: string | undefined
+
+    beforeEach(async () => {
+      deviceKey = await exportPublicKey(
+        (await generateSigningKeyPair()).publicKey,
+      )
+      fingerprint = await keyFingerprint(deviceKey)
+    })
+
+    // "Unknown device" told the operator nothing. The key at least says which
+    // device this is, and it is what a name would be kept against.
+    it('falls back to the key when nothing has named the device', async () => {
+      const { ipc } = fakeIpc(ok([{ ...aPhone, label: undefined, deviceKey }]))
+
+      renderHostSyncSettings(ipc)
+
+      expect(
+        await screen.findByText(`device ${fingerprint}`),
+      ).toBeInTheDocument()
+      // Scoped to the panel: the host's own name setting prints the same
+      // fallback as the hint under its input.
+      expect(
+        within(await connectedDevicesPanel()).queryByText('Unknown device'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('leads with the operator’s name, and keeps the guest’s as a claim', async () => {
+      setLocalName({ key: deviceKey, kind: 'device', name: 'Stage phone' })
+      const { ipc } = fakeIpc(ok([{ ...aPhone, deviceKey }]))
+
+      renderHostSyncSettings(ipc)
+
+      expect(await screen.findByText('Stage phone')).toBeInTheDocument()
+      expect(
+        screen.getByText(/Calls itself “Studio phone”/),
+      ).toBeInTheDocument()
+    })
+
+    it('offers no name for this host’s own window', async () => {
+      const { ipc } = fakeIpc(ok([{ ...thisDevice, deviceKey }]))
+
+      renderHostSyncSettings(ipc)
+      await screen.findByText('Studio Mac')
+
+      expect(
+        screen.queryByRole('button', { name: 'Name this device' }),
+      ).not.toBeInTheDocument()
+    })
+
+    // A connection that proved no key has nothing to hang a name on.
+    it('offers no name for a device that proved no key', async () => {
+      const { ipc } = fakeIpc(ok([aPhone]))
+
+      renderHostSyncSettings(ipc)
+      await screen.findByText('Studio phone')
+
+      expect(
+        screen.queryByRole('button', { name: 'Name this device' }),
+      ).not.toBeInTheDocument()
+    })
   })
 })

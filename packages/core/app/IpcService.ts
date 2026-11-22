@@ -78,6 +78,8 @@ export type PendingVouch = {
   personName: string
   /** The device's own name for itself. Unverified. */
   deviceLabel: string
+  /** The device's base64url public key, which a local name is kept against. */
+  deviceKey: string
   /** For telling two phones with the same label apart. */
   deviceFingerprint: string
   /** The host's clock. */
@@ -99,6 +101,8 @@ export type SignedVouch = {
   personName: string
   /** The device's own name for itself. Unverified. */
   deviceLabel: string
+  /** The device's base64url public key, which a local name is kept against. */
+  deviceKey: string
   /** For telling two phones with the same label apart. */
   deviceFingerprint: string
   /** How the person showed the host it was them. */

@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@tapes-monorepo/ui'
 import {
-  keyFingerprint,
   NO_SESSION_ID,
   type RevocationReason,
   type RevokedDeviceLink,
   type VerifiedPerson,
   type VerifiedSession,
 } from '@tapes-monorepo/provenance'
+import { LocalNameControls } from '@/components/LocalNameControls'
 import { useAppContext } from '@/context/AppContext'
+import { useKeyFingerprint } from '@/hooks/useKeyFingerprint'
+import { useLocalName } from '@/hooks/useLocalNames'
 import {
   useRecordingProvenance,
   type ProvenanceState,
@@ -30,6 +32,11 @@ import { trustHost } from '@/trustedHosts'
  * person's name, and nothing here pretends it is. A host's vouch is the one
  * exception: it shows the host's name for the person, along with the host that
  * signed it.
+ *
+ * A name the operator typed outranks all of that, for a device, a person and
+ * a host alike, and is offered here for every key a row names. Those names are
+ * this device's own, kept by `localNames.ts`. The names that arrive in a
+ * statement stay visible beside them, in quotes, as the claims they are.
  *
  * A vouch from a host the operator trusts counts as the person's own, so the
  * host is left off the name. Whom to trust is this reader's decision, kept per
@@ -92,31 +99,20 @@ function useLocalPersonKey(): string | undefined {
   return key
 }
 
-function useFingerprint(key: string | undefined): string | undefined {
-  const [held, setHeld] = useState<{ key: string; fingerprint?: string }>()
-  useEffect(() => {
-    if (!key) {
-      return
-    }
-    let current = true
-    void keyFingerprint(key).then(
-      (fingerprint) => current && setHeld({ key, fingerprint }),
-    )
-    return () => {
-      current = false
-    }
-  }, [key])
-  return held && held.key === key ? held.fingerprint : undefined
-}
-
 function useDeviceName(
   deviceKey: string | undefined,
   localKey: string | undefined,
   certifiedLabel?: string,
 ): string {
-  const fingerprint = useFingerprint(deviceKey)
+  const fingerprint = useKeyFingerprint(deviceKey)
+  // The operator's own name outranks the one the device gave itself. Shown
+  // without quotes, because it is this reader's word and not a claim.
+  const named = useLocalName(deviceKey)
   if (deviceKey && deviceKey === localKey) {
     return 'this device'
+  }
+  if (named !== undefined) {
+    return named
   }
   if (certifiedLabel) {
     return `“${certifiedLabel}”`
@@ -128,24 +124,29 @@ function usePersonName(
   person: VerifiedPerson | undefined,
   localPersonKey: string | undefined,
   trustedHost: boolean,
+  hostName: string | undefined,
 ): string | undefined {
-  const fingerprint = useFingerprint(person?.personKey)
+  const fingerprint = useKeyFingerprint(person?.personKey)
+  // A name the operator typed beats the roster name a host assigned, which
+  // the person themselves never signed.
+  const named = useLocalName(person?.personKey)
   if (!person) {
     return undefined
   }
   const name =
     person.personKey === localPersonKey
       ? 'you'
-      : person.via === 'vouch'
-        ? person.personName
-        : fingerprint
-          ? `person ${fingerprint}`
-          : 'another person'
+      : (named ??
+        (person.via === 'vouch'
+          ? person.personName
+          : fingerprint
+            ? `person ${fingerprint}`
+            : 'another person'))
   // The person key signed nothing, so the name is only as good as the host.
   // Which host that was is the point of saying it, unless the reader has
   // already said they trust that host.
   return person.via === 'vouch' && !trustedHost
-    ? `${name}, vouched by ${person.hostLabel}`
+    ? `${name}, vouched by ${hostName ?? person.hostLabel}`
     : name
 }
 
@@ -196,7 +197,13 @@ function ProvenanceText({
   const trustedHost = trustedHosts.some(
     (host) => host.hostKey === vouch?.hostKey,
   )
-  const personName = usePersonName(person, localPersonKey, trustedHost)
+  const hostName = useLocalName(vouch?.hostKey)
+  const personName = usePersonName(
+    person,
+    localPersonKey,
+    trustedHost,
+    hostName,
+  )
   const revocation =
     'revocation' in provenance ? provenance.revocation : undefined
   const deviceLink =
@@ -265,6 +272,13 @@ function ProvenanceText({
               hostLabel={trustableHost.hostLabel}
             />
           )}
+          <NameTheseKeys
+            deviceKey={deviceKey}
+            localKey={localKey}
+            personKey={person?.personKey}
+            localPersonKey={localPersonKey}
+            hostKey={vouch?.hostKey}
+          />
           {revocation && <Revocation {...revocation} />}
           {revocable && (
             <RevokeDeviceControls
@@ -304,6 +318,13 @@ function ProvenanceText({
               hostLabel={trustableHost.hostLabel}
             />
           )}
+          <NameTheseKeys
+            deviceKey={deviceKey}
+            localKey={localKey}
+            personKey={person?.personKey}
+            localPersonKey={localPersonKey}
+            hostKey={vouch?.hostKey}
+          />
           {revocation && <Revocation {...revocation} />}
           {revocable && (
             <RevokeDeviceControls
@@ -452,6 +473,54 @@ function TrustHostControls({
       >
         Trust this host
       </Button>
+    </div>
+  )
+}
+
+/**
+ * Where the operator names the keys behind this recording. A name saved here
+ * is this device's own, so it shows wherever that key turns up again: another
+ * Library row, a session, the connected devices list.
+ *
+ * Your own device and your own person key are left out. They already read as
+ * "this device" and "you", which no name improves.
+ */
+function NameTheseKeys({
+  deviceKey,
+  localKey,
+  personKey,
+  localPersonKey,
+  hostKey,
+}: {
+  deviceKey: string | undefined
+  localKey: string | undefined
+  personKey: string | undefined
+  localPersonKey: string | undefined
+  hostKey: string | undefined
+}) {
+  const nameable = [
+    deviceKey && deviceKey !== localKey
+      ? { key: deviceKey, kind: 'device' as const, what: 'device' }
+      : undefined,
+    personKey && personKey !== localPersonKey
+      ? { key: personKey, kind: 'person' as const, what: 'person' }
+      : undefined,
+    hostKey ? { key: hostKey, kind: 'host' as const, what: 'host' } : undefined,
+  ].filter((each) => each !== undefined)
+
+  if (nameable.length === 0) {
+    return null
+  }
+  return (
+    <div className="flex flex-wrap items-start gap-2">
+      {nameable.map((each) => (
+        <LocalNameControls
+          key={each.key}
+          publicKey={each.key}
+          kind={each.kind}
+          what={each.what}
+        />
+      ))}
     </div>
   )
 }
