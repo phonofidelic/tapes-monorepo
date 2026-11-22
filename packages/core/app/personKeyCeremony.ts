@@ -31,6 +31,12 @@ export type CeremonyRequest = {
   action: CeremonyAction
   /** The host's own name for itself. The page shows it as a claim. */
   hostName: string
+  /**
+   * The name this operator gave the host's key, where they gave one. The page
+   * shows it as the host's name: nobody but this operator could have written
+   * it, which is what makes it recognition rather than another claim.
+   */
+  knownAs?: string
   /** What the passkey is listed under in a password manager. */
   personName?: string
   /** The person public key, base64url, so one person has one passkey. */

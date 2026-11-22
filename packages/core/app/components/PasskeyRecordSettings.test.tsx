@@ -31,13 +31,14 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderSettings(recordedAt?: string) {
+function renderSettings(recordedAt?: string, knownAs?: string) {
   const onRecorded = vi.fn()
   render(
     <PasskeyRecordSettings
       worker={worker}
       endpoint={ENDPOINT}
       hostName="Studio Mac"
+      knownAs={knownAs}
       personPublicKey="sam-key"
       recordedAt={recordedAt}
       onRecorded={onRecorded}
@@ -58,12 +59,31 @@ describe('PasskeyRecordSettings', () => {
     )
     // One passkey per person, not one per device.
     expect(runPasskeyCeremony).toHaveBeenCalledWith(
-      { action: 'create', hostName: 'Studio Mac', userId: 'sam-key' },
+      {
+        action: 'create',
+        hostName: 'Studio Mac',
+        knownAs: undefined,
+        userId: 'sam-key',
+      },
       {},
     )
     expect(storePasskeyRecord).toHaveBeenCalledWith(worker, ENDPOINT, CEREMONY)
     expect(await screen.findByRole('status')).toHaveTextContent(
       'bring this key back on a new phone',
+    )
+  })
+
+  it('gives the passkey page the operator’s own name for the host', async () => {
+    const user = userEvent.setup()
+    renderSettings(undefined, 'The Mac in the live room')
+
+    await user.click(screen.getByText('Protect with a passkey'))
+
+    await waitFor(() =>
+      expect(runPasskeyCeremony).toHaveBeenCalledWith(
+        expect.objectContaining({ knownAs: 'The Mac in the live room' }),
+        {},
+      ),
     )
   })
 

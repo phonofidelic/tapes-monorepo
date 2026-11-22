@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { RosterPerson } from '@tapes-monorepo/sync-protocol'
 import { AppContextProvider } from '@/context/AppContext'
 import { SettingsProvider } from '@/context/SettingsContext'
+import { setLocalName } from '@/localNames'
 import { markPersonKeyJoined, type PersonKeyStatus } from '@/personKey'
 import {
   acceptVouch,
@@ -15,26 +16,32 @@ import { VOUCH_POLL_MS, WelcomeBackFlow } from './RejoinFlow'
 
 vi.mock('@/personKey', () => ({ markPersonKeyJoined: vi.fn() }))
 
-// The restore screen has its own tests. Here it only has to finish.
+// The restore screen has its own tests. Here it only has to finish, and to
+// report the name it was handed for the passkey page.
 vi.mock('./RestoreFlow', () => ({
   RestoreFlow: ({
+    knownAs,
     onRestored,
   }: {
+    knownAs?: string
     onRestored: (status: PersonKeyStatus) => void
   }) => (
-    <button
-      onClick={() =>
-        onRestored({
-          exists: true,
-          publicKey: 'sam-key',
-          certificate: 'encoded-certificate',
-          certificateAddress: 'cd'.repeat(32),
-          backedUpAt: '2026-10-24T12:00:00.000Z',
-        })
-      }
-    >
-      Finish restoring
-    </button>
+    <>
+      <p>{knownAs ? `Known as ${knownAs}` : 'No local name'}</p>
+      <button
+        onClick={() =>
+          onRestored({
+            exists: true,
+            publicKey: 'sam-key',
+            certificate: 'encoded-certificate',
+            certificateAddress: 'cd'.repeat(32),
+            backedUpAt: '2026-10-24T12:00:00.000Z',
+          })
+        }
+      >
+        Finish restoring
+      </button>
+    </>
   ),
 }))
 
@@ -119,6 +126,32 @@ describe('WelcomeBackFlow', () => {
 
     expect(onNew).toHaveBeenCalled()
     expect(askForVouch).not.toHaveBeenCalled()
+  })
+
+  // The passkey page runs on another origin and cannot read this store, so
+  // the name has to travel with the request. It is keyed by the host key this
+  // phone pinned from the QR link.
+  it('hands the restore screen the name this operator gave the pinned host', async () => {
+    const user = userEvent.setup()
+    setLocalName({ key: HOST_KEY, kind: 'host', name: 'The live room Mac' })
+    renderFlow()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Restore from a backup' }),
+    )
+
+    expect(screen.getByText('Known as The live room Mac')).toBeInTheDocument()
+  })
+
+  it('hands it no name when the operator named no host', async () => {
+    const user = userEvent.setup()
+    renderFlow()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Restore from a backup' }),
+    )
+
+    expect(screen.getByText('No local name')).toBeInTheDocument()
   })
 
   it('marks a restored person the host knows as joined', async () => {

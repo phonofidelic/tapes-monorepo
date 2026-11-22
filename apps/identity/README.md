@@ -51,13 +51,17 @@ Version 1. The guest side mirrors these shapes, in
    about its address gets nothing, because the browser drops the message.
 3. The guest replies with `{ type: 'request', nonce, action, hostName, … }`.
    The page checks that the message came from the origin in the fragment.
-4. The page shows that origin and the host's claimed name. It waits for a tap.
+4. The page shows the names it was given and that origin. It waits for a tap.
 5. The page runs the passkey with the PRF extension. It posts back
    `{ type: 'result', credentialId, rpId, prf }` or `{ type: 'error', reason }`.
 
-The host's name arrives as `hn` on the pairing link, so it is the host's own
-name for itself. Nothing verifies it. That is why the origin is shown next to
-it.
+Two names can arrive, and they are not the same kind of thing. The host's own
+name for itself comes from `hn` on the pairing link. Nothing verifies it,
+which is why the origin is always shown as well. The second name is one the
+operator typed for that host key, on the device that is asking. It reaches the
+page as `knownAs`. Only that one is recognition, so the page leads with it and
+puts the claim and the origin underneath. A request that carries no such name
+reads exactly as it did before.
 
 The PRF salt is `tapes/person-key/v1`, from Person key wrapping format v1. The
 page derives nothing and wraps nothing. It hands back the PRF output. The guest
@@ -95,7 +99,12 @@ here that would notice an upload nobody wrote down.
 
 - Keep it small and dependency free.
 - Add `ceremony.v2.js` beside the version 1 file rather than editing version 1,
-  once real passkeys are bound to this origin. Old guests keep working.
+  once real passkeys are bound to this origin. Old guests keep working. Version
+  1 was last edited in place to add the operator's own name for the host, when
+  no real passkeys were bound here yet.
+- Keep a change readable by the script a guest has already cached. The page is
+  cached for a day and the markup is not, so new markup has to render the old
+  way until the new script arrives.
 - `yarn workspace identity check-types` type-checks the page.
 - `yarn dev` serves the page on port 3003.
 

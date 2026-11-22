@@ -64,6 +64,7 @@ export function RestoreFlow({
   worker,
   endpoint,
   hostName,
+  knownAs,
   onRestored,
   onCancel,
 }: {
@@ -71,6 +72,8 @@ export function RestoreFlow({
   /** Where the host's records live. Without one, only a backup restores. */
   endpoint?: BlobEndpoint
   hostName: string
+  /** The operator's own name for the paired host, where they gave one. */
+  knownAs?: string
   onRestored: (status: PersonKeyStatus) => void
   onCancel: () => void
 }) {
@@ -96,7 +99,7 @@ export function RestoreFlow({
     }
     setError(undefined)
     setStep({ kind: 'passkey' })
-    runPasskeyCeremony({ action: 'get', hostName }, {}).then(
+    runPasskeyCeremony({ action: 'get', hostName, knownAs }, {}).then(
       async (outcome) => {
         if (!outcome.ok) {
           giveUp(ceremonyProblems[outcome.problem])

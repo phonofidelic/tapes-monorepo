@@ -16,15 +16,35 @@
       <h1>Tapes passkey</h1>
 
       <section id="asking" hidden>
-        <p>
-          <strong id="origin"></strong> is asking to use your passkey for your
-          Tapes person key.
-        </p>
-        <p>
-          It says it is <strong id="host-name"></strong>. Tapes cannot check
-          that name. Only continue if you recognise the address above as the
-          Tapes you are using right now.
-        </p>
+        <!--
+          Two leads, one shown. The named one needs a name from the opener, so
+          a guest that sent none, or an older cached script, leaves it hidden
+          and the page reads as it always did.
+        -->
+        <div id="named" hidden>
+          <p>
+            <strong id="known-as"></strong> is asking to use your passkey for
+            your Tapes person key.
+          </p>
+          <p>
+            That is the name you gave this host. It is at
+            <strong id="named-origin"></strong> and calls itself
+            <strong id="named-host-name"></strong>. Tapes cannot check what a
+            host calls itself. Only continue if you are using that Tapes right
+            now.
+          </p>
+        </div>
+        <div id="unnamed">
+          <p>
+            <strong id="origin"></strong> is asking to use your passkey for your
+            Tapes person key.
+          </p>
+          <p>
+            It says it is <strong id="host-name"></strong>. Tapes cannot check
+            that name. Only continue if you recognise the address above as the
+            Tapes you are using right now.
+          </p>
+        </div>
         <p id="action-note"></p>
         <div class="buttons">
           <button id="confirm" type="button">Continue</button>

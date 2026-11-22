@@ -5,6 +5,7 @@ import type { BlobEndpoint } from '@/blobClient'
 import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import { resolveDeviceLabel } from '@/deviceLabel'
+import { useLocalName } from '@/hooks/useLocalNames'
 import { readLocalDeviceKey } from '@/localDeviceKey'
 import { markPersonKeyJoined, type PersonKeyStatus } from '@/personKey'
 import {
@@ -54,6 +55,9 @@ export function WelcomeBackFlow({
   const [restoring, setRestoring] = useState(false)
   const [error, setError] = useState<string>()
   const [pairedHostName] = useSetting('pairedHostName')
+  const [pinnedHostKey] = useSetting('pinnedHostKey')
+  // The passkey page shows this instead of the host's claim about itself.
+  const knownAs = useLocalName(pinnedHostKey)
 
   if (restoring) {
     return (
@@ -61,6 +65,7 @@ export function WelcomeBackFlow({
         worker={worker}
         endpoint={endpoint}
         hostName={pairedHostName ?? window.location.host}
+        knownAs={knownAs}
         onCancel={() => setRestoring(false)}
         onRestored={(status) => {
           // A person the host already knows needs no join step.

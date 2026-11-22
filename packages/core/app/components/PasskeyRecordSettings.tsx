@@ -29,14 +29,17 @@ export function PasskeyRecordSettings({
   worker,
   endpoint,
   hostName,
+  knownAs,
   personPublicKey,
   recordedAt,
   onRecorded,
 }: {
   worker: Worker
   endpoint: BlobEndpoint
-  /** Shown on the passkey page as the host asking. */
+  /** Shown on the passkey page as the host's claim about itself. */
   hostName: string
+  /** The operator's own name for the paired host, where they gave one. */
+  knownAs?: string
   /** Base64url, so one person gets one passkey rather than one per device. */
   personPublicKey: string
   /** When this device last wrote a record, if it has. */
@@ -52,7 +55,7 @@ export function PasskeyRecordSettings({
     setSaid(undefined)
     setRunning(true)
     runPasskeyCeremony(
-      { action: 'create', hostName, userId: personPublicKey },
+      { action: 'create', hostName, knownAs, userId: personPublicKey },
       {},
     ).then(
       async (outcome) => {

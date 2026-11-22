@@ -3,6 +3,7 @@ import { Button } from '@tapes-monorepo/ui'
 import { useAppContext } from '@/context/AppContext'
 import { useSetting } from '@/context/SettingsContext'
 import { useUploadEndpoint } from '@/context/BlobContext'
+import { useLocalName } from '@/hooks/useLocalNames'
 import { useRosterSelf } from '@/hooks/useRosterSelf'
 import { useVouchState } from '@/hooks/useVouchState'
 import { readPersonKeyStatus, type PersonKeyStatus } from '@/personKey'
@@ -47,6 +48,9 @@ export function PersonKeySettings() {
   const [asking, setAsking] = useState(false)
   const [message, setMessage] = useState<{ text: string; error: boolean }>()
   const [pairedHostName] = useSetting('pairedHostName')
+  const [pinnedHostKey] = useSetting('pinnedHostKey')
+  // The passkey page shows this instead of the host's claim about itself.
+  const knownAs = useLocalName(pinnedHostKey)
   const endpoint = useUploadEndpoint()
 
   const identified = status?.exists ? status : undefined
@@ -127,6 +131,7 @@ export function PersonKeySettings() {
           worker={appContext.worker}
           endpoint={endpoint}
           hostName={pairedHostName ?? window.location.host}
+          knownAs={knownAs}
           personPublicKey={identified.publicKey}
           recordedAt={identified.passkeyRecordedAt}
           onRecorded={(passkeyRecordedAt) =>
@@ -146,6 +151,7 @@ export function PersonKeySettings() {
           worker={appContext.worker}
           endpoint={endpoint}
           hostName={pairedHostName ?? window.location.host}
+          knownAs={knownAs}
           onCancel={() => setRestoring(false)}
           onRestored={(next) => {
             setStatus(next)
