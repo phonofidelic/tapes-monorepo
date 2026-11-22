@@ -5,6 +5,7 @@ import {
   CEREMONY_PROTOCOL_VERSION,
   runPasskeyCeremony,
   type CeremonyOutcome,
+  type CeremonyRequest,
 } from './personKeyCeremony'
 
 const ORIGIN = 'https://identity.example'
@@ -55,10 +56,19 @@ function resultFor(nonce: unknown, prf = new Uint8Array(32).fill(7)) {
   })
 }
 
-function start(options: { tab: FakeTab | null; timeoutMs?: number }) {
+function start(options: {
+  tab: FakeTab | null
+  timeoutMs?: number
+  request?: Partial<CeremonyRequest>
+}) {
   const opened: string[] = []
   const outcome = runPasskeyCeremony(
-    { action: 'create', hostName: 'Studio', personName: 'Chris' },
+    {
+      action: 'create',
+      hostName: 'Studio',
+      personName: 'Chris',
+      ...options.request,
+    },
     {
       origin: ORIGIN,
       timeoutMs: options.timeoutMs,
@@ -107,6 +117,31 @@ describe('runPasskeyCeremony', () => {
       rpId: 'tapes.network',
       prf: new Uint8Array(32).fill(7),
     })
+  })
+
+  // The page shows this name instead of the host's claim about itself, so it
+  // has to survive the trip as the operator typed it.
+  it('sends the operator’s own name for the host alongside the host’s claim', () => {
+    const tab = fakeTab()
+    start({ tab, request: { knownAs: 'The Mac in the live room' } })
+
+    deliver(message({ type: 'ready' }), tab)
+    const [payload] = tab.postMessage.mock.calls[0]
+    expect(payload).toMatchObject({
+      type: 'request',
+      hostName: 'Studio',
+      knownAs: 'The Mac in the live room',
+    })
+  })
+
+  it('sends no name of its own when the operator named nothing', () => {
+    const tab = fakeTab()
+    start({ tab, request: { knownAs: undefined } })
+
+    deliver(message({ type: 'ready' }), tab)
+    const [payload] = tab.postMessage.mock.calls[0]
+    expect(payload).toMatchObject({ hostName: 'Studio' })
+    expect((payload as CeremonyRequest).knownAs).toBeUndefined()
   })
 
   it('reports a blocked tab without waiting for anything', async () => {

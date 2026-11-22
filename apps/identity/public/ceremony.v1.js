@@ -45,6 +45,15 @@ const MAX_CREDENTIAL_ID_LENGTH = 1023
 
 const element = {
   asking: /** @type {HTMLElement} */ (document.getElementById('asking')),
+  named: /** @type {HTMLElement} */ (document.getElementById('named')),
+  knownAs: /** @type {HTMLElement} */ (document.getElementById('known-as')),
+  namedOrigin: /** @type {HTMLElement} */ (
+    document.getElementById('named-origin')
+  ),
+  namedHostName: /** @type {HTMLElement} */ (
+    document.getElementById('named-host-name')
+  ),
+  unnamed: /** @type {HTMLElement} */ (document.getElementById('unnamed')),
   origin: /** @type {HTMLElement} */ (document.getElementById('origin')),
   hostName: /** @type {HTMLElement} */ (document.getElementById('host-name')),
   actionNote: /** @type {HTMLElement} */ (
@@ -66,6 +75,7 @@ const element = {
  * @property {string} nonce
  * @property {'create' | 'get'} action
  * @property {string} hostName
+ * @property {string} [knownAs]
  * @property {string} [personName]
  * @property {string} [userId]
  * @property {string[]} [credentialIds]
@@ -171,8 +181,18 @@ function received(event, origin) {
  * @param {CeremonyRequest} request
  */
 function ask(origin, request) {
-  element.origin.textContent = origin
-  element.hostName.textContent = request.hostName
+  // A name the person typed themselves wins over the host's claim about
+  // itself. The claim and the origin stay on the page, under it.
+  if (request.knownAs) {
+    element.knownAs.textContent = request.knownAs
+    element.namedOrigin.textContent = origin
+    element.namedHostName.textContent = request.hostName
+    element.unnamed.hidden = true
+    element.named.hidden = false
+  } else {
+    element.origin.textContent = origin
+    element.hostName.textContent = request.hostName
+  }
   element.actionNote.textContent =
     request.action === 'create'
       ? 'Continuing makes a new passkey on this device.'
@@ -387,7 +407,7 @@ function asRequest(value) {
   if (data.type !== 'request') {
     return null
   }
-  const { nonce, hostName, personName, userId, credentialIds } = data
+  const { nonce, hostName, knownAs, personName, userId, credentialIds } = data
   if (typeof nonce !== 'string' || !nonce) {
     return null
   }
@@ -402,7 +422,8 @@ function asRequest(value) {
   return {
     nonce,
     action,
-    hostName: label(hostName),
+    hostName: clean(hostName) || 'a Tapes host',
+    knownAs: clean(knownAs) || undefined,
     personName: typeof personName === 'string' ? personName.slice(0, 64) : undefined,
     userId: typeof userId === 'string' ? userId : undefined,
     credentialIds: ids,
@@ -410,19 +431,23 @@ function asRequest(value) {
 }
 
 /**
- * The host's own name for itself, which nothing here can verify. It is shown
- * next to the origin, which is what the person should judge. Control
- * characters are dropped so a name cannot forge its way out of its line.
+ * A name from the opener, ready to show. Control characters are dropped so a
+ * name cannot forge its way out of its line, and the rest is capped so it
+ * cannot crowd out the origin beside it. Empty when nothing printable is left.
+ *
+ * Neither name is verified here. `hostName` is the host's claim about itself,
+ * which is why the origin is always shown too. `knownAs` was typed by the
+ * person reading it, on the device that is asking.
  *
  * @param {unknown} value
  */
-function label(value) {
+function clean(value) {
   const text =
     typeof value === 'string'
       // eslint-disable-next-line no-control-regex
       ? value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim()
       : ''
-  return text ? text.slice(0, 64) : 'a Tapes host'
+  return text.slice(0, 64)
 }
 
 /** @param {string | undefined} text */
