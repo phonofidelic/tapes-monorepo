@@ -18,6 +18,23 @@
   }
 }
 
+/*
+ * iOS Safari zooms the page in when a focused form control has a font size
+ * below 16px, and the app sets `touch-action: none`, so the pinch gesture that
+ * would undo the zoom is swallowed. Keeping touch controls at 16px avoids the
+ * zoom instead of trying to recover from it. A control that sets its own text
+ * size still wins: utilities sit in a later layer than this rule.
+ */
+@layer base {
+  @media (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: max(1rem, 16px);
+    }
+  }
+}
+
 /* Ported from the former JS preset (theme.backgroundImage['glow-conic']). */
 @utility bg-glow-conic {
   background-image: conic-gradient(
